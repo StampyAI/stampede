@@ -1,0 +1,24 @@
+### Created by https://www.gitignore.io
+### Elixir ###
+/_build
+/cover
+/deps
+/doc
+/.fetch
+erl_crash.dump
+*.ez
+*.beam
+/config/*.secret.exs
+.elixir_ls/
+
+### Elixir Patch ###
+/doc
+
+# Nix resources
+/.nix-mix
+/.nix-hex
+
+# Logs
+/logs
+
+/Sites/*
