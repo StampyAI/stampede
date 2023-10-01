@@ -30,6 +30,9 @@ defmodule Stampede.MixProject do
       {:type_check, "~> 0.13.5"}, # https://hexdocs.pm/type_check/readme.html
       {:fast_yaml, "~> 1.0"},
       {:gen_stage, "~> 1.2"}, # https://hexdocs.pm/gen_stage/GenStage.html
+      {:nimble_options, "~> 1.0"}, # https://hexdocs.pm/nimble_options/NimbleOptions.html
+      ## NOTE: this would be great if it supported TOML
+      #{:confispex, "~> 1.1"}, # https://hexdocs.pm/confispex/api-reference.html
     ]
   end
   defp dialyzer() do

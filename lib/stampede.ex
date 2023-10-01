@@ -10,6 +10,13 @@ defmodule Stampede do
   @type! traceback :: [] | maybe_improper_list(String.t(), []) # BUG: type_check issue #189, iolist()
   @type! enabled_plugs :: :all | [] | nonempty_list(module())
 
+  @doc "use TypeCheck types in NimpleOptions, takes type expressions like @type!"
+  defmacro ntc(type) do
+    quote do
+    {:custom, TypeCheck, :dynamic_conforms,
+        [TypeCheck.Type.build(unquote(type))]}
+    end
+  end
   @doc "get a list of submodule atoms"
   @spec! find_submodules(module()) :: MapSet.t(module())
   def find_submodules(module_name) do

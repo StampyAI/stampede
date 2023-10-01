@@ -11,8 +11,7 @@ defmodule StampedeTest do
     plugs:
       - Test
   """
-  @dummy_cfg_parsed %{
-    __struct__: SiteConfig,
+  @dummy_cfg_verified %{
     service: :dummy,
     server_id: :testing,
     error_channel_id: :error,
@@ -29,6 +28,7 @@ defmodule StampedeTest do
   end
   test "SiteConfig load" do
     parsed = SiteConfig.load_from_string(@dummy_cfg)
-    assert parsed == @dummy_cfg_parsed
+    verified = SiteConfig.validate(parsed, SiteConfig.schema_base())
+    assert verified == @dummy_cfg_verified
   end
 end
