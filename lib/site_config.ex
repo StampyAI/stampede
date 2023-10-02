@@ -29,15 +29,27 @@ defmodule SiteConfig do
       ],
       plugs: [
         default: :all,
-        type: S.ntc(%MapSet{} | :all | MapSet.t(atom()))
+      type: {:custom, __MODULE__, :real_plugins, []}
       ]
     ]
   @type! site_name :: atom()
   @type! cfg_list :: map(site_name(), SiteConfig.t())
 
+  def real_plugins(:all), do: {:ok, :all}
+  def real_plugins(:none), do: {:ok, :none}
+  def real_plugins(plugs) when not is_struct(plugs, MapSet), do: {:error, "This is not a MapSet"}
+  def real_plugins(plugs) when is_struct(plugs, MapSet) do
+    existing = Plugin.ls(plugs)
+    if MapSet.equal?(existing, plugs) do
+      {:ok, plugs}
+    else
+      {:error, "Some plugins not found.\nFound: #{inspect(existing)}\nConfigured: #{inspect(plugs)}"}
+    end
+  end
   @doc "take input config as keywords, transform as necessary, validate, and return as map"
-  @spec! validate(keyword(), keyword(), [] | list(TypeCheck.Builtin.function(keyword()))) :: SiteConfig.t()
-  def validate(kwlist, schema, additional_transforms \\ []) do
+  @spec! validate!(keyword(), keyword() | struct(),
+    [] | list(TypeCheck.Builtin.function(keyword()))) :: SiteConfig.t()
+  def validate!(kwlist, schema, additional_transforms \\ []) do
     transforms = [
       &concat_plugs/2,
       &make_regex/2
