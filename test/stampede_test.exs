@@ -1,5 +1,5 @@
 defmodule StampedeTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: true
   alias Stampede, as: S
   alias Service.Dummy, as: D
   doctest Stampede
