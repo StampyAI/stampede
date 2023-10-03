@@ -23,18 +23,22 @@ defmodule Service.Dummy do
   @typep! dummy_state :: {SiteConfig.t(), channel_buffers()}
 
   @spec! channel_buffers_append(channel_buffers(), msg_tuple()) :: channel_buffers()
-  def channel_buffers_append(bufs, {channel, author, msg}) do
-    Map.update(bufs, channel, {}, &Tuple.append(&1, {author, msg}))
+  def channel_buffers_append(bufs, {channel, user, msg}) do
+    Map.update(bufs, channel, {}, &Tuple.append(&1, {user, msg}))
   end
 
   @spec! send_msg(identifier(), dummy_channel_id(), dummy_user_id(), msg_content()) :: nil | Response.t()
-  def send_msg(instance, channel, author, text) do
-    GenServer.call(instance, {:msg_new, {channel, author, text}})
+  def send_msg(instance, channel, user, text) do
+    GenServer.call(instance, {:msg_new, {channel, user, text}})
   end
 
   @spec! channel_history(identifier(), dummy_channel_id()) :: channel()
   def channel_history(instance, channel) do
     GenServer.call(instance, {:channel_history, channel})
+  end
+
+  def channel_dump(instance) do
+    GenServer.call(instance, :channel_dump)
   end
 
   @spec! start_link(Keyword.t()) :: :ignore | {:error, any} | {:ok, pid}
@@ -56,23 +60,26 @@ defmodule Service.Dummy do
   end
 
   @impl GenServer
-  def handle_call({:msg_new, {channel, user, msg}}, _from, orig_state = {cfg, buffers}) do
+  def handle_call({:msg_new, {channel, user, text}}, _from, {cfg, buffers}) do
+    buf2 = channel_buffers_append(buffers, {channel, user, text})
     our_msg = Msg.new(
-      body: msg,
+      body: text,
       channel_id: channel,
       author_id: user,
       server_id: self()
     )
     response = Plugin.get_top_response(cfg, our_msg)
     if response do
-      buf2 = channel_buffers_append(buffers, {channel, user, msg})
-            |> channel_buffers_append({channel, @system_user, response.text})
-      {:reply, response, {cfg, buf2}}
+      buf3 = channel_buffers_append(buf2, {channel, @system_user, response.text})
+      {:reply, response, {cfg, buf3}}
     else
-      {:reply, response, orig_state}
+      {:reply, response, {cfg, buf2}}
     end
   end
   def handle_call({:channel_history, channel}, _from, state = {_, history}) do
     {:reply, Map.fetch!(history, channel), state}
+  end
+  def handle_call(:channel_dump, _from, state = {_, history}) do
+    {:reply, history, state}
   end
 end

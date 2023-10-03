@@ -56,6 +56,16 @@ defmodule StampedeTest do
           assert is_struct(e, SillyError)
       end
     end
+    test "dummy channel_buffers" do
+      example_history = %{
+        c1: {{:a1, "m1"}, {:a2, "m2"}},
+        c2: {{:a3, "m3"}, {:a3, "m4"}}
+      }
+      assert D.channel_buffers_append(example_history, {:c2, :a4, "m5"}) == %{
+        c1: {{:a1, "m1"}, {:a2, "m2"}},
+        c2: {{:a3, "m3"}, {:a3, "m4"}, {:a4, "m5"}}
+      }
+    end
     test "SiteConfig load", _ do
       parsed = SiteConfig.load_from_string(@dummy_cfg)
       verified = SiteConfig.validate!(parsed, SiteConfig.schema_base())
@@ -67,12 +77,20 @@ defmodule StampedeTest do
       {:ok, s} = setup_dummy(Test01)
       assert nil == D.send_msg(s.dummy_pid, :t1, :u1, "no response")
       assert "pong!" == D.send_msg(s.dummy_pid, :t1, :u1, "!ping") |> Map.fetch!(:text)
+      assert D.channel_history(s.dummy_pid, :t1) == {{:u1, "!ping"},{:server, "pong!"}}
     end
     test "dummy + throwing" do
       {:ok, s} = setup_dummy(Test02)
+      ## BUG: when error is raised, dummy drops the first member of the channel history tuple.
+      ## Can be more clearly seen by enabling this code:
+
+      #nil = D.send_msg(s.dummy_pid, :t1, :nope, "nada")
+      #nil = D.send_msg(s.dummy_pid, :t1, :abc, "def")
       {result, log} = with_log(fn -> D.send_msg(s.dummy_pid, :t1, :u1, "!raise") end)
       assert match?(%{text: "*confused beeping*"}, result), "message return still functional"
       assert String.contains?(log, "SillyError"), "SillyError thrown"
+      assert %{t1: {{:u1, "!raise"}, {:server, "*confused beeping*"}}} == D.channel_dump(s.dummy_pid)
+      assert D.channel_history(s.dummy_pid, :t1) == {{:u1, "!raise"},{:server, "*confused beeping*"}}
     end
   end
 end
