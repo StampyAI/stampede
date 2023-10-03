@@ -17,6 +17,10 @@ defmodule Stampede do
         [TypeCheck.Type.build(unquote(type))]}
     end
   end
+  def quick_task_via(app_id) do
+    {:via, PartitionSupervisor,
+      {Module.safe_concat(app_id, QuickTaskSupers), self()}}
+  end
   @doc "get a list of submodule atoms"
   @spec! find_submodules(module()) :: MapSet.t(module())
   def find_submodules(module_name) do

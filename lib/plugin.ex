@@ -39,7 +39,8 @@ defmodule Plugin do
   @spec! get_top_response(SiteConfig.t(), Msg.t()) :: nil | Response.t()
   def get_top_response(cfg, msg) do
     result_list = __MODULE__.ls(cfg.plugs)
-    |> Enum.map(&Task.Supervisor.async_nolink(Stampede.TaskSupervisor, &1, :process_msg, [cfg, msg]))
+    |> Enum.map(&Task.Supervisor.async_nolink(
+        S.quick_task_via(cfg.app_id), &1, :process_msg, [cfg, msg]))
     |> Task.yield_many(timeout: @first_response_timeout, on_timeout: :kill_task)
     |> Enum.reduce([], fn result, acc -> 
         case result do

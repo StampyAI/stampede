@@ -11,27 +11,42 @@ defmodule SiteConfig do
   @type! channel_id :: S.channel_id()
   @type! t :: map(atom(), any())
   def schema_base(), do: [
-      service: [
-        required: true,
-        type: :atom
-      ],
-      server_id: [
-        required: true,
-        type: :any
-      ],
-      error_channel_id: [
-        required: true,
-        type: :any
-      ],
-      prefix: [
-        default: "!",
-        type: S.ntc(Regex.t() | String.t()),
-      ],
-      plugs: [
-        default: :all,
-      type: {:custom, __MODULE__, :real_plugins, []}
-      ]
+    service: [
+      required: true,
+      type: :atom,
+      doc: "Which service does your server reside on? Affects what config options are valid."
+    ],
+    server_id: [
+      required: true,
+      type: :any,
+      doc: "Dicord Guild ID, Slack group, etc"
+    ],
+    error_channel_id: [
+      required: true,
+      type: :any,
+      doc: "What channel should debugging messages be posted on? THIS SHOULD BE PRIVATE."
+    ],
+    prefix: [
+      default: "!",
+      type: S.ntc(Regex.t() | String.t()),
+      doc: "What prefix should users put on messages to have them responded to?"
+    ],
+    plugs: [
+      default: :all,
+      type: {:custom, __MODULE__, :real_plugins, []},
+      doc: "Which plugins will be asked for responses"
+    ],
+    app_id: [
+      default: Stampede,
+      type: :atom,
+      doc: """
+      Testing and debugging only. Used for redirecting queries to shared
+      resources, such as Stampede.Registry, Stampede.QuickTaskSupers, etc. by
+      renaming "Stampede" to something else. This isn't exactly a "site" config
+      but it saves needing a lot of extra function args all over the place.
+      """
     ]
+  ]
   @type! site_name :: atom()
   @type! cfg_list :: map(site_name(), SiteConfig.t())
 
@@ -52,7 +67,8 @@ defmodule SiteConfig do
   def validate!(kwlist, schema, additional_transforms \\ []) do
     transforms = [
       &concat_plugs/2,
-      &make_regex/2
+      &make_regex/2,
+      &atomize_app_id/2
     ]
     Enum.reduce(transforms ++ additional_transforms, kwlist,
       fn f, acc ->
@@ -83,6 +99,18 @@ defmodule SiteConfig do
         else
           prefix
         end
+      end)
+    else
+      kwlist
+    end
+  end
+  def atomize_app_id(kwlist, _schema) do
+    if Keyword.has_key?(kwlist, :app_id) do
+      Keyword.update!(kwlist, :app_id, fn 
+        s when is_binary(s) -> 
+          Module.concat([s])
+        a when is_atom(a) -> 
+          a
       end)
     else
       kwlist

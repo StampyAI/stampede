@@ -20,7 +20,7 @@ defmodule Service.Dummy do
   @typep! channel :: tuple()
   # multiple channels
   @typep! channel_buffers :: %{dummy_channel_id() => channel()} | %{}
-  @typep! dummy_state :: {SiteConfig.t(), channel_buffers(), identifier() | module()}
+  @typep! dummy_state :: {SiteConfig.t(), channel_buffers()}
 
   @spec! channel_buffers_append(channel_buffers(), msg_tuple()) :: channel_buffers()
   def channel_buffers_append(bufs, {channel, author, msg}) do
@@ -37,26 +37,26 @@ defmodule Service.Dummy do
     GenServer.call(instance, {:channel_history, channel})
   end
 
-  @spec! start_link(Keyword.t(), identifier() | module()) :: :ignore | {:error, any} | {:ok, pid}
-  def start_link(args \\ [], registry \\ Stampede.Registry) do
-    GenServer.start_link(__MODULE__, {args, registry})
+  @spec! start_link(Keyword.t()) :: :ignore | {:error, any} | {:ok, pid}
+  def start_link(cfg_overrides \\ []) do
+    GenServer.start_link(__MODULE__, cfg_overrides)
   end
   @impl GenServer
-  @spec! init({Keyword.t(), identifier() | module()}) :: {:ok, dummy_state()}
-  def init({site_cfg, registry}) do
+  @spec! init(Keyword.t()) :: {:ok, dummy_state()}
+  def init(cfg_overrides) do
     %{schema: schema} = NimbleOptions.new!(SiteConfig.schema_base())
     defaults = [service: :dummy, server_id: self(),
       error_channel_id: :error, prefix: "!",
       plugs: ["Test"]]
-    cfg = Keyword.merge(defaults, site_cfg)
+    cfg = Keyword.merge(defaults, cfg_overrides)
     |> SiteConfig.validate!(schema)
     
     #Service.register_logger(registry, __MODULE__, self())
-    {:ok, {cfg, Map.new(), registry}}
+    {:ok, {cfg, Map.new()}}
   end
 
   @impl GenServer
-  def handle_call({:msg_new, {channel, user, msg}}, _from, orig_state = {cfg, buffers, _registry}) do
+  def handle_call({:msg_new, {channel, user, msg}}, _from, orig_state = {cfg, buffers}) do
     our_msg = Msg.new(
       body: msg,
       channel_id: channel,

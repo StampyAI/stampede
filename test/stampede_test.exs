@@ -11,13 +11,15 @@ defmodule StampedeTest do
     prefix: "!"
     plugs:
       - Test
+    app_id: "Test01"
   """
   @dummy_cfg_verified %{
     service: :dummy,
     server_id: :testing,
     error_channel_id: :error,
     prefix: "!",
-    plugs: MapSet.new([Plugin.Test])
+    plugs: MapSet.new([Plugin.Test]),
+    app_id: Test01
   }
 
   describe "stateless functions" do
@@ -36,13 +38,12 @@ defmodule StampedeTest do
   end
   describe "dummy server" do
     setup %{} do
-      with {:ok, reg_pid} <- 
-        Registry.start_link(keys: :duplicate, name: Stampede.Registry, partitions: System.schedulers_online()),
-      {:ok, spr_pid} <- 
-        Task.Supervisor.start_link(name: Stampede.TaskSupervisor),
+      id = Test01
+      with {:ok, app_pid} <- 
+        Stampede.Application.start(:normal, app_id: id),
       {:ok, dummy_pid} <- 
-        D.start_link([plugs: MapSet.new([Plugin.Test])], reg_pid) do
-          {:ok, reg_pid: reg_pid, dummy_pid: dummy_pid}
+        D.start_link([plugs: MapSet.new([Plugin.Test]), app_id: id]) do
+          {:ok, app_pid: app_pid, dummy_pid: dummy_pid}
         end
     end
     test "dummy + ping", s do
