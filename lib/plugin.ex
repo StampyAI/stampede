@@ -78,7 +78,7 @@ defmodule Plugin.Why do
             [s | "got no response."]
           {:ok, res} -> 
             [s, "it responded: \"", res.why, "\""]
-          {:exit, val} -> 
+          {:exit, {val, _trace_location}} -> 
             [s | "there was an error of type #{val.__struct__}, message #{val.message}"]
           other -> 
             [s | "I'm not sure what went wrong.\n#{inspect(other, pretty: true)}"]
