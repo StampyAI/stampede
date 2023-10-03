@@ -29,6 +29,15 @@ defmodule StampedeTest do
       )
       r = Plugin.Test.process_msg(nil, msg)
       assert r.text == "pong!"
+      msg = S.Msg.new(
+        body: "!raise", channel_id: :t1, author_id: :u1, server_id: :none
+      )
+      try do
+        Plugin.Test.process_msg(nil, msg)
+      rescue
+        e -> 
+          assert is_struct(e, SillyError)
+      end
     end
     test "SiteConfig load", _ do
       parsed = SiteConfig.load_from_string(@dummy_cfg)

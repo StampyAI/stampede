@@ -7,7 +7,12 @@ defmodule Plugin.Test do
   def process_msg(_, msg) do
     case msg.body do
       "!ping" -> S.Response.new(confidence: 10, text: "pong!", why: ["They pinged so I ponged!"])
+      "!raise" -> raise SillyError
       _ -> nil
     end
   end
 end
+defmodule SillyError do
+  defexception [message: "Intentional exception raised"]
+end
+
