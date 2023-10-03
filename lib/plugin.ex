@@ -4,7 +4,7 @@ defmodule Plugin do
   alias Stampede, as: S
   alias S.{Msg,Response}
   @first_response_timeout 500
-  @callback process_message(SiteConfig.t(), Msg.t()) :: nil | Response.t()
+  @callback process_msg(SiteConfig.t(), Msg.t()) :: nil | Response.t()
 
   defmacro __using__(_opts \\ []) do
     quote do
@@ -38,11 +38,11 @@ defmodule Plugin do
   defp failure_summary(other), do: "failure_summary didn't recognize the task/result tuple: #{inspect(other, pretty: true)}"
   @spec! get_top_response(SiteConfig.t(), Msg.t()) :: nil | Response.t()
   def get_top_response(cfg, msg) do
-    result_list = __MODULE__.ls(cfg.plugs)
+    task_results = __MODULE__.ls(cfg.plugs)
     |> Enum.map(&Task.Supervisor.async_nolink(
         S.quick_task_via(cfg.app_id), &1, :process_msg, [cfg, msg]))
     |> Task.yield_many(timeout: @first_response_timeout, on_timeout: :kill_task)
-    |> Enum.reduce([], fn result, acc -> 
+    final_responses = Enum.reduce(task_results, [], fn result, acc -> 
         case result do
           {_task, {:ok, result}} ->
             if result == nil, do: acc,
@@ -53,12 +53,37 @@ defmodule Plugin do
         end
     end)
     |> Response.sort()
-    case result_list do
+    case final_responses do
       [] -> nil
       successes when is_list(successes) ->
-        hd(successes)
+        chosen = hd(successes)
+        why_others = Plugin.Why.tried_plugs(task_results) |> IO.iodata_to_binary()
+        Map.put(chosen, :why, why_others)
     end
     # TODO: callbacks, and traceback appends
+  end
+end
+defmodule Plugin.Why do
+  use TypeCheck
+  require Logger
+  alias Stampede, as: S
+  #alias S.{Msg,Response}
+
+  def tried_plugs(task_results) do
+    Enum.reduce(task_results, [], fn 
+      {%{mfa: {mod, _, _}}, return}, acc -> 
+        s = [acc | "\nWe asked #{mod}, and "]
+        case return do
+          {:ok, nil} -> 
+            [s | "got no response."]
+          {:ok, res} -> 
+            [s, "it responded: \"", res.why, "\""]
+          {:exit, val} -> 
+            [s | "there was an error of type #{val.__struct__}, message #{val.message}"]
+          other -> 
+            [s | "I'm not sure what went wrong.\n#{inspect(other, pretty: true)}"]
+        end
+    end)
   end
 end
 

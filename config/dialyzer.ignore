@@ -1,0 +1,15 @@
+lib/plugin.ex:75: Cons will produce an improper list since its 2nd argument is <<_:8,_:_*1>>
+lib/plugin.ex:77: Cons will produce an improper list since its 2nd argument is <<_:128>>
+lib/plugin.ex:81: Cons will produce an improper list since its 2nd argument is <<_:8,_:_*1>>
+lib/plugin.ex:83: Cons will produce an improper list since its 2nd argument is <<_:8,_:_*1>>
+lib/service/dummy.ex:17: Function msg_content/0 has no local return
+lib/service/dummy.ex:19: Function msg_tuple/0 has no local return
+lib/service/dummy.ex:22: Function channel_buffers/0 has no local return
+lib/service/dummy.ex:23: Function dummy_state/0 has no local return
+lib/stampede.ex:6: Function log_level/0 has no local return
+lib/stampede.ex:7: Function log_msg/0 has no local return
+lib/stampede.ex:8: Function prefix/0 has no local return
+lib/stampede.ex:9: Function module_function_args/0 has no local return
+lib/stampede.ex:10: Function traceback/0 has no local return
+lib/stampede.ex:11: Function enabled_plugs/0 has no local return
+

@@ -63,7 +63,7 @@ defmodule SiteConfig do
   end
   @doc "take input config as keywords, transform as necessary, validate, and return as map"
   @spec! validate!(keyword(), keyword() | struct(),
-    [] | list(TypeCheck.Builtin.function(keyword()))) :: SiteConfig.t()
+    [] | list((keyword() -> keyword()))) :: SiteConfig.t()
   def validate!(kwlist, schema, additional_transforms \\ []) do
     transforms = [
       &concat_plugs/2,

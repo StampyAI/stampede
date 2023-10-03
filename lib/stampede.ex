@@ -7,7 +7,7 @@ defmodule Stampede do
   @type! log_msg :: {log_level(), identifier(), {Logger, String.t() | maybe_improper_list(), any(), any()}}
   @type! prefix :: String.t() | Regex.t()
   @type! module_function_args :: {module(), function(), tuple()}
-  @type! traceback :: [] | maybe_improper_list(String.t(), []) # BUG: type_check issue #189, iolist()
+  @type! traceback :: String.t() | [] | maybe_improper_list(String.t(), []) # BUG: type_check issue #189, iolist()
   @type! enabled_plugs :: :all | [] | nonempty_list(module())
 
   @doc "use TypeCheck types in NimpleOptions, takes type expressions like @type!"
@@ -50,4 +50,12 @@ defmodule Stampede do
   #def strip_prefix(prefix, msg) when binary_part(msg, 0, floor(bit_size(prefix) / 8)) == prefix do
   #  binary_part(msg, floor(bit_size(prefix) / 8), floor((bit_size(msg) - bit_size(prefix)) / 8))
   #end
+  @spec! if_then(any(), any(), (any() -> any())) :: any()
+  def if_then(value, condition, func) do
+    if condition do
+      func.(value)
+    else
+      value
+    end
+  end
 end

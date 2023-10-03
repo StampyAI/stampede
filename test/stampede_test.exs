@@ -58,6 +58,7 @@ defmodule StampedeTest do
     test "dummy + ping", s do
       assert nil == D.send_msg(s.dummy_pid, :t1, :u1, "no response")
       assert "pong!" == D.send_msg(s.dummy_pid, :t1, :u1, "!ping") |> Map.fetch!(:text)
+      assert nil == D.send_msg(s.dummy_pid, :t1, :u1, "!raise")
     end
   end
 end
