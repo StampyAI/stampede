@@ -9,15 +9,35 @@ defmodule Stampede.MixProject do
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       dialyzer: dialyzer(),
-      preferred_cli_env: [release: :prod],
+      preferred_cli_env: [release: :prod,
+                          t: :test],
+      aliases: [t: "test --no-start"],
     ]
   end
 
+  def configure_app(list) when is_list(list), do: configure_app(list, nil)
+  def configure_app(mod_list, nil) when is_list(mod_list) do
+    configure_app(mod_list, [
+      extra_applications: [:logger, :runtime_tools],
+      mod: {Stampede.Application, [installed_services: []]},
+      included_applications: []
+    ])
+  end
+  def configure_app([first | rest], config_acc) when is_list(config_acc) do
+    case first do
+      :discord -> 
+        new_acc = Keyword.update!(config_acc, :mod, fn {mod, kwlist} -> 
+            {mod, Keyword.update!(kwlist, :installed_services, fn list -> [:discord | list] end)}
+          end) |> Keyword.update!(:extra_applications, fn app_list -> 
+            [:certifi, :gun, :inets, :jason, :kcl, :mime | app_list]
+          end)
+        configure_app(rest, new_acc)
+    end
+  end
+  def configure_app([], config_acc) when is_list(config_acc), do: config_acc
   # Run "mix help compile.app" to learn about applications.
   def application do
-    [
-      extra_applications: [:logger, :runtime_tools]
-    ]
+    configure_app([:discord])
   end
 
   # Run "mix help deps" to learn about dependencies.

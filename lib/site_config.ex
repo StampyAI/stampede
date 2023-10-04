@@ -19,7 +19,7 @@ defmodule SiteConfig do
     server_id: [
       required: true,
       type: :any,
-      doc: "Dicord Guild ID, Slack group, etc"
+      doc: "Discord Guild ID, Slack group, etc"
     ],
     error_channel_id: [
       required: true,
@@ -131,7 +131,12 @@ defmodule SiteConfig do
   end
   @spec! load_all(String.t()) :: cfg_list()
   def load_all(dir) do
-    Path.wildcard(dir <> "/*")
+    target_dir = case Mix.env() do
+      :prod -> dir
+      other when is_atom(other) -> 
+        dir <> "_" <> Atom.to_string(other)
+    end
+    Path.wildcard(target_dir <> "/*")
     |> Enum.map(fn path -> 
       site_name = String.to_atom(Path.basename(path, ".yml"))
       config = load(path)

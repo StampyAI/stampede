@@ -11,6 +11,7 @@ defmodule Plugin do
       @behaviour unquote(__MODULE__)
     end
   end
+
   def ls() do
     S.find_submodules(__MODULE__)
   end
@@ -20,6 +21,7 @@ defmodule Plugin do
   def ls(enabled) do
     MapSet.intersection(enabled, ls())
   end
+
   @spec! failure_summary(any()) :: String.t()
   defp failure_summary({task, {:error, issue}}),
     do: "Task failed: #{inspect(task, pretty: true)}\nError: #{inspect(issue, pretty: true)}"
@@ -36,6 +38,7 @@ defmodule Plugin do
   defp failure_summary({task, nil}),
     do: "Task failed: #{inspect(task, pretty: true)}\nError: no return"
   defp failure_summary(other), do: "failure_summary didn't recognize the task/result tuple: #{inspect(other, pretty: true)}"
+
   @spec! get_top_response(SiteConfig.t(), Msg.t()) :: nil | Response.t()
   def get_top_response(cfg, msg) do
     task_results = __MODULE__.ls(cfg.plugs)
@@ -66,7 +69,7 @@ end
 defmodule Plugin.Why do
   use TypeCheck
   require Logger
-  alias Stampede, as: S
+  #alias Stampede, as: S
   #alias S.{Msg,Response}
 
   def tried_plugs(task_results) do
