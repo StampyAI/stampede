@@ -51,6 +51,7 @@ defmodule Stampede.MixProject do
       {:fast_yaml, "~> 1.0"},
       {:gen_stage, "~> 1.2"}, # https://hexdocs.pm/gen_stage/GenStage.html
       {:nimble_options, "~> 1.0"}, # https://hexdocs.pm/nimble_options/NimbleOptions.html
+      {:logstash_logger_formatter, "~> 1.1"},
       ## NOTE: this would be great if it supported TOML
       #{:confispex, "~> 1.1"}, # https://hexdocs.pm/confispex/api-reference.html
     ]

@@ -30,6 +30,11 @@ defmodule Stampede.Application do
         type: :string,
         default: "./Sites",
         doc: "read from :stampede/:config_dir"
+      ],
+      log_to_file: [
+        type: :boolean,
+        default: true,
+        doc: "enable file logging"
       ]
     ])
   end
@@ -73,8 +78,9 @@ defmodule Stampede.Application do
     args = keyword_put_new_if_not_falsy(override_args, :services, Application.get_env(:stampede, :services, false))
     args = keyword_put_new_if_not_falsy(args, :config_dir, Application.get_env(:stampede, :config_dir, false))
       |> NimbleOptions.validate!(app_config_schema())
+
     app_id = Module.concat([Keyword.get(args, :app_id)])
-    :ok = Logger.add_handlers(:stampede)
+    if args[:log_to_file], do: :ok = Logger.add_handlers(:stampede)
     
     children = make_children(args, app_id)
 

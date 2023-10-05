@@ -25,7 +25,10 @@ defmodule StampedeTest do
   }
   def setup_dummy(id) do
     with {:ok, app_pid} <- 
-      Stampede.Application.start(:normal, [app_id: id, installed_services: [], services: :none]),
+      Stampede.Application.start(:normal, [
+        app_id: id, installed_services: [],
+        services: :none, log_to_file: false
+      ]),
       {:ok, dummy_pid} <- 
         D.start_link([plugs: MapSet.new([Plugin.Test, Plugin.Sentience]), app_id: id]) do
       {:ok, Map.new(app_pid: app_pid, dummy_pid: dummy_pid)}
