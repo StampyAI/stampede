@@ -75,8 +75,10 @@ defmodule Stampede.Application do
   end
   @impl Application
   def start(_type, override_args \\ []) do
+    Logger.metadata(stampede_component: :application)
+
     args = keyword_put_new_if_not_falsy(override_args, :services, Application.get_env(:stampede, :services, false))
-    args = keyword_put_new_if_not_falsy(args, :config_dir, Application.get_env(:stampede, :config_dir, false))
+      |> keyword_put_new_if_not_falsy(:config_dir, Application.get_env(:stampede, :config_dir, false))
       |> NimbleOptions.validate!(app_config_schema())
 
     app_id = Module.concat([Keyword.get(args, :app_id)])

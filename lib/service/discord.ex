@@ -30,6 +30,7 @@ defmodule Service.Discord do
 
   @impl Supervisor
   def init(_args) do
+    Logger.metadata(stampede_component: :discord)
     children = [
       Nostrum.Application,
       Service.Discord.Consumer
@@ -48,8 +49,9 @@ defmodule Service.Discord.Consumer do
   alias Nostrum.Api
 
   def handle_event({:MESSAGE_CREATE, msg, _ws_state}) do
-    # use msg.guild_id to find config. If cfg.shy is enabled, prefix
-    # check should be done before sending anything at all
+    # TODO: use msg.guild_id to find config. If cfg.shy is enabled, prefix
+    # check should be done before sending anything at all to other processes.
+    # Also label :interaction_id logger metadata
     case msg.content do
       "!ping" ->
         {:ok, Api.create_message(msg.channel_id, content: "pong!")}

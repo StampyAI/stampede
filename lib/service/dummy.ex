@@ -48,6 +48,7 @@ defmodule Service.Dummy do
   @impl GenServer
   @spec! init(Keyword.t()) :: {:ok, dummy_state()}
   def init(cfg_overrides) do
+    Logger.metadata(stampede_component: :dummy)
     %{schema: schema} = NimbleOptions.new!(SiteConfig.schema_base())
     defaults = [service: :dummy, server_id: self(),
       error_channel_id: :error, prefix: "!",

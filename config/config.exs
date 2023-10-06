@@ -1,10 +1,12 @@
 import Config
 
 config :logger, :console,
+  level: :info,
   metadata: [:shard, :guild, :channel] # extra nostrum metadata
 
 config :logger,
-  handle_otp_reports: true
+  handle_otp_reports: true,
+  handle_sasl_reports: false # may god have mercy on your soul
 
 config :stampede, :logger, [
   {:handler, :file_log, :logger_std_h, %{
@@ -17,8 +19,12 @@ config :stampede, :logger, [
       compress_on_rotate: true
     },
     formatter: Logger.Formatter.new(
-      format: {LogstashLoggerFormatter, :format}
-    )
+        format: {LogstashLoggerFormatter, :format},
+        colors: [enabled: false],
+        level: :all,
+        metadata: [:shard, :guild, :channel,
+          :stampede_component, :interaction_id]
+      ),
   }}
 ]
 
