@@ -92,7 +92,7 @@ defmodule Stampede.Application do
 
   @impl Application
   def start(_type, override_args \\ []) do
-    Logger.metadata(stampede_component: :application)
+    :ok = Logger.metadata(stampede_component: :application)
 
     args =
       keyword_put_new_if_not_falsy(
@@ -106,8 +106,9 @@ defmodule Stampede.Application do
       )
       |> NimbleOptions.validate!(app_config_schema())
 
-    app_id = Module.concat([Keyword.get(args, :app_id)])
     if args[:log_to_file], do: :ok = Logger.add_handlers(:stampede)
+
+    app_id = Module.concat([Keyword.get(args, :app_id)])
 
     children = make_children(args, app_id)
 
