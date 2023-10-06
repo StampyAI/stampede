@@ -6,21 +6,27 @@ defmodule Service.Discord do
   @type! discord_guild_id :: non_neg_integer()
   @type! discord_user_id :: non_neg_integer()
 
-  #@behaviour Service
+  # @behaviour Service
 
-  #@impl Service
-  #def should_start(_config) do
+  # @impl Service
+  # def should_start(_config) do
   #  case Application.get_env(:nostrum, :token, nil) do
   #    nil -> false
   #    _ -> true
   #  end
-  #end
-  #@impl Service
-  def log_error(discord_channel_id, _log_msg = {level, _gl, {Logger, message, _timestamp, _metadata}}) do
+  # end
+  # @impl Service
+  def log_error(
+        discord_channel_id,
+        _log_msg = {level, _gl, {Logger, message, _timestamp, _metadata}}
+      ) do
     # TODO: disable if Discord not connected/working
-    return = Nostrum.Api.create_message(
-      discord_channel_id,
-      content: "#{level}: #{message}")
+    return =
+      Nostrum.Api.create_message(
+        discord_channel_id,
+        content: "#{level}: #{message}"
+      )
+
     return
   end
 
@@ -31,6 +37,7 @@ defmodule Service.Discord do
   @impl Supervisor
   def init(_args) do
     Logger.metadata(stampede_component: :discord)
+
     children = [
       Nostrum.Application,
       Service.Discord.Consumer
@@ -55,9 +62,11 @@ defmodule Service.Discord.Consumer do
     case msg.content do
       "!ping" ->
         {:ok, Api.create_message(msg.channel_id, content: "pong!")}
-      "!throw" -> 
+
+      "!throw" ->
         raise "intentional fail!"
-      _ -> 
+
+      _ ->
         :ignore
     end
   end
@@ -82,7 +91,7 @@ defmodule Service.Discord.Logger do
   @impl :gen_event
   @spec! init(any()) :: {:ok, logger_state()}
   def init(_) do
-    backend_env = Application.get_env(:logger, __MODULE__, [level: :warning])
+    backend_env = Application.get_env(:logger, __MODULE__, level: :warning)
     {:ok, backend_env}
   end
 
@@ -90,20 +99,26 @@ defmodule Service.Discord.Logger do
   @spec! handle_event(any(), logger_state()) :: {:ok, logger_state()}
   def handle_event(log_msg = {level, gl, {Logger, _message, _timestamp, _metadata}}, state)
       when node(gl) == node() do
-    _ = cond do
-      Logger.compare_levels(level, state[:level]) == :lt -> nil
-      # HACK: hardcoded channel
-      true -> Application.fetch_env!(:stampede, :error_channel_id)
-              |> Service.Discord.log_error(log_msg)
-    end
+    _ =
+      cond do
+        Logger.compare_levels(level, state[:level]) == :lt ->
+          nil
+
+        # HACK: hardcoded channel
+        true ->
+          Application.fetch_env!(:stampede, :error_channel_id)
+          |> Service.Discord.log_error(log_msg)
+      end
+
     {:ok, state}
   end
 
   # NOTE: mandatory default handler, removing will crash
   def handle_event({_, gl, {_, _, _, _}}, state)
-      when node(gl) != node(), do: {:ok, state}
-  def handle_event(_, state), do: {:ok, state}
+      when node(gl) != node(),
+      do: {:ok, state}
 
+  def handle_event(_, state), do: {:ok, state}
 
   @impl :gen_event
   def handle_call({:configure, options}, state) do

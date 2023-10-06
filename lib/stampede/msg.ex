@@ -9,5 +9,6 @@ defmodule Stampede.Msg do
     author_id: _ :: S.user_id(),
     server_id: _ :: S.server_id()
   )
+
   def new(keys), do: struct!(__MODULE__, keys)
 end

@@ -15,7 +15,7 @@ defmodule Plugin.Test do
     end
   end
 end
-defmodule SillyError do
-  defexception [message: "Intentional exception raised"]
-end
 
+defmodule SillyError do
+  defexception message: "Intentional exception raised"
+end

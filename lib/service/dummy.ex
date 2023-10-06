@@ -27,7 +27,8 @@ defmodule Service.Dummy do
     Map.update(bufs, channel, {}, &Tuple.append(&1, {user, msg}))
   end
 
-  @spec! send_msg(identifier(), dummy_channel_id(), dummy_user_id(), msg_content()) :: nil | Response.t()
+  @spec! send_msg(identifier(), dummy_channel_id(), dummy_user_id(), msg_content()) ::
+           nil | Response.t()
   def send_msg(instance, channel, user, text) do
     GenServer.call(instance, {:msg_new, {channel, user, text}})
   end
@@ -45,31 +46,43 @@ defmodule Service.Dummy do
   def start_link(cfg_overrides \\ []) do
     GenServer.start_link(__MODULE__, cfg_overrides)
   end
+
   @impl GenServer
   @spec! init(Keyword.t()) :: {:ok, dummy_state()}
   def init(cfg_overrides) do
     Logger.metadata(stampede_component: :dummy)
     %{schema: schema} = NimbleOptions.new!(SiteConfig.schema_base())
-    defaults = [service: :dummy, server_id: self(),
-      error_channel_id: :error, prefix: "!",
-      plugs: ["Test"]]
-    cfg = Keyword.merge(defaults, cfg_overrides)
-    |> SiteConfig.validate!(schema)
-    
-    #Service.register_logger(registry, __MODULE__, self())
+
+    defaults = [
+      service: :dummy,
+      server_id: self(),
+      error_channel_id: :error,
+      prefix: "!",
+      plugs: ["Test"]
+    ]
+
+    cfg =
+      Keyword.merge(defaults, cfg_overrides)
+      |> SiteConfig.validate!(schema)
+
+    # Service.register_logger(registry, __MODULE__, self())
     {:ok, {cfg, Map.new()}}
   end
 
   @impl GenServer
   def handle_call({:msg_new, {channel, user, text}}, _from, {cfg, buffers}) do
     buf2 = channel_buffers_append(buffers, {channel, user, text})
-    our_msg = Msg.new(
-      body: text,
-      channel_id: channel,
-      author_id: user,
-      server_id: self()
-    )
+
+    our_msg =
+      Msg.new(
+        body: text,
+        channel_id: channel,
+        author_id: user,
+        server_id: self()
+      )
+
     response = Plugin.get_top_response(cfg, our_msg)
+
     if response do
       buf3 = channel_buffers_append(buf2, {channel, @system_user, response.text})
       {:reply, response, {cfg, buf3}}
@@ -77,9 +90,11 @@ defmodule Service.Dummy do
       {:reply, response, {cfg, buf2}}
     end
   end
+
   def handle_call({:channel_history, channel}, _from, state = {_, history}) do
     {:reply, Map.fetch!(history, channel), state}
   end
+
   def handle_call(:channel_dump, _from, state = {_, history}) do
     {:reply, history, state}
   end
