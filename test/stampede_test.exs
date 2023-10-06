@@ -43,7 +43,7 @@ defmodule StampedeTest do
     end
 
     test "strip_prefix regex" do
-      assert "ping" == S.strip_prefix(~r/^!(.*)/, "!ping")
+      assert "ping" == S.strip_prefix(~r/(.*) me bro/, "ping me bro")
     end
 
     test "basic test plugin", _ do

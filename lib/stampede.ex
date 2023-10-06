@@ -36,27 +36,29 @@ defmodule Stampede do
   end
 
   @doc """
-    If passed a text prefix, will match `^prefix(.*)`. If passed regex, will match whatever was given.
+  If passed a text prefix, will match the start of the string. If passed a
+  regex, it will match whatever was given and return the first match group.
   """
   @spec! strip_prefix(String.t() | Regex.t(), String.t()) :: false | String.t()
-  def strip_prefix(prefix, text) do
-    rex =
-      if not is_struct(prefix, Regex) do
-        Regex.compile!("^" <> prefix <> "(.*)")
-      else
-        prefix
-      end
+  def strip_prefix(prefix, msg)
+      ## here comes the "smart" """optimized""" solution
+      when is_binary(prefix) and
+             binary_part(msg, 0, floor(bit_size(prefix) / 8)) == prefix do
+    binary_part(msg, floor(bit_size(prefix) / 8), floor((bit_size(msg) - bit_size(prefix)) / 8))
+  end
 
+  def strip_prefix(prefix, msg)
+      when is_binary(prefix) and
+             binary_part(msg, 0, floor(bit_size(prefix) / 8)) != prefix,
+      do: false
+
+  def strip_prefix(rex, text) when is_struct(rex, Regex) do
     case Regex.run(rex, text) do
       nil -> false
       [_p, body] -> body
     end
   end
 
-  ### "smart" solution
-  # def strip_prefix(prefix, msg) when binary_part(msg, 0, floor(bit_size(prefix) / 8)) == prefix do
-  #  binary_part(msg, floor(bit_size(prefix) / 8), floor((bit_size(msg) - bit_size(prefix)) / 8))
-  # end
   @spec! if_then(any(), any(), (any() -> any())) :: any()
   def if_then(value, condition, func) do
     if condition do
