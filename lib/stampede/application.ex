@@ -6,6 +6,7 @@ defmodule Stampede.Application do
   use TypeCheck
 
   use Application
+
   @services %{discord: Service.Discord}
 
   def app_config_schema() do
@@ -37,14 +38,42 @@ defmodule Stampede.Application do
     )
   end
 
-  def all_services(installed, app_id) do
-    installed |> Enum.map(&service_name(&1, app_id))
+  @impl Application
+  def start(_type, override_args \\ []) do
+    :ok = Logger.metadata(stampede_component: :application)
+
+    args =
+      keyword_put_new_if_not_falsy(
+        override_args,
+        :services,
+        Application.get_env(:stampede, :services, false)
+      )
+      |> keyword_put_new_if_not_falsy(
+        :config_dir,
+        Application.get_env(:stampede, :config_dir, false)
+      )
+      |> NimbleOptions.validate!(app_config_schema())
+
+    if args[:log_to_file], do: :ok = Logger.add_handlers(:stampede)
+
+    app_id = Module.concat([Keyword.get(args, :app_id)])
+
+    children = make_children(args, app_id)
+
+    # See https://hexdocs.pm/elixir/Supervisor.html
+    # for other strategies and supported options
+    opts = [strategy: :one_for_one, name: Module.concat(app_id, "Supervisor")]
+    Supervisor.start_link(children, opts)
   end
 
   def service_name(atom, app_id) when is_atom(atom) do
     @services
     |> Map.fetch!(atom)
     |> then(fn name -> {name, app_id: app_id} end)
+  end
+
+  def all_services(installed, app_id) do
+    installed |> Enum.map(&service_name(&1, app_id))
   end
 
   def make_children(args, app_id) do
@@ -88,34 +117,6 @@ defmodule Stampede.Application do
     else
       kwlist
     end
-  end
-
-  @impl Application
-  def start(_type, override_args \\ []) do
-    :ok = Logger.metadata(stampede_component: :application)
-
-    args =
-      keyword_put_new_if_not_falsy(
-        override_args,
-        :services,
-        Application.get_env(:stampede, :services, false)
-      )
-      |> keyword_put_new_if_not_falsy(
-        :config_dir,
-        Application.get_env(:stampede, :config_dir, false)
-      )
-      |> NimbleOptions.validate!(app_config_schema())
-
-    if args[:log_to_file], do: :ok = Logger.add_handlers(:stampede)
-
-    app_id = Module.concat([Keyword.get(args, :app_id)])
-
-    children = make_children(args, app_id)
-
-    # See https://hexdocs.pm/elixir/Supervisor.html
-    # for other strategies and supported options
-    opts = [strategy: :one_for_one, name: Module.concat(app_id, "Supervisor")]
-    Supervisor.start_link(children, opts)
   end
 
   def handle_info(:DOWN, _, _, worker_pid, reason) do
