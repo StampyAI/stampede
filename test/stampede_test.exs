@@ -48,12 +48,11 @@ defmodule StampedeTest do
 
     test "S.keyword_put_new_if_not_falsy" do
       kw1 = [a: 1, b: 2]
-      kw2 = [a: 1, b: 4]
-      kw3 = [a: 1, b: 2, c: 3]
+      kw2 = [a: 1, b: 2, c: 3]
 
       assert kw1 == kw1 |> S.keyword_put_new_if_not_falsy(:a, false)
       assert kw1 == kw1 |> S.keyword_put_new_if_not_falsy(:b, 4)
-      assert kw3 == kw1 |> S.keyword_put_new_if_not_falsy(:c, 3) |> Enum.sort()
+      assert kw2 == kw1 |> S.keyword_put_new_if_not_falsy(:c, 3) |> Enum.sort()
     end
 
     test "basic test plugin" do
@@ -104,14 +103,16 @@ defmodule StampedeTest do
   end
 
   describe "dummy server" do
-    test "dummy + ping" do
+    test "ping" do
       {:ok, s} = setup_dummy(Test01)
       assert nil == D.send_msg(s.dummy_pid, :t1, :u1, "no response")
       assert "pong!" == D.send_msg(s.dummy_pid, :t1, :u1, "!ping") |> Map.fetch!(:text)
-      assert D.channel_history(s.dummy_pid, :t1) == {{:u1, "!ping"}, {:server, "pong!"}}
+
+      assert D.channel_history(s.dummy_pid, :t1) ==
+               {{:u1, "no response"}, {:u1, "!ping"}, {:server, "pong!"}}
     end
 
-    test "dummy ignores messages from other servers" do
+    test "ignores messages from other servers" do
       {:ok, s} = setup_dummy(Test03)
       nil = D.send_msg(s.dummy_pid, :t1, :nope, "nada")
       nil = D.send_msg(s.dummy_pid, :t1, :abc, "def")
@@ -122,7 +123,7 @@ defmodule StampedeTest do
                {{:nope, "nada"}, {:abc, "def"}, {:u1, "!ping"}, {:server, "pong!"}}
     end
 
-    test "dummy + throwing" do
+    test "throwing" do
       {:ok, s} = setup_dummy(Test02)
       ## BUG: when error is raised, dummy drops the first member of the channel history tuple.
       ## Can be more clearly seen by enabling this code:
@@ -138,6 +139,30 @@ defmodule StampedeTest do
 
       assert D.channel_history(s.dummy_pid, :t1) ==
                {{:u1, "!raise"}, {:server, "*confused beeping*"}}
+    end
+  end
+
+  describe "dummy server channels" do
+    test "one message" do
+      {:ok, s} = setup_dummy(Test05)
+      D.send_msg(s.dummy_pid, :t1, :u1, "lol")
+      assert D.channel_history(s.dummy_pid, :t1) == {{:u1, "lol"}}
+    end
+
+    test "many messages" do
+      {:ok, s} = setup_dummy(Test04)
+
+      dummy_messages =
+        0..9
+        |> Enum.map(fn x ->
+          {:t1, :u1, "#{x}"}
+        end)
+        |> Enum.map(fn {a, u, m} ->
+          D.send_msg(s.dummy_pid, a, u, m)
+          {u, m}
+        end)
+
+      assert D.channel_history(s.dummy_pid, :t1) == List.to_tuple(dummy_messages)
     end
   end
 end

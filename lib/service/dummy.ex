@@ -25,7 +25,7 @@ defmodule Service.Dummy do
 
   @spec! channel_buffers_append(channel_buffers(), msg_tuple()) :: channel_buffers()
   def channel_buffers_append(bufs, {channel, user, msg}) do
-    Map.update(bufs, channel, {}, &Tuple.append(&1, {user, msg}))
+    Map.update(bufs, channel, {{user, msg}}, &Tuple.append(&1, {user, msg}))
   end
 
   @spec! send_msg(
@@ -79,8 +79,7 @@ defmodule Service.Dummy do
   @impl GenServer
   def handle_call({:msg_new, {server, channel, user, text}}, _from, {cfg, buffers}) do
     if server != cfg.server_id do
-      # DEBUG
-      Logger.info("Irrelevant message from #{inspect(server)}, wanted #{inspect(cfg.server_id)}")
+      # ignore unconfigured server
       {:reply, nil, {cfg, buffers}}
     else
       buf2 = channel_buffers_append(buffers, {channel, user, text})
