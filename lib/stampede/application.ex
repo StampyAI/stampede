@@ -96,16 +96,20 @@ defmodule Stampede.Application do
     service_tuples =
       case Keyword.fetch!(args, :services) do
         :all ->
+          Logger.debug("#{app_id} starting all services")
           all_services(Keyword.fetch!(args, :installed_services), app_id)
 
         :none ->
+          Logger.debug("#{app_id} starting no services")
           []
 
         name when is_atom(name) ->
-          [service_name(name, app_id)]
+          Logger.debug("#{app_id} starting only #{name}")
+          [service_spec(name, app_id)]
 
         list when is_list(list) or is_tuple(list) ->
-          Enum.map(list, &service_name(&1, app_id))
+          Logger.debug("#{app_id} starting these: #{inspect(list)}")
+          Enum.map(list, &service_spec(&1, app_id))
       end
 
     default_children ++ service_tuples
