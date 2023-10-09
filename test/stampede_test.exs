@@ -46,7 +46,17 @@ defmodule StampedeTest do
       assert "ping" == S.strip_prefix(~r/(.*) me bro/, "ping me bro")
     end
 
-    test "basic test plugin", _ do
+    test "S.keyword_put_new_if_not_falsy" do
+      kw1 = [a: 1, b: 2]
+      kw2 = [a: 1, b: 4]
+      kw3 = [a: 1, b: 2, c: 3]
+
+      assert kw1 == kw1 |> S.keyword_put_new_if_not_falsy(:a, false)
+      assert kw1 == kw1 |> S.keyword_put_new_if_not_falsy(:b, 4)
+      assert kw3 == kw1 |> S.keyword_put_new_if_not_falsy(:c, 3) |> Enum.sort()
+    end
+
+    test "basic test plugin" do
       msg =
         S.Msg.new(
           body: "!ping",
@@ -99,6 +109,17 @@ defmodule StampedeTest do
       assert nil == D.send_msg(s.dummy_pid, :t1, :u1, "no response")
       assert "pong!" == D.send_msg(s.dummy_pid, :t1, :u1, "!ping") |> Map.fetch!(:text)
       assert D.channel_history(s.dummy_pid, :t1) == {{:u1, "!ping"}, {:server, "pong!"}}
+    end
+
+    test "dummy ignores messages from other servers" do
+      {:ok, s} = setup_dummy(Test03)
+      nil = D.send_msg(s.dummy_pid, :t1, :nope, "nada")
+      nil = D.send_msg(s.dummy_pid, :t1, :abc, "def")
+      assert "pong!" == D.send_msg(s.dummy_pid, :t1, :u1, "!ping") |> Map.fetch!(:text)
+      assert nil == D.send_msg(s.dummy_pid, :t1, :u1, "!ping", :another_server)
+
+      assert D.channel_history(s.dummy_pid, :t1) ==
+               {{:nope, "nada"}, {:abc, "def"}, {:u1, "!ping"}, {:server, "pong!"}}
     end
 
     test "dummy + throwing" do

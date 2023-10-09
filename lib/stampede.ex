@@ -67,4 +67,13 @@ defmodule Stampede do
       value
     end
   end
+
+  @spec! keyword_put_new_if_not_falsy(keyword(), atom(), any()) :: keyword()
+  def keyword_put_new_if_not_falsy(kwlist, key, new_value) do
+    if new_value do
+      Keyword.put_new(kwlist, key, new_value)
+    else
+      kwlist
+    end
+  end
 end

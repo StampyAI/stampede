@@ -4,6 +4,7 @@ defmodule Stampede.Application do
   @moduledoc false
   require Logger
   use TypeCheck
+  alias Stampede, as: S
 
   use Application
 
@@ -43,12 +44,12 @@ defmodule Stampede.Application do
     :ok = Logger.metadata(stampede_component: :application)
 
     args =
-      keyword_put_new_if_not_falsy(
+      S.keyword_put_new_if_not_falsy(
         override_args,
         :services,
         Application.get_env(:stampede, :services, false)
       )
-      |> keyword_put_new_if_not_falsy(
+      |> S.keyword_put_new_if_not_falsy(
         :config_dir,
         Application.get_env(:stampede, :config_dir, false)
       )
@@ -85,11 +86,11 @@ defmodule Stampede.Application do
       {Registry,
        keys: :duplicate,
        name: Module.concat(app_id, "Registry"),
-       partitions: System.schedulers_online()},
-      {Stampede.CfgTable,
-       config_dir: Keyword.fetch!(args, :config_dir),
-       app_id: app_id,
-       name: Module.concat(app_id, "CfgTable")}
+       partitions: System.schedulers_online()}
+      # {Stampede.CfgTable,
+      # config_dir: Keyword.fetch!(args, :config_dir),
+      # app_id: app_id,
+      # name: Module.concat(app_id, "CfgTable")}
     ]
 
     service_tuples =
@@ -108,15 +109,6 @@ defmodule Stampede.Application do
       end
 
     default_children ++ service_tuples
-  end
-
-  @spec! keyword_put_new_if_not_falsy(keyword(), atom(), any()) :: keyword()
-  def keyword_put_new_if_not_falsy(kwlist, key, new_value) do
-    if new_value not in [nil, false] do
-      Keyword.put_new(kwlist, key, new_value)
-    else
-      kwlist
-    end
   end
 
   def handle_info(:DOWN, _, _, worker_pid, reason) do

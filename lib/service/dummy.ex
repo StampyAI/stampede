@@ -3,6 +3,7 @@ defmodule Service.Dummy do
   This service can be used for testing and experimentation, by taking the role
   of a service relaying messages to Stampede.
   """
+  require Logger
   use GenServer
   use TypeCheck
   alias Stampede, as: S
@@ -12,7 +13,7 @@ defmodule Service.Dummy do
   @opaque! dummy_user_id :: atom()
   @system_user :server
   @opaque! dummy_channel_id :: atom()
-  @opaque! dummy_server_id :: identifier()
+  @opaque! dummy_server_id :: identifier() | atom()
   # "one channel"
   @typep! msg_content :: String.t() | nil
   # one message, tagged with channel
@@ -27,10 +28,16 @@ defmodule Service.Dummy do
     Map.update(bufs, channel, {}, &Tuple.append(&1, {user, msg}))
   end
 
-  @spec! send_msg(identifier(), dummy_channel_id(), dummy_user_id(), msg_content()) ::
+  @spec! send_msg(
+           identifier(),
+           dummy_channel_id(),
+           dummy_user_id(),
+           msg_content(),
+           dummy_server_id() | nil
+         ) ::
            nil | Response.t()
-  def send_msg(instance, channel, user, text) do
-    GenServer.call(instance, {:msg_new, {channel, user, text}})
+  def send_msg(instance, channel, user, text, server_id \\ nil) do
+    GenServer.call(instance, {:msg_new, {server_id || instance, channel, user, text}})
   end
 
   @spec! channel_history(identifier(), dummy_channel_id()) :: channel()
@@ -70,24 +77,30 @@ defmodule Service.Dummy do
   end
 
   @impl GenServer
-  def handle_call({:msg_new, {channel, user, text}}, _from, {cfg, buffers}) do
-    buf2 = channel_buffers_append(buffers, {channel, user, text})
-
-    our_msg =
-      Msg.new(
-        body: text,
-        channel_id: channel,
-        author_id: user,
-        server_id: self()
-      )
-
-    response = Plugin.get_top_response(cfg, our_msg)
-
-    if response do
-      buf3 = channel_buffers_append(buf2, {channel, @system_user, response.text})
-      {:reply, response, {cfg, buf3}}
+  def handle_call({:msg_new, {server, channel, user, text}}, _from, {cfg, buffers}) do
+    if server != cfg.server_id do
+      # DEBUG
+      Logger.info("Irrelevant message from #{inspect(server)}, wanted #{inspect(cfg.server_id)}")
+      {:reply, nil, {cfg, buffers}}
     else
-      {:reply, response, {cfg, buf2}}
+      buf2 = channel_buffers_append(buffers, {channel, user, text})
+
+      our_msg =
+        Msg.new(
+          body: text,
+          channel_id: channel,
+          author_id: user,
+          server_id: server || self()
+        )
+
+      response = Plugin.get_top_response(cfg, our_msg)
+
+      if response do
+        buf3 = channel_buffers_append(buf2, {channel, @system_user, response.text})
+        {:reply, response, {cfg, buf3}}
+      else
+        {:reply, response, {cfg, buf2}}
+      end
     end
   end
 

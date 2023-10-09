@@ -28,11 +28,15 @@ defmodule Stampede.MixProject do
     case first do
       :discord ->
         new_acc =
-          Keyword.update!(config_acc, :mod, fn {mod, kwlist} ->
-            {mod, Keyword.update!(kwlist, :installed_services, fn list -> [:discord | list] end)}
+          config_acc
+          |> Keyword.update!(:mod, fn {mod, kwlist} ->
+            {mod,
+             Keyword.update!(kwlist, :installed_services, fn list ->
+               [:discord | list]
+             end)}
           end)
           |> Keyword.update!(:extra_applications, fn app_list ->
-            [:certifi, :gun, :inets, :jason, :kcl, :mime | app_list]
+            [:nostrum, :certifi, :gun, :inets, :jason, :kcl, :mime | app_list]
           end)
 
         configure_app(rest, new_acc)
