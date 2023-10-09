@@ -39,7 +39,7 @@ defmodule SiteConfig do
       ],
       app_id: [
         default: Stampede,
-        type: :atom,
+        type: {:or, [:atom, :string]},
         doc: """
         Testing and debugging only. Used for redirecting queries to shared
         resources, such as Stampede.Registry, Stampede.QuickTaskSupers, etc. by
@@ -73,8 +73,7 @@ defmodule SiteConfig do
   def validate!(kwlist, schema, additional_transforms \\ []) do
     transforms = [
       &concat_plugs/2,
-      &make_regex/2,
-      &atomize_app_id/2
+      &make_regex/2
     ]
 
     Enum.reduce(transforms ++ additional_transforms, kwlist, fn f, acc ->
@@ -109,20 +108,6 @@ defmodule SiteConfig do
         else
           prefix
         end
-      end)
-    else
-      kwlist
-    end
-  end
-
-  def atomize_app_id(kwlist, _schema) do
-    if Keyword.has_key?(kwlist, :app_id) do
-      Keyword.update!(kwlist, :app_id, fn
-        s when is_binary(s) ->
-          Module.concat([s])
-
-        a when is_atom(a) ->
-          a
       end)
     else
       kwlist

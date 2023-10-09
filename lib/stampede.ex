@@ -20,8 +20,12 @@ defmodule Stampede do
     end
   end
 
+  def via(app_id, key) do
+    {:via, Registry, {Module.safe_concat(app_id, Registry), key}}
+  end
+
   def quick_task_via(app_id) do
-    {:via, PartitionSupervisor, {Module.safe_concat(app_id, QuickTaskSupers), self()}}
+    {:via, PartitionSupervisor, {via(app_id, "QuickTaskSupers"), self()}}
   end
 
   @doc "get a list of submodule atoms"

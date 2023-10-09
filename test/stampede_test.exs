@@ -21,7 +21,7 @@ defmodule StampedeTest do
     error_channel_id: :error,
     prefix: "!",
     plugs: MapSet.new([Plugin.Test, Plugin.Sentience]),
-    app_id: Test01
+    app_id: "Test01"
   }
   def setup_dummy(id) do
     with {:ok, app_pid} <-

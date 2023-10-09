@@ -49,13 +49,21 @@ defmodule Stampede.CfgTable do
   @spec! make_table_contents(SiteConfig.cfg_list()) ::
            list({S.server_id() | {S.server_id(), atom()}, any()})
   def make_table_contents(cfgs) do
-    Stream.map(cfgs, fn {filename, cfg} ->
-      [{cfg.server_id, filename}] ++
-        Stream.map(cfg, fn {opt, val} ->
+    Stream.map(cfgs, &cfg_to_entries/1)
+    |> Enum.concat()
+  end
+
+  def cfg_to_entries({filename, cfg}), do: cfg_to_entries(filename, cfg)
+
+  @spec! cfg_to_entries(String.t(), SiteConfig.t()) ::
+           list({S.server_id() | {S.server_id(), atom()}, any()})
+  def cfg_to_entries(filename, cfg) do
+    [
+      {cfg.server_id, filename}
+      | Enum.map(cfg, fn {opt, val} ->
           {{cfg.server_id, opt}, val}
         end)
-    end)
-    |> Enum.concat()
+    ]
   end
 
   @spec! init(keyword()) :: {:ok, __MODULE__}

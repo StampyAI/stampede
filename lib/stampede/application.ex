@@ -13,7 +13,7 @@ defmodule Stampede.Application do
   def app_config_schema() do
     NimbleOptions.new!(
       app_id: [
-        type: :atom,
+        type: {:or, [:atom, :string]},
         default: Stampede
       ],
       installed_services: [
@@ -57,7 +57,7 @@ defmodule Stampede.Application do
 
     if args[:log_to_file], do: :ok = Logger.add_handlers(:stampede)
 
-    app_id = Module.concat([Keyword.get(args, :app_id)])
+    app_id = Keyword.get(args, :app_id)
 
     children = make_children(args, app_id)
 
@@ -67,30 +67,29 @@ defmodule Stampede.Application do
     Supervisor.start_link(children, opts)
   end
 
-  def service_name(atom, app_id) when is_atom(atom) do
+  def service_spec(atom, app_id) when is_atom(atom) do
     @services
     |> Map.fetch!(atom)
     |> then(fn name -> {name, app_id: app_id} end)
   end
 
   def all_services(installed, app_id) do
-    installed |> Enum.map(&service_name(&1, app_id))
+    installed |> Enum.map(&service_spec(&1, app_id))
   end
 
   def make_children(args, app_id) do
     default_children = [
-      {PartitionSupervisor,
-       child_spec: Task.Supervisor, name: Module.concat(app_id, "QuickTaskSupers")},
-      # NOTE: call with {:via, PartitionSupervisor, {app_id.QuickTaskSupers, self()}}
-      # See Stampede.quick_task_via(app_id)
       {Registry,
-       keys: :duplicate,
+       keys: :unique,
        name: Module.concat(app_id, "Registry"),
-       partitions: System.schedulers_online()}
+       partitions: System.schedulers_online()},
+      {PartitionSupervisor, child_spec: Task.Supervisor, name: S.via(app_id, "QuickTaskSupers")}
+      # NOTE: call with {:via, S.via(app_id, "PartitionSupervisor"), {S.via(app_id, "QuickTaskSupers"), self()}}
+      # See Stampede.quick_task_via(app_id)
       # {Stampede.CfgTable,
       # config_dir: Keyword.fetch!(args, :config_dir),
       # app_id: app_id,
-      # name: Module.concat(app_id, "CfgTable")}
+      # name: S.via(app_id, "CfgTable")}
     ]
 
     service_tuples =
