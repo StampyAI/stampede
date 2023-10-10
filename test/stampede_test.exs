@@ -23,17 +23,23 @@ defmodule StampedeTest do
     plugs: MapSet.new([Plugin.Test, Plugin.Sentience]),
     app_id: "Test01"
   }
-  def setup_dummy(id) do
-    with {:ok, app_pid} <-
-           Stampede.Application.start(:normal,
-             app_id: id,
-             installed_services: [],
-             services: :none,
-             log_to_file: false
-           ),
-         {:ok, dummy_pid} <-
-           D.start_link(plugs: MapSet.new([Plugin.Test, Plugin.Sentience]), app_id: id) do
-      {:ok, Map.new(app_pid: app_pid, dummy_pid: dummy_pid)}
+  setup context do
+    if context[:dummy] do
+      id = context[:test]
+
+      with {:ok, app_pid} <-
+             Stampede.Application.start(:normal,
+               app_id: id,
+               installed_services: [],
+               services: :none,
+               log_to_file: false
+             ),
+           {:ok, dummy_pid} <-
+             D.start_link(plugs: MapSet.new([Plugin.Test, Plugin.Sentience]), app_id: id) do
+        Map.new(app_pid: app_pid, dummy_pid: dummy_pid)
+      end
+    else
+      Map.new()
     end
   end
 
@@ -103,8 +109,8 @@ defmodule StampedeTest do
   end
 
   describe "dummy server" do
-    test "ping" do
-      {:ok, s} = setup_dummy(Test01)
+    @describetag :dummy
+    test "ping", s do
       assert nil == D.send_msg(s.dummy_pid, :t1, :u1, "no response")
       assert "pong!" == D.send_msg(s.dummy_pid, :t1, :u1, "!ping") |> Map.fetch!(:text)
 
@@ -112,8 +118,7 @@ defmodule StampedeTest do
                {{:u1, "no response"}, {:u1, "!ping"}, {:server, "pong!"}}
     end
 
-    test "ignores messages from other servers" do
-      {:ok, s} = setup_dummy(Test03)
+    test "ignores messages from other servers", s do
       nil = D.send_msg(s.dummy_pid, :t1, :nope, "nada")
       nil = D.send_msg(s.dummy_pid, :t1, :abc, "def")
       assert "pong!" == D.send_msg(s.dummy_pid, :t1, :u1, "!ping") |> Map.fetch!(:text)
@@ -123,13 +128,7 @@ defmodule StampedeTest do
                {{:nope, "nada"}, {:abc, "def"}, {:u1, "!ping"}, {:server, "pong!"}}
     end
 
-    test "throwing" do
-      {:ok, s} = setup_dummy(Test02)
-      ## BUG: when error is raised, dummy drops the first member of the channel history tuple.
-      ## Can be more clearly seen by enabling this code:
-
-      # nil = D.send_msg(s.dummy_pid, :t1, :nope, "nada")
-      # nil = D.send_msg(s.dummy_pid, :t1, :abc, "def")
+    test "throwing", s do
       {result, log} = with_log(fn -> D.send_msg(s.dummy_pid, :t1, :u1, "!raise") end)
       assert match?(%{text: "*confused beeping*"}, result), "message return still functional"
       assert String.contains?(log, "SillyError"), "SillyError thrown"
@@ -143,15 +142,13 @@ defmodule StampedeTest do
   end
 
   describe "dummy server channels" do
-    test "one message" do
-      {:ok, s} = setup_dummy(Test05)
+    @describetag :dummy
+    test "one message", s do
       D.send_msg(s.dummy_pid, :t1, :u1, "lol")
       assert D.channel_history(s.dummy_pid, :t1) == {{:u1, "lol"}}
     end
 
-    test "many messages" do
-      {:ok, s} = setup_dummy(Test04)
-
+    test "many messages", s do
       dummy_messages =
         0..9
         |> Enum.map(fn x ->
