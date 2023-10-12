@@ -9,6 +9,7 @@ defmodule SiteConfig do
   @type! service :: atom()
   @type! server_id :: S.server_id()
   @type! channel_id :: S.channel_id()
+  @type! schema :: keyword() | struct()
   @type! t :: map(atom(), any())
   def schema_base(),
     do: [
@@ -25,7 +26,8 @@ defmodule SiteConfig do
       error_channel_id: [
         required: true,
         type: :any,
-        doc: "What channel should debugging messages be posted on? THIS SHOULD BE PRIVATE."
+        doc:
+          "What channel should debugging messages be posted on? Messages may have private information."
       ],
       prefix: [
         default: "!",
@@ -68,12 +70,15 @@ defmodule SiteConfig do
   end
 
   @doc "take input config as keywords, transform as necessary, validate, and return as map"
-  @spec! validate!(keyword(), keyword() | struct(), [] | list((keyword() -> keyword()))) ::
+  @spec! validate!(keyword(), schema(), [] | list((keyword(), schema() -> keyword()))) ::
            SiteConfig.t()
   def validate!(kwlist, schema, additional_transforms \\ []) do
     transforms = [
       &concat_plugs/2,
-      &make_regex/2
+      &make_regex/2,
+      fn kwlist, _ ->
+        Keyword.update!(kwlist, :service, &S.service_atom_to_name(&1))
+      end
     ]
 
     Enum.reduce(transforms ++ additional_transforms, kwlist, fn f, acc ->
@@ -147,13 +152,4 @@ defmodule SiteConfig do
     end)
     |> Enum.into(%{})
   end
-
-  ### I assumed this was a nice convenience, but it disables compile-time checks :/
-  # @spec! new(keyword()) :: SiteConfig.t()
-  # def new(keys) do
-  #  struct!(
-  #    __MODULE__,
-  #    keys
-  #  )
-  # end
 end

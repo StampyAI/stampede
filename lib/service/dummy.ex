@@ -23,6 +23,15 @@ defmodule Service.Dummy do
   @typep! channel_buffers :: %{dummy_channel_id() => channel()} | %{}
   @typep! dummy_state :: {SiteConfig.t(), channel_buffers()}
 
+  def log_error(cfg, {source_msg, error, stacktrace}) do
+    send_msg(
+      cfg.server_id,
+      cfg.error_channel_id,
+      @system_user,
+      "#{inspect(source_msg, pretty: true)}\n#{Exception.format(:error, error, stacktrace)}"
+    )
+  end
+
   @spec! channel_buffers_append(channel_buffers(), msg_tuple()) :: channel_buffers()
   def channel_buffers_append(bufs, {channel, user, msg}) do
     Map.update(bufs, channel, {{user, msg}}, &Tuple.append(&1, {user, msg}))

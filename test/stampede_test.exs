@@ -16,7 +16,7 @@ defmodule StampedeTest do
     app_id: "Test01"
   """
   @dummy_cfg_verified %{
-    service: :dummy,
+    service: Service.Dummy,
     server_id: :testing,
     error_channel_id: :error,
     prefix: "!",
@@ -131,10 +131,12 @@ defmodule StampedeTest do
     test "throwing", s do
       {result, log} = with_log(fn -> D.send_msg(s.dummy_pid, :t1, :u1, "!raise") end)
       assert match?(%{text: "*confused beeping*"}, result), "message return still functional"
-      assert String.contains?(log, "SillyError"), "SillyError thrown"
+      assert String.contains?(log, "SillyError"), "SillyError not thrown"
 
-      assert %{t1: {{:u1, "!raise"}, {:server, "*confused beeping*"}}} ==
-               D.channel_dump(s.dummy_pid)
+      assert D.channel_history(s.dummy_pid, :error)
+             |> inspect()
+             |> String.contains?("SillyError"),
+             "error not being logged"
 
       assert D.channel_history(s.dummy_pid, :t1) ==
                {{:u1, "!raise"}, {:server, "*confused beeping*"}}

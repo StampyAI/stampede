@@ -8,8 +8,6 @@ defmodule Stampede.Application do
 
   use Application
 
-  @services %{discord: Service.Discord}
-
   def app_config_schema() do
     NimbleOptions.new!(
       app_id: [
@@ -17,12 +15,12 @@ defmodule Stampede.Application do
         default: Stampede
       ],
       installed_services: [
-        type: {:or, [{:in, [[]]}, {:list, {:in, Map.keys(@services)}}]},
+        type: {:or, [{:in, [[]]}, {:list, {:in, Map.keys(S.services())}}]},
         required: true,
         doc: "Services installed as part of the mix project. Passed in from mix.exs"
       ],
       services: [
-        type: {:or, [{:in, [:none, :all]}, {:list, {:in, [Map.keys(@services)]}}]},
+        type: {:or, [{:in, [:none, :all]}, {:list, {:in, [Map.keys(S.services())]}}]},
         default: :all,
         doc: "what will actually be started by Stampede"
       ],
@@ -68,7 +66,7 @@ defmodule Stampede.Application do
   end
 
   def service_spec(atom, app_id) when is_atom(atom) do
-    @services
+    S.services()
     |> Map.fetch!(atom)
     |> then(fn name -> {name, app_id: app_id} end)
   end

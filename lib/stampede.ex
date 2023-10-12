@@ -28,6 +28,17 @@ defmodule Stampede do
     {:via, PartitionSupervisor, {via(app_id, "QuickTaskSupers"), self()}}
   end
 
+  def services(),
+    do: %{
+      discord: Service.Discord,
+      dummy: Service.Dummy
+    }
+
+  def service_atom_to_name(atom) do
+    services()
+    |> Map.fetch!(atom)
+  end
+
   @doc "get a list of submodule atoms"
   @spec! find_submodules(module()) :: MapSet.t(module())
   def find_submodules(module_name) do
