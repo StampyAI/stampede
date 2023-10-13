@@ -1,5 +1,8 @@
 import Config
 
+config :stampede,
+  compile_env: Mix.env()
+
 config :logger, :console,
   level: :info,
   # extra nostrum metadata

@@ -20,6 +20,13 @@ defmodule Stampede do
     end
   end
 
+  @spec markdown_quote(String.t()) :: String.t()
+  def markdown_quote(str) when is_binary(str) do
+    String.split(str, "\n")
+    |> Enum.map(&["> " | [&1 | "\n"]])
+    |> IO.iodata_to_binary()
+  end
+
   def via(app_id, key) do
     {:via, Registry, {Module.safe_concat(app_id, Registry), key}}
   end

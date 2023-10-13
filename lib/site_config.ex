@@ -136,7 +136,7 @@ defmodule SiteConfig do
   @spec! load_all(String.t()) :: cfg_list()
   def load_all(dir) do
     target_dir =
-      case Mix.env() do
+      case Application.fetch_env!(:stampede, :compile_env) do
         :prod ->
           dir
 
