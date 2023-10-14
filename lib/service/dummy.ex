@@ -7,6 +7,7 @@ defmodule Service.Dummy do
   use GenServer
   use TypeCheck
   alias Stampede, as: S
+  require S
   alias S.{Msg, Response}
 
   # Imaginary server types
@@ -22,6 +23,35 @@ defmodule Service.Dummy do
   # multiple channels
   @typep! channel_buffers :: %{dummy_channel_id() => channel()} | %{}
   @typep! dummy_state :: {SiteConfig.t(), channel_buffers()}
+
+  def site_config_schema() do
+    NimbleOptions.new!(
+      service: [
+        default: Service.Dummy,
+        type: {:in, [Service.Dummy]}
+      ],
+      server_id: [
+        required: true,
+        type: :any
+      ],
+      error_channel_id: [
+        required: true,
+        type: :atom
+      ],
+      prefix: [
+        default: "!",
+        type: S.ntc(Regex.t() | String.t())
+      ],
+      plugs: [
+        default: ["Test"],
+        type: {:custom, SiteConfig, :real_plugins, []}
+      ],
+      app_id: [
+        default: Stampede,
+        type: {:or, [:atom, :string]}
+      ]
+    )
+  end
 
   def log_error(cfg, {source_msg, error, stacktrace}) do
     send_msg(

@@ -43,13 +43,16 @@ defmodule SiteConfig do
         default: Stampede,
         type: {:or, [:atom, :string]},
         doc: """
-        Testing and debugging only. Used for redirecting queries to shared
-        resources, such as Stampede.Registry, Stampede.QuickTaskSupers, etc. by
-        renaming "Stampede" to something else. This isn't exactly a "site" config
+        Used for running multiple Stampede instances on the same BEAM. In queries to shared
+        resources, such as Stampede.Registry, Stampede.QuickTaskSupers, etc.
+        "Stampede" becomes something else. This isn't exactly a "site" config
         but it saves needing a lot of extra function args all over the place.
         """
       ]
     ]
+
+  def schema(:dummy),
+    do: Service.Dummy.site_config_schema()
 
   @type! site_name :: atom()
   @type! cfg_list :: map(site_name(), SiteConfig.t())
@@ -70,9 +73,11 @@ defmodule SiteConfig do
   end
 
   @doc "take input config as keywords, transform as necessary, validate, and return as map"
-  @spec! validate!(keyword(), schema(), [] | list((keyword(), schema() -> keyword()))) ::
+  @spec! validate!(keyword(), nil | schema(), [] | list((keyword(), schema() -> keyword()))) ::
            SiteConfig.t()
-  def validate!(kwlist, schema, additional_transforms \\ []) do
+  def validate!(kwlist, schema \\ nil, additional_transforms \\ []) do
+    schema = schema || Keyword.fetch!(kwlist, :service) |> schema()
+
     transforms = [
       &concat_plugs/2,
       &make_regex/2,
@@ -119,15 +124,18 @@ defmodule SiteConfig do
     end
   end
 
-  @spec! load_from_string(String.t()) :: keyword()
+  @spec! load_from_string(String.t()) :: SiteConfig.t()
   def load_from_string(yml) do
     case :fast_yaml.decode(yml, @yaml_opts) do
-      {:ok, [result]} -> result
-      {:error, reason} -> raise("bad yaml from string\n#{reason}")
+      {:error, reason} ->
+        raise("bad yaml from string\n#{reason}")
+
+      {:ok, [result]} ->
+        validate!(result)
     end
   end
 
-  @spec! load(String.t()) :: keyword()
+  @spec! load(String.t()) :: SiteConfig.t()
   def load(path) do
     str = File.read!(path)
     load_from_string(str)
@@ -135,14 +143,14 @@ defmodule SiteConfig do
 
   @spec! load_all(String.t()) :: cfg_list()
   def load_all(dir) do
-    target_dir =
-      case Application.fetch_env!(:stampede, :compile_env) do
-        :prod ->
-          dir
+    target_dir = dir
+    # case Application.fetch_env!(:stampede, :compile_env) do
+    #  :prod ->
+    #    dir
 
-        other when is_atom(other) ->
-          dir <> "_" <> Atom.to_string(other)
-      end
+    #  other when is_atom(other) ->
+    #    dir <> "_" <> Atom.to_string(other)
+    # end
 
     Path.wildcard(target_dir <> "/*")
     |> Enum.map(fn path ->

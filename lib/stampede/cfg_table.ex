@@ -18,6 +18,15 @@ defmodule Stampede.CfgTable do
     GenServer.start_link(__MODULE__, args)
   end
 
+  @spec! init(keyword()) :: {:ok, map()}
+  @impl GenServer
+  def init(args) do
+    app_id = Keyword.fetch!(args, :app_id)
+    config_dir = Keyword.fetch!(args, :config_dir)
+    table_id = make_filled_table(app_id, config_dir)
+    {:ok, struct!(__MODULE__, table_id: table_id, config_dir: config_dir, app_id: app_id)}
+  end
+
   @doc """
   Handle creation and population of a new table, and optionally deleting the old one
   """
@@ -55,7 +64,7 @@ defmodule Stampede.CfgTable do
 
   def cfg_to_entries({filename, cfg}), do: cfg_to_entries(filename, cfg)
 
-  @spec! cfg_to_entries(String.t(), SiteConfig.t()) ::
+  @spec! cfg_to_entries(SiteConfig.site_name(), SiteConfig.t()) ::
            list({S.server_id() | {S.server_id(), atom()}, any()})
   def cfg_to_entries(filename, cfg) do
     [
@@ -66,20 +75,20 @@ defmodule Stampede.CfgTable do
     ]
   end
 
-  @spec! init(keyword()) :: {:ok, __MODULE__}
-  @impl GenServer
-  def init(args) do
-    app_id = Keyword.fetch!(args, :app_id)
-    config_dir = Keyword.fetch!(args, :config_dir)
-    table_id = make_filled_table(app_id, config_dir)
-    {:ok, struct!(__MODULE__, table_id: table_id, config_dir: config_dir, app_id: app_id)}
-  end
+  def lookup(app_id, server_id, key),
+    do: lookup(app_id, {server_id, key})
 
-  def lookup(app_id, server_id, key) do
+  def lookup(app_id, key) do
     table(app_id)
-    |> :ets.lookup({server_id, key})
+    |> :ets.lookup(key)
     # Assuming no duplicate keys
-    |> hd()
+    |> case do
+      lst = [{_key, item}] when length(lst) == 1 ->
+        item
+
+      lst when is_list(lst) and length(lst) > 1 ->
+        raise "there shouldn't be multiple keys, this is a set database"
+    end
   end
 
   def server_configured?(app_id, server_id) do
@@ -90,6 +99,12 @@ defmodule Stampede.CfgTable do
   def reload_cfgs(app_id, dir \\ nil) do
     table(app_id)
     |> GenServer.call({:reload_cfgs, dir})
+  end
+
+  def table_dump(app_id) do
+    table(app_id)
+    |> :ets.tab2list()
+    |> Map.new()
   end
 
   @impl GenServer

@@ -24,23 +24,27 @@ defmodule StampedeTest do
     app_id: "Test01"
   }
   setup context do
-    if context[:dummy] do
-      id = context[:test]
+    id = context.test
 
-      with {:ok, app_pid} <-
-             Stampede.Application.start(:normal,
-               app_id: id,
-               installed_services: [],
-               services: :none,
-               log_to_file: false
-             ),
-           {:ok, dummy_pid} <-
-             D.start_link(plugs: MapSet.new([Plugin.Test, Plugin.Sentience]), app_id: id) do
+    dummy_data =
+      if not Map.get(context, :dummy, false) do
+        Map.new()
+      else
+        {:ok, app_pid} =
+          Stampede.Application.start(:normal,
+            app_id: id,
+            installed_services: [],
+            services: :none,
+            log_to_file: false
+          )
+
+        {:ok, dummy_pid} =
+          D.start_link(plugs: MapSet.new([Plugin.Test, Plugin.Sentience]), app_id: id)
+
         Map.new(app_pid: app_pid, dummy_pid: dummy_pid)
       end
-    else
-      Map.new()
-    end
+
+    Map.put(dummy_data, :id, id)
   end
 
   describe "stateless functions" do
@@ -102,8 +106,7 @@ defmodule StampedeTest do
     end
 
     test "SiteConfig load", _ do
-      parsed = SiteConfig.load_from_string(@dummy_cfg)
-      verified = SiteConfig.validate!(parsed, SiteConfig.schema_base())
+      verified = SiteConfig.load_from_string(@dummy_cfg)
       assert verified == @dummy_cfg_verified
     end
   end
@@ -162,6 +165,38 @@ defmodule StampedeTest do
         end)
 
       assert D.channel_history(s.dummy_pid, :t1) == List.to_tuple(dummy_messages)
+    end
+  end
+
+  describe "cfg_table" do
+    @tag :tmp_dir
+    test "basic", s do
+      ids = Atom.to_string(s.id)
+
+      this_cfg =
+        @dummy_cfg
+        |> String.replace("app_id: \"Test01\"", "app_id: \"#{ids}\"")
+        |> String.replace("server_id: testing", "server_id: foobar")
+
+      File.write!(Path.join([s.tmp_dir, ids <> ".yml"]), this_cfg)
+
+      _pid =
+        S.CfgTable.start_link(
+          app_id: s.id,
+          config_dir: s.tmp_dir
+        )
+
+      newtable =
+        S.CfgTable.table_dump(s.id)
+        |> Enum.map(fn
+          {{_id, k}, v} -> {k, v}
+          x -> x
+        end)
+        |> Map.new()
+
+      assert "!" == newtable.prefix
+      assert :foobar == newtable.server_id
+      assert "!" == S.CfgTable.lookup(s.id, :foobar, :prefix)
     end
   end
 end

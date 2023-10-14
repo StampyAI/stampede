@@ -81,7 +81,7 @@ end
 defmodule Service.Discord.Logger do
   use TypeCheck
   @behaviour :gen_event
-  alias Stampede, as: S
+  #alias Stampede, as: S
   @type! logger_state :: Keyword.t()
 
   def start_link() do

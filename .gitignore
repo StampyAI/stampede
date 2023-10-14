@@ -23,3 +23,5 @@ erl_crash.dump
 /logs
 
 /Sites/*
+
+/tmp/
