@@ -36,7 +36,7 @@ defmodule Stampede.MixProject do
              end)}
           end)
           |> Keyword.update!(:extra_applications, fn app_list ->
-            [:nostrum, :certifi, :gun, :inets, :jason, :kcl, :mime | app_list]
+            [:certifi, :gun, :inets, :jason, :kcl, :mime | app_list]
           end)
 
         configure_app(rest, new_acc)
