@@ -11,45 +11,51 @@ defmodule SiteConfig do
   @type! channel_id :: S.channel_id()
   @type! schema :: keyword() | struct()
   @type! t :: map(atom(), any())
-  def schema_base(),
-    do: [
-      service: [
-        required: true,
-        type: :atom,
-        doc: "Which service does your server reside on? Affects what config options are valid."
-      ],
-      server_id: [
-        required: true,
-        type: :any,
-        doc: "Discord Guild ID, Slack group, etc"
-      ],
-      error_channel_id: [
-        required: true,
-        type: :any,
-        doc:
-          "What channel should debugging messages be posted on? Messages may have private information."
-      ],
-      prefix: [
-        default: "!",
-        type: S.ntc(Regex.t() | String.t()),
-        doc: "What prefix should users put on messages to have them responded to?"
-      ],
-      plugs: [
-        default: :all,
-        type: {:custom, __MODULE__, :real_plugins, []},
-        doc: "Which plugins will be asked for responses"
-      ],
-      app_id: [
-        default: Stampede,
-        type: {:or, [:atom, :string]},
-        doc: """
-        Used for running multiple Stampede instances on the same BEAM. In queries to shared
-        resources, such as Stampede.Registry, Stampede.QuickTaskSupers, etc.
-        "Stampede" becomes something else. This isn't exactly a "site" config
-        but it saves needing a lot of extra function args all over the place.
-        """
-      ]
+
+  @schema_base [
+    service: [
+      required: true,
+      type: :atom,
+      doc: "Which service does your server reside on? Affects what config options are valid."
+    ],
+    server_id: [
+      required: true,
+      type: :any,
+      doc: "Discord Guild ID, Slack group, etc"
+    ],
+    error_channel_id: [
+      required: true,
+      type: :any,
+      doc:
+        "What channel should debugging messages be posted on? Messages may have private information."
+    ],
+    prefix: [
+      default: "!",
+      type: S.ntc(Regex.t() | String.t()),
+      doc: "What prefix should users put on messages to have them responded to?"
+    ],
+    plugs: [
+      default: :all,
+      type: {:custom, __MODULE__, :real_plugins, []},
+      doc: "Which plugins will be asked for responses."
     ]
+  ]
+  @doc """
+  A basic Cfg schema, extended by the specific service it's written for.
+
+  #{NimbleOptions.docs(NimbleOptions.new!(@schema_base))}
+  """
+  def schema_base(), do: @schema_base
+
+  def merge_custom_schema(overrides, base_schema \\ schema_base()) do
+    Keyword.merge(base_schema, overrides, fn
+      _key, base_settings, new_settings ->
+        case Keyword.get(base_settings, :doc, false) do
+          false -> new_settings
+          doc -> Keyword.put_new(new_settings, :doc, doc)
+        end
+    end)
+  end
 
   def schema(:dummy),
     do: Service.Dummy.site_config_schema()

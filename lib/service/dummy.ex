@@ -1,8 +1,4 @@
 defmodule Service.Dummy do
-  @moduledoc """
-  This service can be used for testing and experimentation, by taking the role
-  of a service relaying messages to Stampede.
-  """
   require Logger
   use GenServer
   use TypeCheck
@@ -24,34 +20,50 @@ defmodule Service.Dummy do
   @typep! channel_buffers :: %{dummy_channel_id() => channel()} | %{}
   @typep! dummy_state :: {SiteConfig.t(), channel_buffers()}
 
-  def site_config_schema() do
-    NimbleOptions.new!(
-      service: [
-        default: Service.Dummy,
-        type: {:in, [Service.Dummy]}
-      ],
-      server_id: [
-        required: true,
-        type: :any
-      ],
-      error_channel_id: [
-        required: true,
-        type: :atom
-      ],
-      prefix: [
-        default: "!",
-        type: S.ntc(Regex.t() | String.t())
-      ],
-      plugs: [
-        default: ["Test"],
-        type: {:custom, SiteConfig, :real_plugins, []}
-      ],
-      app_id: [
-        default: Stampede,
-        type: {:or, [:atom, :string]}
-      ]
-    )
-  end
+  @schema NimbleOptions.new!(
+            SiteConfig.merge_custom_schema(
+              service: [
+                default: Service.Dummy,
+                type: {:in, [Service.Dummy]}
+              ],
+              server_id: [
+                required: true,
+                type: :any
+              ],
+              error_channel_id: [
+                default: :error,
+                type: :atom
+              ],
+              prefix: [
+                default: "!",
+                type: S.ntc(Regex.t() | String.t())
+              ],
+              plugs: [
+                default: ["Test"],
+                type: {:custom, SiteConfig, :real_plugins, []}
+              ],
+              app_id: [
+                default: Stampede,
+                type: {:or, [:atom, :string]},
+                doc: """
+                Used for running multiple Stampede instances on the same BEAM. In queries to shared
+                resources, such as Stampede.Registry, Stampede.QuickTaskSupers, etc.
+                "Stampede" becomes something else. This isn't exactly a "site" config
+                but it saves needing a lot of extra function args all over the place.
+                """
+              ]
+            )
+          )
+  @moduledoc """
+  This service can be used for testing and experimentation, by taking the role
+  of a service relaying messages to Stampede.
+
+  It expects one config per service instance, which is not how real services should work.
+
+  SiteConfig/startup args:
+  #{NimbleOptions.docs(@schema)}
+  """
+  def site_config_schema(), do: @schema
 
   def log_error(cfg, {source_msg, error, stacktrace}) do
     send_msg(
@@ -97,19 +109,17 @@ defmodule Service.Dummy do
   @spec! init(Keyword.t()) :: {:ok, dummy_state()}
   def init(cfg_overrides) do
     Logger.metadata(stampede_component: :dummy)
-    %{schema: schema} = NimbleOptions.new!(SiteConfig.schema_base())
 
+    # convenience for relatively manual usage
     defaults = [
       service: :dummy,
-      server_id: self(),
-      error_channel_id: :error,
-      prefix: "!",
-      plugs: ["Test"]
+      server_id: self()
     ]
 
     cfg =
-      Keyword.merge(defaults, cfg_overrides)
-      |> SiteConfig.validate!(schema)
+      defaults
+      |> Keyword.merge(cfg_overrides)
+      |> SiteConfig.validate!(site_config_schema())
 
     # Service.register_logger(registry, __MODULE__, self())
     {:ok, {cfg, Map.new()}}
