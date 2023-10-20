@@ -54,7 +54,8 @@ defmodule Stampede.MixProject do
     [
       {:dialyxir, "~> 1.4", runtime: false},
       {:credo, "~> 1.7", runtime: false},
-      {:nostrum, "~> 0.8.0", runtime: false},
+      #{:nostrum, "~> 0.8.0", runtime: false},
+      {:nostrum, github: "Kraigie/nostrum", runtime: false},
       {:logger_backends, "~> 1.0"},
       {:type_check, "~> 0.13.5"},
       # https://hexdocs.pm/type_check/readme.html
