@@ -42,8 +42,8 @@ defmodule Stampede.Application do
     :ok = Logger.metadata(stampede_component: :application)
 
     args =
-      S.keyword_put_new_if_not_falsy(
-        override_args,
+      NimbleOptions.validate!(override_args, app_config_schema())
+      |> S.keyword_put_new_if_not_falsy(
         :services,
         Application.get_env(:stampede, :services, false)
       )
@@ -51,6 +51,9 @@ defmodule Stampede.Application do
         :config_dir,
         Application.get_env(:stampede, :config_dir, false)
       )
+      |> Keyword.update!(:config_dir, fn dir ->
+        dir <> "_#{Application.fetch_env!(:stampede, :compile_env)}"
+      end)
       |> NimbleOptions.validate!(app_config_schema())
 
     if args[:log_to_file], do: :ok = Logger.add_handlers(:stampede)
@@ -81,13 +84,13 @@ defmodule Stampede.Application do
        keys: :unique,
        name: Module.concat(app_id, "Registry"),
        partitions: System.schedulers_online()},
-      {PartitionSupervisor, child_spec: Task.Supervisor, name: S.via(app_id, "QuickTaskSupers")}
+      {PartitionSupervisor, child_spec: Task.Supervisor, name: S.via(app_id, "QuickTaskSupers")},
       # NOTE: call with {:via, S.via(app_id, "PartitionSupervisor"), {S.via(app_id, "QuickTaskSupers"), self()}}
       # See Stampede.quick_task_via(app_id)
-      # {Stampede.CfgTable,
-      # config_dir: Keyword.fetch!(args, :config_dir),
-      # app_id: app_id,
-      # name: S.via(app_id, "CfgTable")}
+      {Stampede.CfgTable,
+       config_dir: Keyword.fetch!(args, :config_dir),
+       app_id: app_id,
+       name: S.via(app_id, "CfgTable")}
     ]
 
     service_tuples =

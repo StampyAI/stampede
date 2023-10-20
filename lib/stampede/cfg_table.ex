@@ -51,7 +51,7 @@ defmodule Stampede.CfgTable do
   @doc """
   With given cfgs, creates a schema like this:
 
-    server_id, filename
+    server_id, {service, filename}
     {server_id, config_key_1}, config_value_1
     {server_id, config_key_2}, config_value_2
   """
@@ -68,7 +68,7 @@ defmodule Stampede.CfgTable do
            list({S.server_id() | {S.server_id(), atom()}, any()})
   def cfg_to_entries(filename, cfg) do
     [
-      {cfg.server_id, filename}
+      {{cfg.server_id, :filename}, filename}
       | Enum.map(cfg, fn {opt, val} ->
           {{cfg.server_id, opt}, val}
         end)
@@ -93,7 +93,13 @@ defmodule Stampede.CfgTable do
 
   def server_configured?(app_id, server_id) do
     table(app_id)
-    |> :ets.member(server_id)
+    |> :ets.member({server_id, :service})
+  end
+
+  def servers_configured(app_id, service_name) do
+    table(app_id)
+    |> :ets.match({{:"$1", :service}, service_name})
+    |> MapSet.new(&hd(&1))
   end
 
   def reload_cfgs(app_id, dir \\ nil) do

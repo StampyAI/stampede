@@ -16,6 +16,14 @@ defmodule Service.Discord do
   #  end
   # end
   # @impl Service
+
+  @doc """
+  For communication between Handler (which knows configured guilds), and Consumer (which knows only what messages it gets)
+  """
+  def via(guild_id) when is_integer(guild_id) do
+    String.to_atom("Discord_" <> Integer.to_string(guild_id))
+  end
+
   def log_error(
         discord_channel_id,
         _log_msg = {level, _gl, {Logger, message, _timestamp, _metadata}}
@@ -35,47 +43,103 @@ defmodule Service.Discord do
   end
 
   @impl Supervisor
-  def init(_args) do
+  def init(args) do
     Logger.metadata(stampede_component: :discord)
 
     children = [
       Nostrum.Application,
-      Service.Discord.Consumer
+      Service.Discord.Consumer,
+      {Service.Discord.Handler, args}
     ]
 
-    {:ok, _} = LoggerBackends.add(Service.Discord.Logger)
+    # {:ok, _} = LoggerBackends.add(Service.Discord.Logger)
 
     Supervisor.init(children, strategy: :one_for_one)
   end
 end
 
-defmodule Service.Discord.Consumer do
+defmodule Service.Discord.Handler do
   use TypeCheck
-  use Nostrum.Consumer
-
+  use TypeCheck.Defstruct
+  use GenServer
+  require Logger
   alias Nostrum.Api
+  alias Stampede, as: S
 
-  def handle_event({:MESSAGE_CREATE, msg, _ws_state}) do
-    # TODO: use msg.guild_id to find config. If cfg.shy is enabled, prefix
-    # check should be done before sending anything at all to other processes.
-    # Also label :interaction_id logger metadata
-    case msg.content do
-      "!ping" ->
-        {:ok, Api.create_message(msg.channel_id, content: "pong!")}
+  defstruct!(
+    app_id: _ :: any(),
+    guild_ids: _ :: %MapSet{}
+  )
 
-      "!throw" ->
-        raise "intentional fail!"
+  def start_link(args) do
+    GenServer.start_link(__MODULE__, args)
+  end
 
-      _ ->
-        :ignore
+  @impl GenServer
+  def init(args) do
+    app_id = Keyword.fetch!(args, :app_id)
+
+    settings =
+      struct!(
+        __MODULE__,
+        Keyword.put_new(args, :guild_ids, S.CfgTable.servers_configured(app_id, Service.Discord))
+      )
+
+    for id <- settings.guild_ids do
+      Process.register(self(), Service.Discord.via(id))
     end
+
+    {:ok, settings}
+  end
+
+  @impl GenServer
+  @spec! handle_cast({:MESSAGE_CREATE, %Nostrum.Struct.Message{}}, %__MODULE__{}) ::
+           {:noreply, any()}
+  def handle_cast({:MESSAGE_CREATE, msg}, state) do
+    if msg.guild_id in state.guild_ids do
+      case msg.content do
+        "!ping" ->
+          Api.create_message(msg.channel_id, content: "pong!")
+          {:noreply, state}
+
+        "!throw" ->
+          raise "intentional fail!"
+
+        _ ->
+          {:noreply, state}
+      end
+    else
+      Logger.error("guild #{msg.guild_id} NOT found in #{inspect(state.guild_ids)}")
+      {:noreply, state}
+    end
+  end
+end
+
+defmodule Service.Discord.Consumer do
+  @moduledoc """
+  Handles Nostrum's business while passing off jobs to Handler
+
+  """
+  # NOTE: can Consumer and Handler be merged? I don't see how to get around Nostrum's exclusive state.
+  use Nostrum.Consumer
+  use TypeCheck
+
+  @impl GenServer
+  def handle_info({:event, event}, state) do
+    case event do
+      {:MESSAGE_CREATE, msg, _ws_state} ->
+        GenServer.cast(Service.Discord.via(msg.guild_id), {:MESSAGE_CREATE, msg})
+
+      other ->
+        Task.start_link(__MODULE__, :handle_event, [other])
+    end
+
+    {:noreply, state}
   end
 
   # Default event handler, if you don't include this, your consumer WILL crash if
   # you don't have a method definition for each event type.
-  def handle_event(_event) do
-    :noop
-  end
+  def handle_event(_event), do: :noop
 end
 
 defmodule Service.Discord.Logger do

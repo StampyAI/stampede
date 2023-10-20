@@ -4,7 +4,7 @@ config :stampede,
   compile_env: Mix.env()
 
 config :logger, :console,
-  level: :info,
+  level: :debug,
   # extra nostrum metadata
   metadata: [:shard, :guild, :channel]
 

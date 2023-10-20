@@ -54,11 +54,13 @@ defmodule Stampede.MixProject do
     [
       {:dialyxir, "~> 1.4", runtime: false},
       {:credo, "~> 1.7", runtime: false},
-      #{:nostrum, "~> 0.8.0", runtime: false},
+      # {:nostrum, "~> 0.8.0", runtime: false},
       {:nostrum, github: "Kraigie/nostrum", runtime: false},
       {:logger_backends, "~> 1.0"},
       {:type_check, "~> 0.13.5"},
       # https://hexdocs.pm/type_check/readme.html
+      {:stream_data, "~> 0.5.0"},
+      # for type checking streams
       {:fast_yaml, "~> 1.0"},
       {:gen_stage, "~> 1.2"},
       # https://hexdocs.pm/gen_stage/GenStage.html

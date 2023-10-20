@@ -60,6 +60,9 @@ defmodule SiteConfig do
   def schema(:dummy),
     do: Service.Dummy.site_config_schema()
 
+  def schema(:discord),
+    do: NimbleOptions.new!(schema_base())
+
   @type! site_name :: atom()
   @type! cfg_list :: map(site_name(), SiteConfig.t())
 
