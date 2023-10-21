@@ -118,7 +118,6 @@ end
 defmodule Service.Discord.Consumer do
   @moduledoc """
   Handles Nostrum's business while passing off jobs to Handler
-
   """
   # NOTE: can Consumer and Handler be merged? I don't see how to get around Nostrum's exclusive state.
   use Nostrum.Consumer
@@ -164,14 +163,18 @@ defmodule Service.Discord.Logger do
   def handle_event(log_msg = {level, gl, {Logger, _message, _timestamp, _metadata}}, state)
       when node(gl) == node() do
     _ =
-      cond do
-        Logger.compare_levels(level, state[:level]) == :lt ->
+      case Logger.compare_levels(level, state[:level]) do
+        :lt ->
           nil
 
-        # HACK: hardcoded channel
-        true ->
-          Application.fetch_env!(:stampede, :error_channel_id)
-          |> Service.Discord.log_error(log_msg)
+        _ ->
+          channel_id = Application.fetch_env!(:stampede, :error_channel_id)
+          try do
+            Service.Discord.log_error(channel_id, log_msg)
+          catch
+            _type, _error ->
+              :nothing # NOTE: give up. what are we gonna do, throw another error?
+          end
       end
 
     {:ok, state}
