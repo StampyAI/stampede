@@ -142,6 +142,9 @@ defmodule Service.Discord.Consumer do
 end
 
 defmodule Service.Discord.Logger do
+  @doc """
+  Listens for global errors raised from Erlang's logger system. If an error gets thrown in this module or children it would cause an infinite loop.
+  """
   use TypeCheck
   @behaviour :gen_event
   # alias Stampede, as: S
