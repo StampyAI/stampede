@@ -29,6 +29,9 @@ defmodule Plugin.Test do
       "!raise" ->
         raise SillyError
 
+      "!throw" ->
+        throw SillyThrow
+
       _ ->
         nil
     end
@@ -44,4 +47,7 @@ end
 
 defmodule SillyError do
   defexception message: "Intentional exception raised"
+end
+defmodule SillyThrow do
+  defexception message: "Intentional throw made"
 end

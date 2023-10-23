@@ -87,10 +87,38 @@ defmodule StampedeTest do
 
       try do
         Plugin.Test.process_msg(nil, msg)
-      rescue
-        e ->
+      catch
+        _t, e ->
           assert is_struct(e, SillyError)
       end
+
+      msg =
+        S.Msg.new(
+          body: "!throw",
+          channel_id: :t1,
+          author_id: :u1,
+          server_id: :none
+        )
+
+      try do
+        Plugin.Test.process_msg(nil, msg)
+      catch
+        _t, e ->
+          assert e == SillyThrow
+      end
+
+      msg =
+        S.Msg.new(
+          body: "!callback",
+          channel_id: :t1,
+          author_id: :u1,
+          server_id: :none
+        )
+
+      %{callback: {m, f, a}} = Plugin.Test.process_msg(nil, msg)
+
+      cbr = apply(m, f, [nil | a])
+      assert String.starts_with?(cbr.text, "Called back with")
     end
 
     test "dummy channel_buffers" do
@@ -131,9 +159,9 @@ defmodule StampedeTest do
                {{:nope, "nada"}, {:abc, "def"}, {:u1, "!ping"}, {:server, "pong!"}}
     end
 
-    test "throwing", s do
+    test "raising", s do
       {result, log} = with_log(fn -> D.send_msg(s.dummy_pid, :t1, :u1, "!raise") end)
-      assert match?(%{text: "*confused beeping*"}, result), "message return still functional"
+      assert match?(%{text: "*confused beeping*"}, result), "message return not functional"
       assert String.contains?(log, "SillyError"), "SillyError not thrown"
 
       assert D.channel_history(s.dummy_pid, :error)
@@ -143,6 +171,25 @@ defmodule StampedeTest do
 
       assert D.channel_history(s.dummy_pid, :t1) ==
                {{:u1, "!raise"}, {:server, "*confused beeping*"}}
+    end
+
+    test "throwing", s do
+      {result, log} = with_log(fn -> D.send_msg(s.dummy_pid, :t1, :u1, "!throw") end)
+      assert match?(%{text: "*confused beeping*"}, result), "message return not functional"
+      assert String.contains?(log, "SillyThrow"), "SillyThrow not thrown"
+
+      assert D.channel_history(s.dummy_pid, :error)
+             |> inspect()
+             |> String.contains?("SillyThrow"),
+             "error not being logged"
+
+      assert D.channel_history(s.dummy_pid, :t1) ==
+               {{:u1, "!throw"}, {:server, "*confused beeping*"}}
+    end
+
+    test "callback", s do
+      r = D.send_msg(s.dummy_pid, :t1, :u1, "!callback")
+      assert String.starts_with?(r.text, "Called back with")
     end
   end
 

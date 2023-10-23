@@ -42,8 +42,8 @@ defmodule Plugin do
              # if an error occurs in process_msg, catch it and return as data
              try do
                {:ok, this_plug.process_msg(cfg, msg)}
-             rescue
-               e ->
+             catch
+               _t, e ->
                  Logger.error(Exception.format(:error, e, __STACKTRACE__))
 
                  {:error, e.__struct__, cfg.service.log_error(cfg, {msg, e, __STACKTRACE__})}
