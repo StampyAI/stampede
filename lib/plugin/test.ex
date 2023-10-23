@@ -7,12 +7,38 @@ defmodule Plugin.Test do
 
   @spec! process_msg(any(), S.Msg.t()) :: nil | S.Response.t()
   @impl Plugin
-  def process_msg(_, msg) do
+  def process_msg(_cfg, msg) do
     case msg.body do
-      "!ping" -> S.Response.new(confidence: 10, text: "pong!", why: ["They pinged so I ponged!"])
-      "!raise" -> raise SillyError
-      _ -> nil
+      "!ping" ->
+        S.Response.new(
+          confidence: 10,
+          text: "pong!",
+          why: ["They pinged so I ponged!"]
+        )
+
+      "!callback" ->
+        num = :rand.uniform(10)
+
+        S.Response.new(
+          confidence: 10,
+          text: nil,
+          why: ["They want to test callbacks."],
+          callback: {__MODULE__, :callback_example, [num]}
+        )
+
+      "!raise" ->
+        raise SillyError
+
+      _ ->
+        nil
     end
+  end
+
+  def callback_example(_cfg, num) when is_number(num) do
+    S.Response.new(
+      confidence: 10,
+      text: "Called back with number #{num}"
+    )
   end
 end
 

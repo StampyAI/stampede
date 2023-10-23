@@ -24,6 +24,12 @@ defmodule Plugin do
     MapSet.intersection(enabled, ls())
   end
 
+  @type! task_result ::
+           {:error, :timeout}
+           | {:ok, nil}
+           | {:ok, %Response{}}
+  @type! plugin_task_result :: {atom(), task_result()}
+
   @spec! get_top_response(SiteConfig.t(), Msg.t()) :: nil | Response.t()
   def get_top_response(cfg, msg) do
     tasks =
@@ -58,7 +64,10 @@ defmodule Plugin do
       |> Task.yield_many(timeout: @first_response_timeout)
       |> Enum.map(fn {task, result} ->
         # they are reunited :-)
-        {task_ids[task.ref], result || Task.shutdown(task, :brutal_kill)}
+        {
+          task_ids[task.ref],
+          result || Task.shutdown(task, :brutal_kill)
+        }
       end)
       |> Enum.map(fn
         {plug, result} ->
@@ -76,64 +85,156 @@ defmodule Plugin do
               {plug, {:error, :timeout}}
           end
       end)
+      |> task_sort()
 
-    final_responses =
-      Enum.reduce(task_results, [], fn result, acc ->
-        case result do
-          {_plug, {:ok, result}} ->
-            if result == nil,
-              do: acc,
-              else: [result | acc]
+    %{r: chosen_response, tb: traceback} = resolve_responses(task_results)
 
-          _ ->
-            acc
-        end
-      end)
-      |> Response.sort()
-
-    case final_responses do
-      [] ->
+    case chosen_response do
+      nil ->
         nil
 
-      successes when is_list(successes) ->
-        chosen = hd(successes)
-        why_others = Plugin.Why.tried_plugs(task_results)
-        Map.put(chosen, :why, why_others)
+      chosen_response = %Response{callback: nil} ->
+        final_int =
+          struct!(S.Interaction,
+            initial_msg: msg,
+            chosen_response: chosen_response,
+            traceback: IO.iodata_to_binary(traceback)
+          )
+
+        # TODO: logging interactions
+        chosen_response
+
+      %Response{callback: {mod, fun, args}} ->
+        followup =
+          apply(mod, fun, [cfg | args])
+
+        new_tb = [
+          traceback,
+          "\nTop response was a callback, so i called it. It responded with: \n\"#{followup.text}\"",
+          followup.why
+        ]
+
+        final_int =
+          struct!(S.Interaction,
+            initial_msg: msg,
+            chosen_response: followup,
+            traceback: IO.iodata_to_binary(new_tb)
+          )
+
+        # TODO: logging interactions
+        followup
     end
-
-    # TODO: callbacks, and traceback appends
   end
-end
 
-defmodule Plugin.Why do
-  use TypeCheck
-  require Logger
-  alias Stampede, as: S
-  # alias S.{Msg,Response}
+  @spec! task_sort(list(plugin_task_result())) :: list(plugin_task_result())
+  def task_sort(tlist) do
+    Enum.sort(tlist, fn
+      {_, {:ok, r1}}, {_, {:ok, r2}} ->
+        cond do
+          r1 && r2 ->
+            r1.confidence >= r2.confidence
 
-  def tried_plugs(task_results) do
-    Enum.reduce(task_results, [], fn
-      {plug, {:ok, nil}}, acc ->
-        [acc | "\nWe asked #{plug}, and it decided not to answer."]
+          !r1 && r2 ->
+            false
 
-      {plug, {:error, :timeout}}, acc ->
-        [acc | "\nWe asked #{plug}, but it timed out."]
+          r1 && !r2 ->
+            true
 
-      {plug, {:ok, response}}, acc ->
-        quoted_response =
-          S.markdown_quote(response.text)
+          !r1 && !r2 ->
+            true
+        end
 
-        [
-          acc
-          | "\nWe asked #{plug}, and it responded with confidence #{response.confidence}:\n#{quoted_response}\nWhen asked why, it said: \"#{response.why}\""
-        ]
+      {_, {s1, _}}, {_, {s2, _}} ->
+        case {s1, s2} do
+          {:ok, :ok} ->
+            true
 
-      {plug, {:error, val, _trace_location}}, acc ->
-        [
-          acc
-          | "\nWe asked #{plug}, but there was an error of type #{val.__struct__}, message #{val.message}"
-        ]
+          {:ok, _} ->
+            true
+
+          {_, :ok} ->
+            false
+
+          _ ->
+            true
+        end
     end)
-    |> IO.iodata_to_binary()
+  end
+
+  @spec! resolve_responses(list(plugin_task_result())) :: map()
+  def resolve_responses(tlist) do
+    do_rr(tlist, nil, [])
+  end
+
+  def do_rr([], chosen_response, traceback) do
+    %{
+      r: chosen_response,
+      tb: traceback
+    }
+  end
+
+  def do_rr(
+        [{plug, {:ok, nil}} | rest],
+        chosen_response,
+        traceback
+      ) do
+    do_rr(rest, chosen_response, [
+      traceback
+      | "\nWe asked #{plug}, and it decided not to answer."
+    ])
+  end
+
+  def do_rr(
+        [{plug, {:error, :timeout}} | rest],
+        chosen_response,
+        traceback
+      ) do
+    do_rr(rest, chosen_response, [
+      traceback
+      | "\nWe asked #{plug}, but it timed out."
+    ])
+  end
+
+  def do_rr(
+        [{plug, {:ok, response}} | rest],
+        chosen_response,
+        traceback
+      ) do
+    tb =
+      if response.callback do
+        [
+          traceback
+          | "\nWe asked #{plug}, and it responded with confidence #{response.confidence} offering a callback.\nWhen asked why, it said: \"#{response.why}\""
+        ]
+      else
+        [
+          traceback
+          | "\nWe asked #{plug}, and it responded with confidence #{response.confidence}:\n#{S.markdown_quote(response.text)}\nWhen asked why, it said: \"#{response.why}\""
+        ]
+      end
+
+    if chosen_response == nil do
+      do_rr(rest, response, [
+        tb
+        | "\nWe chose this response."
+      ])
+    else
+      do_rr(rest, chosen_response, tb)
+    end
+  end
+
+  def do_rr(
+        [{plug, {:error, val, _trace_location}} | rest],
+        chosen_response,
+        traceback
+      ) do
+    do_rr(
+      rest,
+      chosen_response,
+      [
+        traceback
+        | "\nWe asked #{plug}, but there was an error of type #{val.__struct__}, message #{val.message}"
+      ]
+    )
   end
 end

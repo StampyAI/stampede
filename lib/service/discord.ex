@@ -165,20 +165,24 @@ defmodule Service.Discord.Logger do
   @spec! handle_event(any(), logger_state()) :: {:ok, logger_state()}
   def handle_event(log_msg = {level, gl, {Logger, _message, _timestamp, _metadata}}, state)
       when node(gl) == node() do
-    _ =
-      case Logger.compare_levels(level, state[:level]) do
-        :lt ->
-          nil
+    if Application.fetch_env!(:stampede, :error_channel_service) == :discord do
+      _ =
+        case Logger.compare_levels(level, state[:level]) do
+          :lt ->
+            nil
 
-        _ ->
-          channel_id = Application.fetch_env!(:stampede, :error_channel_id)
-          try do
-            Service.Discord.log_error(channel_id, log_msg)
-          catch
-            _type, _error ->
-              :nothing # NOTE: give up. what are we gonna do, throw another error?
-          end
-      end
+          _ ->
+            channel_id = Application.fetch_env!(:stampede, :error_channel_id)
+
+            try do
+              Service.Discord.log_error(channel_id, log_msg)
+            catch
+              _type, _error ->
+                # NOTE: give up. what are we gonna do, throw another error?
+                :nothing
+            end
+        end
+    end
 
     {:ok, state}
   end

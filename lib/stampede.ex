@@ -8,7 +8,7 @@ defmodule Stampede do
   @type! log_msg ::
            {log_level(), identifier(), {Logger, String.t() | maybe_improper_list(), any(), any()}}
   @type! prefix :: String.t() | Regex.t()
-  @type! module_function_args :: {module(), function(), tuple()}
+  @type! module_function_args :: {module(), atom(), tuple() | list()}
   # BUG: type_check issue #189, iolist()
   @type! traceback :: String.t() | [] | maybe_improper_list(String.t(), [])
   @type! enabled_plugs :: :all | [] | nonempty_list(module())
@@ -98,4 +98,16 @@ defmodule Stampede do
       kwlist
     end
   end
+end
+
+defmodule Stampede.Interaction do
+  alias Stampede.{Msg, Response}
+  use TypeCheck
+  use TypeCheck.Defstruct
+
+  defstruct!(
+    initial_msg: nil :: Msg,
+    chosen_response: nil :: nil | Response,
+    traceback: [] :: iodata() | String.t()
+  )
 end
