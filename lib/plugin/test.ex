@@ -26,11 +26,15 @@ defmodule Plugin.Test do
           callback: {__MODULE__, :callback_example, [num]}
         )
 
+      "!timeout" ->
+        :timer.seconds(11) |> Process.sleep()
+        raise "This job should be killed before here"
+
       "!raise" ->
         raise SillyError
 
       "!throw" ->
-        throw SillyThrow
+        throw(SillyThrow)
 
       _ ->
         nil
@@ -48,6 +52,7 @@ end
 defmodule SillyError do
   defexception message: "Intentional exception raised"
 end
+
 defmodule SillyThrow do
   defexception message: "Intentional throw made"
 end

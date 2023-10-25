@@ -1,17 +1,19 @@
-deps/nostrum/lib/nostrum/consumer.ex:417: Expression produces a value of type {'ok',pid()}, but this value is unmatched
-deps/type_check/lib/type_check/spec.ex:1: The pattern {'error', _@31} can never match the type {'ok',[],_}
-lib/inter_active.ex:25: Function start_link/1 has no local return
-lib/inter_active.ex:27: The pattern #{'app_id':=_@1} can never match the type [{atom(),_}]
-lib/inter_active.ex:31: Call to missing or unexported function ets:new/0
-lib/plugin.ex:116: Cons will produce an improper list since its 2nd argument is <<_:8,_:_*1>>
-lib/plugin.ex:119: Cons will produce an improper list since its 2nd argument is <<_:8,_:_*1>>
-lib/plugin.ex:127: Cons will produce an improper list since its 2nd argument is <<_:8,_:_*1>>
-lib/plugin.ex:131: Cons will produce an improper list since its 2nd argument is <<_:8,_:_*1>>
-lib/service/discord.ex:85: Function logger_state/0 has no local return
-lib/service/dummy.ex:19: Function msg_content/0 has no local return
-lib/service/dummy.ex:21: Function msg_tuple/0 has no local return
-lib/service/dummy.ex:24: Function channel_buffers/0 has no local return
-lib/service/dummy.ex:25: Function dummy_state/0 has no local return
+deps/nostrum/lib/nostrum/consumer.ex:411: Unknown function 'Elixir.Nostrum.ConsumerGroup':join/1
+lib/service/discord.ex:33: Unknown function 'Elixir.Nostrum.Api':create_message/2
+lib/service/discord.ex:102: Unknown function 'Elixir.Nostrum.Api':create_message/2
+/build/source/lib/elixir/lib/gen_server.ex:118: Callback info about the 'Elixir.Nostrum.Consumer' behaviour is not available
+lib/plugin.ex:27: Function task_result/0 has no local return
+lib/plugin.ex:31: Function plugin_task_result/0 has no local return
+lib/plugin.ex:181: Cons will produce an improper list since its 2nd argument is <<_:8,_:_*1>>
+lib/plugin.ex:192: Cons will produce an improper list since its 2nd argument is <<_:8,_:_*1>>
+lib/plugin.ex:217: Cons will produce an improper list since its 2nd argument is <<_:192>>
+lib/plugin.ex:231: Cons will produce an improper list since its 2nd argument is <<_:8,_:_*1>>
+lib/service/discord.ex:128: Expression produces a value of type 'ok' | {'ok',pid()}, but this value is unmatched
+lib/service/discord.ex:151: Function logger_state/0 has no local return
+lib/service/dummy.ex:15: Function msg_content/0 has no local return
+lib/service/dummy.ex:17: Function msg_tuple/0 has no local return
+lib/service/dummy.ex:20: Function channel_buffers/0 has no local return
+lib/service/dummy.ex:21: Function dummy_state/0 has no local return
 lib/site_config.ex:12: Function schema/0 has no local return
 lib/stampede.ex:6: Function log_level/0 has no local return
 lib/stampede.ex:8: Function log_msg/0 has no local return
@@ -21,3 +23,5 @@ lib/stampede.ex:13: Function traceback/0 has no local return
 lib/stampede.ex:14: Function enabled_plugs/0 has no local return
 lib/stampede.ex:26: Cons will produce an improper list since its 2nd argument is nonempty_improper_list(any(),<<_:8>>)
 lib/stampede.ex:26: Cons will produce an improper list since its 2nd argument is <<_:8>>
+lib/stampede/interactions.ex:26: Function start_link/1 has no local return
+lib/stampede/interactions.ex:32: Call to missing or unexported function ets:new/0

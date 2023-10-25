@@ -52,13 +52,14 @@ defmodule Plugin do
          )}
       end)
 
+    # make a map of task references to the plugins they were called for
     task_ids =
       Enum.reduce(tasks, %{}, fn
         {plug, %{ref: ref}}, acc ->
           Map.put(acc, ref, plug)
       end)
 
-    # to yield in parallel, the plugins and tasks must part
+    # to yield with Task.yield_many(), the plugins and tasks must part
     task_results =
       Enum.map(tasks, fn {_plug, task} -> task end)
       |> Task.yield_many(timeout: @first_response_timeout)

@@ -98,6 +98,9 @@ defmodule Stampede do
       kwlist
     end
   end
+
+  def confused_response(),
+    do: "*confused beeping*"
 end
 
 defmodule Stampede.Interaction do

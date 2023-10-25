@@ -5,6 +5,8 @@ defmodule StampedeTest do
   alias Service.Dummy, as: D
   doctest Stampede
 
+  @confused_response S.confused_response()
+
   @dummy_cfg """
     service: dummy
     server_id: testing
@@ -159,9 +161,9 @@ defmodule StampedeTest do
                {{:nope, "nada"}, {:abc, "def"}, {:u1, "!ping"}, {:server, "pong!"}}
     end
 
-    test "raising", s do
+    test "plugin raising", s do
       {result, log} = with_log(fn -> D.send_msg(s.dummy_pid, :t1, :u1, "!raise") end)
-      assert match?(%{text: "*confused beeping*"}, result), "message return not functional"
+      assert match?(%{text: @confused_response}, result), "message return not functional"
       assert String.contains?(log, "SillyError"), "SillyError not thrown"
 
       assert D.channel_history(s.dummy_pid, :error)
@@ -170,12 +172,12 @@ defmodule StampedeTest do
              "error not being logged"
 
       assert D.channel_history(s.dummy_pid, :t1) ==
-               {{:u1, "!raise"}, {:server, "*confused beeping*"}}
+               {{:u1, "!raise"}, {:server, @confused_response}}
     end
 
-    test "throwing", s do
+    test "plugin throwing", s do
       {result, log} = with_log(fn -> D.send_msg(s.dummy_pid, :t1, :u1, "!throw") end)
-      assert match?(%{text: "*confused beeping*"}, result), "message return not functional"
+      assert match?(%{text: @confused_response}, result), "message return not functional"
       assert String.contains?(log, "SillyThrow"), "SillyThrow not thrown"
 
       assert D.channel_history(s.dummy_pid, :error)
@@ -184,12 +186,17 @@ defmodule StampedeTest do
              "error not being logged"
 
       assert D.channel_history(s.dummy_pid, :t1) ==
-               {{:u1, "!throw"}, {:server, "*confused beeping*"}}
+               {{:u1, "!throw"}, {:server, @confused_response}}
     end
 
-    test "callback", s do
+    test "plugin with callback", s do
       r = D.send_msg(s.dummy_pid, :t1, :u1, "!callback")
       assert String.starts_with?(r.text, "Called back with")
+    end
+
+    test "plugin timeout", s do
+      r = D.send_msg(s.dummy_pid, :t1, :u1, "!timeout")
+      assert r.text == @confused_response
     end
   end
 
