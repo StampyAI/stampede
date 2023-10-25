@@ -10,10 +10,6 @@ defmodule Stampede.Application do
 
   def app_config_schema() do
     NimbleOptions.new!(
-      app_id: [
-        type: {:or, [:atom, :string]},
-        default: Stampede
-      ],
       installed_services: [
         type: {:or, [{:in, [[]]}, {:list, {:in, Map.keys(S.services())}}]},
         required: true,
@@ -58,58 +54,49 @@ defmodule Stampede.Application do
 
     if args[:log_to_file], do: :ok = Logger.add_handlers(:stampede)
 
-    app_id = Keyword.get(args, :app_id)
-
-    children = make_children(args, app_id)
+    children = make_children(args)
 
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
-    opts = [strategy: :one_for_one, name: Module.concat(app_id, "Supervisor")]
+    opts = [strategy: :one_for_one, name: Stampede.Supervisor]
     Supervisor.start_link(children, opts)
   end
 
-  def service_spec(atom, app_id) when is_atom(atom) do
+  def service_spec(atom) when is_atom(atom) do
     S.services()
     |> Map.fetch!(atom)
-    |> then(fn name -> {name, app_id: app_id} end)
   end
 
-  def all_services(installed, app_id) do
-    installed |> Enum.map(&service_spec(&1, app_id))
+  def all_services(installed) do
+    installed |> Enum.map(&service_spec(&1))
   end
 
-  def make_children(args, app_id) do
+  def make_children(args) do
     default_children = [
-      {Registry,
-       keys: :unique,
-       name: Module.concat(app_id, "Registry"),
-       partitions: System.schedulers_online()},
-      {PartitionSupervisor, child_spec: Task.Supervisor, name: S.via(app_id, "QuickTaskSupers")},
-      # NOTE: call with {:via, S.via(app_id, "PartitionSupervisor"), {S.via(app_id, "QuickTaskSupers"), self()}}
-      # See Stampede.quick_task_via(app_id)
-      {Stampede.CfgTable,
-       config_dir: Keyword.fetch!(args, :config_dir),
-       app_id: app_id,
-       name: S.via(app_id, "CfgTable")}
+      {Registry, keys: :unique, name: Stampede.Registry, partitions: System.schedulers_online()},
+      {PartitionSupervisor, child_spec: Task.Supervisor, name: S.via("QuickTaskSupers")},
+      # NOTE: call with Stampede.quick_task_via()
+      {Stampede.CfgTable, config_dir: Keyword.fetch!(args, :config_dir), name: S.via("CfgTable")}
     ]
 
     service_tuples =
       case Keyword.fetch!(args, :services) do
         :all ->
-          Logger.debug("#{app_id} starting all services")
-          all_services(Keyword.fetch!(args, :installed_services), app_id)
+          installed = Keyword.fetch!(args, :installed_services)
+          Logger.debug("Stampede starting all services: #{inspect(installed)}")
+          all_services(installed)
 
         :none ->
-          Logger.debug("#{app_id} starting no services")
+          Logger.debug("Stampede starting no services")
           []
 
         name when is_atom(name) ->
-          Logger.debug("#{app_id} starting only #{name}")
-          [service_spec(name, app_id)]
+          Logger.debug("Stampede starting only #{name}")
+          [service_spec(name)]
 
         list when is_list(list) or is_tuple(list) ->
-          Logger.debug("#{app_id} starting these: #{inspect(list)}")
-          Enum.map(list, &service_spec(&1, app_id))
+          Logger.debug("Stampede starting these: #{inspect(list)}")
+          Enum.map(list, &service_spec(&1))
       end
 
     default_children ++ service_tuples

@@ -5,13 +5,12 @@ defmodule Stampede.CfgTable do
   alias Stampede, as: S
 
   defstruct!(
-    app_id: _ :: atom() | binary(),
     config_dir: _ :: binary(),
     table_id: _ :: any()
   )
 
-  def table(app_id) do
-    Module.concat(app_id, :cfg_table)
+  def table() do
+    __MODULE__
   end
 
   def start_link(args) do
@@ -21,16 +20,15 @@ defmodule Stampede.CfgTable do
   @spec! init(keyword()) :: {:ok, map()}
   @impl GenServer
   def init(args) do
-    app_id = Keyword.fetch!(args, :app_id)
     config_dir = Keyword.fetch!(args, :config_dir)
-    table_id = make_filled_table(app_id, config_dir)
-    {:ok, struct!(__MODULE__, table_id: table_id, config_dir: config_dir, app_id: app_id)}
+    table_id = make_filled_table(config_dir)
+    {:ok, struct!(__MODULE__, table_id: table_id, config_dir: config_dir)}
   end
 
   @doc """
   Handle creation and population of a new table, and optionally deleting the old one
   """
-  def make_filled_table(app_id, config_dir, old_table \\ nil) do
+  def make_filled_table(config_dir, old_table \\ nil) do
     ets_settings = [:named_table]
     # ets_settings = [:set, :protected,
     #  tweaks: [
@@ -42,7 +40,7 @@ defmodule Stampede.CfgTable do
       |> make_table_contents()
 
     if old_table, do: :ets.delete(old_table)
-    table_id = :ets.new(table(app_id), ets_settings)
+    table_id = :ets.new(table(), ets_settings)
     true = :ets.insert_new(table_id, table_contents)
 
     table_id
@@ -75,11 +73,11 @@ defmodule Stampede.CfgTable do
     ]
   end
 
-  def lookup(app_id, server_id, key),
-    do: lookup(app_id, {server_id, key})
+  def lookup(server_id, key),
+    do: lookup({server_id, key})
 
-  def lookup(app_id, key) do
-    table(app_id)
+  def lookup(key) do
+    table()
     |> :ets.lookup(key)
     # Assuming no duplicate keys
     |> case do
@@ -91,24 +89,24 @@ defmodule Stampede.CfgTable do
     end
   end
 
-  def server_configured?(app_id, server_id) do
-    table(app_id)
+  def server_configured?(server_id) do
+    table()
     |> :ets.member({server_id, :service})
   end
 
-  def servers_configured(app_id, service_name) do
-    table(app_id)
+  def servers_configured(service_name) do
+    table()
     |> :ets.match({{:"$1", :service}, service_name})
     |> MapSet.new(&hd(&1))
   end
 
-  def reload_cfgs(app_id, dir \\ nil) do
-    table(app_id)
+  def reload_cfgs(dir \\ nil) do
+    table()
     |> GenServer.call({:reload_cfgs, dir})
   end
 
-  def table_dump(app_id) do
-    table(app_id)
+  def table_dump() do
+    table()
     |> :ets.tab2list()
     |> Map.new()
   end
@@ -116,10 +114,9 @@ defmodule Stampede.CfgTable do
   @impl GenServer
   def handle_call({:reload_cfgs, new_dir}, _from, %{
         table_id: old_table_id,
-        config_dir: config_dir,
-        app_id: app_id
+        config_dir: config_dir
       }) do
-    new_id = make_filled_table(app_id, new_dir || config_dir, old_table_id)
-    {:noreply, %{table_id: new_id, config_dir: config_dir, app_id: app_id}}
+    new_id = make_filled_table(new_dir || config_dir, old_table_id)
+    {:noreply, %{table_id: new_id, config_dir: config_dir}}
   end
 end

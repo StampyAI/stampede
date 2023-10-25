@@ -18,7 +18,8 @@ defmodule Service.Dummy do
   @typep! channel :: tuple()
   # multiple channels
   @typep! channel_buffers :: %{dummy_channel_id() => channel()} | %{}
-  @typep! dummy_state :: {SiteConfig.t(), channel_buffers()}
+  @typep! dummy_servers :: %{dummy_server_id() => {SiteConfig.t(), channel_buffers()}}
+  @typep! dummy_state :: dummy_servers() | %{}
 
   @schema NimbleOptions.new!(
             SiteConfig.merge_custom_schema(
@@ -39,18 +40,8 @@ defmodule Service.Dummy do
                 type: S.ntc(Regex.t() | String.t())
               ],
               plugs: [
-                default: ["Test"],
+                default: ["Test", "Sentience"],
                 type: {:custom, SiteConfig, :real_plugins, []}
-              ],
-              app_id: [
-                default: Stampede,
-                type: {:or, [:atom, :string]},
-                doc: """
-                Used for running multiple Stampede instances on the same BEAM. In queries to shared
-                resources, such as Stampede.Registry, Stampede.QuickTaskSupers, etc.
-                "Stampede" becomes something else. This isn't exactly a "site" config
-                but it saves needing a lot of extra function args all over the place.
-                """
               ]
             )
           )
@@ -74,89 +65,112 @@ defmodule Service.Dummy do
     )
   end
 
-  @spec! channel_buffers_append(channel_buffers(), msg_tuple()) :: channel_buffers()
-  def channel_buffers_append(bufs, {channel, user, msg}) do
-    Map.update(bufs, channel, {{user, msg}}, &Tuple.append(&1, {user, msg}))
-  end
-
   @spec! send_msg(
-           identifier(),
+           dummy_server_id(),
            dummy_channel_id(),
            dummy_user_id(),
-           msg_content(),
-           dummy_server_id() | nil
+           msg_content()
          ) ::
            nil | Response.t()
-  def send_msg(instance, channel, user, text, server_id \\ nil) do
-    GenServer.call(instance, {:msg_new, {server_id || instance, channel, user, text}})
+  def send_msg(server_id, channel, user, text) do
+    GenServer.call(__MODULE__, {:msg_new, {server_id, channel, user, text}})
   end
 
-  @spec! channel_history(identifier(), dummy_channel_id()) :: channel()
-  def channel_history(instance, channel) do
-    GenServer.call(instance, {:channel_history, channel})
+  @spec! channel_history(dummy_server_id(), dummy_channel_id()) :: channel()
+  def channel_history(server_id, channel) do
+    GenServer.call(__MODULE__, {:channel_history, server_id, channel})
   end
 
-  def channel_dump(instance) do
-    GenServer.call(instance, :channel_dump)
+  @spec! server_dump(dummy_server_id()) :: channel_buffers()
+  def server_dump(server_id) do
+    GenServer.call(__MODULE__, {:server_dump, server_id})
+  end
+
+  def new_server(new_server_id, plugs \\ nil) do
+    GenServer.call(__MODULE__, {:new_server, new_server_id, plugs})
   end
 
   @spec! start_link(Keyword.t()) :: :ignore | {:error, any} | {:ok, pid}
   def start_link(cfg_overrides \\ []) do
-    GenServer.start_link(__MODULE__, cfg_overrides)
+    GenServer.start_link(__MODULE__, cfg_overrides, name: __MODULE__)
   end
 
   @impl GenServer
   @spec! init(Keyword.t()) :: {:ok, dummy_state()}
-  def init(cfg_overrides) do
+  def init(_) do
     Logger.metadata(stampede_component: :dummy)
 
-    # convenience for relatively manual usage
-    defaults = [
-      service: :dummy,
-      server_id: self()
-    ]
-
-    cfg =
-      defaults
-      |> Keyword.merge(cfg_overrides)
-      |> SiteConfig.validate!(site_config_schema())
-
     # Service.register_logger(registry, __MODULE__, self())
-    {:ok, {cfg, Map.new()}}
+    {:ok, Map.new()}
   end
 
   @impl GenServer
-  def handle_call({:msg_new, {server, channel, user, text}}, _from, {cfg, buffers}) do
-    if server != cfg.server_id do
-      # ignore unconfigured server
-      {:reply, nil, {cfg, buffers}}
+  def handle_call({:new_server, id, plugs}, _from, servers) do
+    if Map.get(servers, id, false) do
+      {:reply, {:error, :already_exists}}
     else
-      buf2 = channel_buffers_append(buffers, {channel, user, text})
+      new_cfg =
+        [
+          service: :dummy,
+          server_id: id
+        ]
+        |> S.keyword_put_new_if_not_falsy(:plugs, plugs)
+        |> SiteConfig.validate!(site_config_schema())
+
+      new_state = Map.put(servers, id, {new_cfg, Map.new()})
+      {:reply, :ok, new_state}
+    end
+  end
+
+  def handle_call({:msg_new, {server_id, channel, user, text}}, _from, servers) do
+    if not Map.has_key?(servers, server_id) do
+      # ignore unconfigured server
+      {:reply, nil, servers}
+    else
+      {cfg, buf} = Map.fetch!(servers, server_id)
+
+      buf2 = channel_buffers_append(buf, {channel, user, text})
 
       our_msg =
         Msg.new(
           body: text,
           channel_id: channel,
           author_id: user,
-          server_id: server || self()
+          server_id: server_id
         )
 
       response = Plugin.get_top_response(cfg, our_msg)
 
       if response do
         buf3 = channel_buffers_append(buf2, {channel, @system_user, response.text})
-        {:reply, response, {cfg, buf3}}
+
+        new_state =
+          Map.update!(servers, server_id, fn {cfg, _} ->
+            {cfg, buf3}
+          end)
+
+        {:reply, response, new_state}
       else
-        {:reply, response, {cfg, buf2}}
+        new_state =
+          Map.update!(servers, server_id, fn {cfg, _} ->
+            {cfg, buf2}
+          end)
+
+        {:reply, response, new_state}
       end
     end
   end
 
-  def handle_call({:channel_history, channel}, _from, state = {_, history}) do
-    {:reply, Map.fetch!(history, channel), state}
+  def handle_call({:channel_history, server_id, channel}, _from, servers) do
+    {:reply, Map.fetch!(servers, server_id) |> elem(1) |> Map.fetch!(channel), servers}
   end
 
-  def handle_call(:channel_dump, _from, state = {_, history}) do
-    {:reply, history, state}
+  def handle_call({:server_dump, server_id}, _from, servers) do
+    {:reply, Map.fetch!(servers, server_id) |> elem(1), servers}
+  end
+
+  @spec! channel_buffers_append(channel_buffers(), msg_tuple()) :: channel_buffers()
+  def channel_buffers_append(bufs, {channel, user, msg}) do
+    Map.update(bufs, channel, {{user, msg}}, &Tuple.append(&1, {user, msg}))
   end
 end

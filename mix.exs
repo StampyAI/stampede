@@ -74,7 +74,7 @@ defmodule Stampede.MixProject do
 
   defp dialyzer() do
     [
-      flags: [:missing_return, :extra_return, :unmatched_returns, :error_handling],
+      flags: [:missing_return, :extra_return, :unmatched_returns, :error_handling, :no_improper_lists],
       ignore_warnings: "config/dialyzer.ignore"
     ]
   end

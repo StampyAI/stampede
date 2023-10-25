@@ -15,38 +15,33 @@ defmodule StampedeTest do
     plugs:
       - Test
       - Sentience
-    app_id: "Test01"
   """
   @dummy_cfg_verified %{
     service: Service.Dummy,
     server_id: :testing,
     error_channel_id: :error,
     prefix: "!",
-    plugs: MapSet.new([Plugin.Test, Plugin.Sentience]),
-    app_id: "Test01"
+    plugs: MapSet.new([Plugin.Test, Plugin.Sentience])
   }
+  setup_all do
+    %{
+      app_pid:
+        Stampede.Application.start(:normal,
+          installed_services: [:dummy],
+          services: :all,
+          log_to_file: false
+        )
+    }
+  end
+
   setup context do
     id = context.test
 
-    dummy_data =
-      if not Map.get(context, :dummy, false) do
-        Map.new()
-      else
-        {:ok, app_pid} =
-          Stampede.Application.start(:normal,
-            app_id: id,
-            installed_services: [],
-            services: :none,
-            log_to_file: false
-          )
+    if Map.get(context, :dummy, false) do
+      :ok = D.new_server(id, MapSet.new([Plugin.Test, Plugin.Sentience]))
+    end
 
-        {:ok, dummy_pid} =
-          D.start_link(plugs: MapSet.new([Plugin.Test, Plugin.Sentience]), app_id: id)
-
-        Map.new(app_pid: app_pid, dummy_pid: dummy_pid)
-      end
-
-    Map.put(dummy_data, :id, id)
+    %{id: id}
   end
 
   describe "stateless functions" do
@@ -144,58 +139,58 @@ defmodule StampedeTest do
   describe "dummy server" do
     @describetag :dummy
     test "ping", s do
-      assert nil == D.send_msg(s.dummy_pid, :t1, :u1, "no response")
-      assert "pong!" == D.send_msg(s.dummy_pid, :t1, :u1, "!ping") |> Map.fetch!(:text)
+      assert nil == D.send_msg(s.id, :t1, :u1, "no response")
+      assert "pong!" == D.send_msg(s.id, :t1, :u1, "!ping") |> Map.fetch!(:text)
 
-      assert D.channel_history(s.dummy_pid, :t1) ==
+      assert D.channel_history(s.id, :t1) ==
                {{:u1, "no response"}, {:u1, "!ping"}, {:server, "pong!"}}
     end
 
     test "ignores messages from other servers", s do
-      nil = D.send_msg(s.dummy_pid, :t1, :nope, "nada")
-      nil = D.send_msg(s.dummy_pid, :t1, :abc, "def")
-      assert "pong!" == D.send_msg(s.dummy_pid, :t1, :u1, "!ping") |> Map.fetch!(:text)
-      assert nil == D.send_msg(s.dummy_pid, :t1, :u1, "!ping", :another_server)
+      nil = D.send_msg(s.id, :t1, :nope, "nada")
+      nil = D.send_msg(s.id, :t1, :abc, "def")
+      assert "pong!" == D.send_msg(s.id, :t1, :u1, "!ping") |> Map.fetch!(:text)
+      assert nil == D.send_msg(:shouldnt_exist, :t1, :u1, "!ping")
 
-      assert D.channel_history(s.dummy_pid, :t1) ==
+      assert D.channel_history(s.id, :t1) ==
                {{:nope, "nada"}, {:abc, "def"}, {:u1, "!ping"}, {:server, "pong!"}}
     end
 
     test "plugin raising", s do
-      {result, log} = with_log(fn -> D.send_msg(s.dummy_pid, :t1, :u1, "!raise") end)
+      {result, log} = with_log(fn -> D.send_msg(s.id, :t1, :u1, "!raise") end)
       assert match?(%{text: @confused_response}, result), "message return not functional"
       assert String.contains?(log, "SillyError"), "SillyError not thrown"
 
-      assert D.channel_history(s.dummy_pid, :error)
+      assert D.channel_history(s.id, :error)
              |> inspect()
              |> String.contains?("SillyError"),
              "error not being logged"
 
-      assert D.channel_history(s.dummy_pid, :t1) ==
+      assert D.channel_history(s.id, :t1) ==
                {{:u1, "!raise"}, {:server, @confused_response}}
     end
 
     test "plugin throwing", s do
-      {result, log} = with_log(fn -> D.send_msg(s.dummy_pid, :t1, :u1, "!throw") end)
+      {result, log} = with_log(fn -> D.send_msg(s.id, :t1, :u1, "!throw") end)
       assert match?(%{text: @confused_response}, result), "message return not functional"
       assert String.contains?(log, "SillyThrow"), "SillyThrow not thrown"
 
-      assert D.channel_history(s.dummy_pid, :error)
+      assert D.channel_history(s.id, :error)
              |> inspect()
              |> String.contains?("SillyThrow"),
              "error not being logged"
 
-      assert D.channel_history(s.dummy_pid, :t1) ==
+      assert D.channel_history(s.id, :t1) ==
                {{:u1, "!throw"}, {:server, @confused_response}}
     end
 
     test "plugin with callback", s do
-      r = D.send_msg(s.dummy_pid, :t1, :u1, "!callback")
+      r = D.send_msg(s.id, :t1, :u1, "!callback")
       assert String.starts_with?(r.text, "Called back with")
     end
 
     test "plugin timeout", s do
-      r = D.send_msg(s.dummy_pid, :t1, :u1, "!timeout")
+      r = D.send_msg(s.id, :t1, :u1, "!timeout")
       assert r.text == @confused_response
     end
   end
@@ -203,8 +198,8 @@ defmodule StampedeTest do
   describe "dummy server channels" do
     @describetag :dummy
     test "one message", s do
-      D.send_msg(s.dummy_pid, :t1, :u1, "lol")
-      assert D.channel_history(s.dummy_pid, :t1) == {{:u1, "lol"}}
+      D.send_msg(s.id, :t1, :u1, "lol")
+      assert D.channel_history(s.id, :t1) == {{:u1, "lol"}}
     end
 
     test "many messages", s do
@@ -214,43 +209,33 @@ defmodule StampedeTest do
           {:t1, :u1, "#{x}"}
         end)
         |> Enum.map(fn {a, u, m} ->
-          D.send_msg(s.dummy_pid, a, u, m)
+          D.send_msg(s.id, a, u, m)
           {u, m}
         end)
 
-      assert D.channel_history(s.dummy_pid, :t1) == List.to_tuple(dummy_messages)
+      assert D.channel_history(s.id, :t1) == List.to_tuple(dummy_messages)
     end
   end
 
   describe "cfg_table" do
     @tag :tmp_dir
-    test "basic", s do
+    test "make_table_contents", s do
       ids = Atom.to_string(s.id)
 
       this_cfg =
         @dummy_cfg
-        |> String.replace("app_id: \"Test01\"", "app_id: \"#{ids}\"")
         |> String.replace("server_id: testing", "server_id: foobar")
 
-      File.write!(Path.join([s.tmp_dir, ids <> ".yml"]), this_cfg)
-
-      _pid =
-        S.CfgTable.start_link(
-          app_id: s.id,
-          config_dir: s.tmp_dir
-        )
+      Path.join([s.tmp_dir, ids <> ".yml"])
+      |> File.write!(this_cfg)
 
       newtable =
-        S.CfgTable.table_dump(s.id)
-        |> Enum.map(fn
-          {{_id, k}, v} -> {k, v}
-          x -> x
-        end)
-        |> Map.new()
+        SiteConfig.load_all(s.tmp_dir)
+        |> S.CfgTable.make_table_contents()
+        |> Map.new(fn {{_srv, k}, v} -> {k, v} end)
 
       assert "!" == newtable.prefix
       assert :foobar == newtable.server_id
-      assert "!" == S.CfgTable.lookup(s.id, :foobar, :prefix)
     end
   end
 end

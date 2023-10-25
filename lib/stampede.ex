@@ -27,12 +27,12 @@ defmodule Stampede do
     |> IO.iodata_to_binary()
   end
 
-  def via(app_id, key) do
-    {:via, Registry, {Module.safe_concat(app_id, Registry), key}}
+  def via(key) do
+    {:via, Registry, {Stampede.Registry, key}}
   end
 
-  def quick_task_via(app_id) do
-    {:via, PartitionSupervisor, {via(app_id, "QuickTaskSupers"), self()}}
+  def quick_task_via() do
+    {:via, PartitionSupervisor, {via("QuickTaskSupers"), self()}}
   end
 
   def services(),

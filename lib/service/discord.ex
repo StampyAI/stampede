@@ -66,10 +66,7 @@ defmodule Service.Discord.Handler do
   alias Nostrum.Api
   alias Stampede, as: S
 
-  defstruct!(
-    app_id: _ :: any(),
-    guild_ids: _ :: %MapSet{}
-  )
+  defstruct!(guild_ids: _ :: %MapSet{})
 
   def start_link(args) do
     GenServer.start_link(__MODULE__, args)
@@ -77,12 +74,10 @@ defmodule Service.Discord.Handler do
 
   @impl GenServer
   def init(args) do
-    app_id = Keyword.fetch!(args, :app_id)
-
     settings =
       struct!(
         __MODULE__,
-        Keyword.put_new(args, :guild_ids, S.CfgTable.servers_configured(app_id, Service.Discord))
+        Keyword.put_new(args, :guild_ids, S.CfgTable.servers_configured(Service.Discord))
       )
 
     for id <- settings.guild_ids do
@@ -125,13 +120,14 @@ defmodule Service.Discord.Consumer do
 
   @impl GenServer
   def handle_info({:event, event}, state) do
-    case event do
-      {:MESSAGE_CREATE, msg, _ws_state} ->
-        GenServer.cast(Service.Discord.via(msg.guild_id), {:MESSAGE_CREATE, msg})
+    _ =
+      case event do
+        {:MESSAGE_CREATE, msg, _ws_state} ->
+          GenServer.cast(Service.Discord.via(msg.guild_id), {:MESSAGE_CREATE, msg})
 
-      other ->
-        Task.start_link(__MODULE__, :handle_event, [other])
-    end
+        other ->
+          Task.start_link(__MODULE__, :handle_event, [other])
+      end
 
     {:noreply, state}
   end

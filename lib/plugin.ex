@@ -37,7 +37,7 @@ defmodule Plugin do
       |> Enum.map(fn this_plug ->
         {this_plug,
          Task.Supervisor.async_nolink(
-           S.quick_task_via(cfg.app_id),
+           S.quick_task_via(),
            fn ->
              # if an error occurs in process_msg, catch it and return as data
              try do
