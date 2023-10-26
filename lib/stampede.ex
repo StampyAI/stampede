@@ -27,9 +27,9 @@ defmodule Stampede do
     |> IO.iodata_to_binary()
   end
 
-  def via(key) do
-    {:via, Registry, {Stampede.Registry, key}}
-  end
+  #sef via(key) do
+  #  {:via, Registry, {Stampede.Registry, key}}
+  #end
 
   def quick_task_via() do
     {:via, PartitionSupervisor, {Stampede.QuickTaskSupers, self()}}
