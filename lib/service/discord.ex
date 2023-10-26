@@ -2,6 +2,7 @@ defmodule Service.Discord do
   alias Stampede, as: S
   use TypeCheck
   use Supervisor, restart: :permanent
+  require Logger
   @type! discord_channel_id :: non_neg_integer()
   @type! discord_guild_id :: non_neg_integer()
   @type! discord_user_id :: non_neg_integer()
@@ -17,18 +18,59 @@ defmodule Service.Discord do
   # end
   # @impl Service
 
-  def log_error(
-        discord_channel_id,
-        _log_msg = {level, _gl, {Logger, message, _timestamp, _metadata}}
-      ) do
+  @character_limit 1999
+  @consecutive_msg_limit 10
+
+  def send_msg(channel_id, msg) when is_bitstring(msg) do
+    for chunk <-
+          S.text_split(msg, @character_limit, @consecutive_msg_limit) do
+      do_send_msg(channel_id, chunk)
+    end
+  end
+
+  def do_send_msg(channel_id, msg, try \\ 0) do
+    case Nostrum.Api.create_message(
+           channel_id,
+           content: msg
+         ) do
+      {:ok, _} ->
+        :ok
+
+      {:error, e} ->
+        if try < 5 do
+          IO.puts(
+            :stderr,
+            "send_msg: discord message send failure ##{try}, error #{inspect(e, pretty: true)}. Trying again..."
+          )
+
+          do_send_msg(channel_id, msg, try + 1)
+        else
+          IO.puts(:stderr, "send_msg: gave up trying to send message. Nothing else to do.")
+        end
+    end
+  end
+
+  def log_serious_error(log_msg = {level, _gl, {Logger, message, _timestamp, _metadata}}) do
     # TODO: disable if Discord not connected/working
-    return =
+    IO.puts("log_serious_error recieved:\n#{inspect(log_msg, pretty: true)}")
+    channel_id = Application.fetch_env!(:stampede, :serious_error_channel_id)
+
+    send_msg(
+      channel_id,
+      "Erlang-level error #{inspect(level)}:\n#{inspect(message, pretty: true)}"
+    )
+  end
+
+  def log_plugin_error(cfg, log) do
+    channel_id = SiteConfig.fetch!(cfg, :error_channel_id)
+
+    _ =
       Nostrum.Api.create_message(
-        discord_channel_id,
-        content: "#{level}: #{message}"
+        channel_id,
+        content: log
       )
 
-    return
+    :ok
   end
 
   def start_link(args) do
@@ -45,8 +87,6 @@ defmodule Service.Discord do
       Service.Discord.Consumer
     ]
 
-    # {:ok, _} = LoggerBackends.add(Service.Discord.Logger)
-
     Supervisor.init(children, strategy: :one_for_one)
   end
 end
@@ -56,9 +96,8 @@ defmodule Service.Discord.Handler do
   use TypeCheck.Defstruct
   use GenServer
   require Logger
-  alias Nostrum.Api
   alias Stampede, as: S
-  alias S.{Response,Msg}
+  alias S.{Response, Msg}
   require Msg
   alias Nostrum.Api
 
@@ -76,10 +115,6 @@ defmodule Service.Discord.Handler do
         Keyword.put_new(args, :guild_ids, S.CfgTable.servers_configured(Service.Discord))
       )
 
-    for id <- settings.guild_ids do
-      Process.register(self(), Service.Discord.via(id))
-    end
-
     {:ok, settings}
   end
 
@@ -88,17 +123,23 @@ defmodule Service.Discord.Handler do
            {:noreply, any()}
   def handle_cast({:MESSAGE_CREATE, msg}, state) do
     if msg.guild_id in state.guild_ids do
-      case msg.content do
-        "!ping" ->
-          Api.create_message(msg.channel_id, content: "pong!")
-          {:noreply, state}
+      our_msg =
+        Msg.new(
+          body: msg.content,
+          channel_id: msg.channel_id,
+          author_id: msg.author.id,
+          server_id: msg.guild_id
+        )
 
-        "!throw" ->
-          raise "intentional fail!"
+      case Plugin.get_top_response(msg.guild_id, our_msg) do
+        %Response{text: r_text} when r_text != nil ->
+          Api.create_message(msg.channel_id, r_text)
 
-        _ ->
-          {:noreply, state}
+        nil ->
+          :do_nothing
       end
+
+      {:noreply, state}
     else
       Logger.error("guild #{msg.guild_id} NOT found in #{inspect(state.guild_ids)}")
       {:noreply, state}
@@ -119,6 +160,10 @@ defmodule Service.Discord.Consumer do
     _ =
       case event do
         {:MESSAGE_CREATE, msg, _ws_state} ->
+          if msg.content == "!int" do
+            raise "aw nah"
+          end
+
           GenServer.cast(Service.Discord.Handler, {:MESSAGE_CREATE, msg})
 
         other ->
@@ -149,7 +194,7 @@ defmodule Service.Discord.Logger do
   @impl :gen_event
   @spec! init(any()) :: {:ok, logger_state()}
   def init(_) do
-    backend_env = Application.get_env(:logger, __MODULE__, level: :warning)
+    backend_env = [level: Application.get_env(:logger, __MODULE__, :warning)]
     {:ok, backend_env}
   end
 
@@ -157,24 +202,25 @@ defmodule Service.Discord.Logger do
   @spec! handle_event(any(), logger_state()) :: {:ok, logger_state()}
   def handle_event(log_msg = {level, gl, {Logger, _message, _timestamp, _metadata}}, state)
       when node(gl) == node() do
-    if Application.fetch_env!(:stampede, :error_channel_service) == :discord do
-      _ =
-        case Logger.compare_levels(level, state[:level]) do
-          :lt ->
-            nil
+    IO.puts("Event level #{inspect(level)}, state level #{inspect(state[:level])}")
 
-          _ ->
-            channel_id = Application.fetch_env!(:stampede, :error_channel_id)
+    _ =
+      case Logger.compare_levels(level, state[:level]) do
+        :lt ->
+          IO.puts("#{inspect(level)} < #{inspect(state[:level])}")
+          nil
 
-            try do
-              Service.Discord.log_error(channel_id, log_msg)
-            catch
-              _type, _error ->
-                # NOTE: give up. what are we gonna do, throw another error?
-                :nothing
-            end
-        end
-    end
+        _ ->
+          IO.puts("#{inspect(level)} >= #{inspect(state[:level])}")
+
+          try do
+            Service.Discord.log_serious_error(log_msg)
+          catch
+            _type, _error ->
+              # NOTE: give up. what are we gonna do, throw another error?
+              :nothing
+          end
+      end
 
     {:ok, state}
   end

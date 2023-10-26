@@ -29,6 +29,11 @@ defmodule Stampede.Application do
         type: :boolean,
         default: true,
         doc: "enable file logging"
+      ],
+      serious_error_channel_service: [
+        type: {:or, [:atom, nil]},
+        default: nil,
+        doc: "What service should handle serious errors?"
       ]
     )
   end
@@ -50,11 +55,39 @@ defmodule Stampede.Application do
       |> Keyword.update!(:config_dir, fn dir ->
         dir <> "_#{Application.fetch_env!(:stampede, :compile_env)}"
       end)
+      |> Keyword.update!(
+        :serious_error_channel_service,
+        fn setting ->
+          if setting == nil do
+            Application.get_env(:stampede, :serious_error_channel_service, nil)
+          else
+            setting
+          end
+        end
+      )
       |> NimbleOptions.validate!(app_config_schema())
 
     if args[:log_to_file], do: :ok = Logger.add_handlers(:stampede)
 
     children = make_children(args)
+
+    case args[:serious_error_channel_service] do
+      nil ->
+        Logger.error("No :serious_error_channel_service configured")
+
+      :disabled ->
+        Logger.info(":serious_error_channel_service disabled")
+
+      :discord ->
+        Logger.info("Discord handling :serious_error_channel_service")
+        {:ok, _} = LoggerBackends.add(Service.Discord.Logger)
+
+      # :ok = :logger.add_handler(:error_man, Service.Discord.Logger, [])
+      other ->
+        Logger.error("Unknown :serious_error_channel_service #{inspect(other)}")
+    end
+
+    # TODO: move activation into service modules themselves
 
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
@@ -73,7 +106,7 @@ defmodule Stampede.Application do
 
   def make_children(args) do
     default_children = [
-      #{Registry, keys: :unique, name: Stampede.Registry, partitions: System.schedulers_online()},
+      # {Registry, keys: :unique, name: Stampede.Registry, partitions: System.schedulers_online()},
       {PartitionSupervisor, child_spec: Task.Supervisor, name: Stampede.QuickTaskSupers},
       # NOTE: call with Stampede.quick_task_via()
       {Stampede.CfgTable, config_dir: Keyword.fetch!(args, :config_dir), name: Stampede.CfgTable}

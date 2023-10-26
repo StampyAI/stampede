@@ -26,29 +26,51 @@ defmodule Plugin do
 
   @type! task_result ::
            {:error, :timeout}
+           | {:error, tuple()}
            | {:ok, nil}
            | {:ok, %Response{}}
   @type! plugin_task_result :: {atom(), task_result()}
 
+  def get_response(this_plug, cfg, msg) do
+    # if an error occurs in process_msg, catch it and return as data
+    try do
+      {:ok, this_plug.process_msg(cfg, msg)}
+    catch
+      t, e ->
+        error_type =
+          case t do
+            :error ->
+              "an error"
+
+            :throw ->
+              "a throw"
+          end
+
+        st = __STACKTRACE__
+        Logger.info("Caught error in plugin:\n#{Exception.format(:error, e, st)}")
+
+        log = """
+        Message from #{inspect(msg.author_id)} lead to #{error_type}, description #{inspect(e)}.
+        Stacktrace:
+        #{Exception.format_stacktrace(st)}
+        """
+
+        {:error,
+         {e.__struct__, apply(SiteConfig.fetch!(cfg, :service), :log_plugin_error, [cfg, log])}}
+    end
+  end
+
   @spec! get_top_response(SiteConfig.t(), Msg.t()) :: nil | Response.t()
   def get_top_response(cfg, msg) do
     tasks =
-      __MODULE__.ls(cfg.plugs)
+      __MODULE__.ls(SiteConfig.fetch!(cfg, :plugs))
       |> Enum.map(fn this_plug ->
         {this_plug,
          Task.Supervisor.async_nolink(
            S.quick_task_via(),
-           fn ->
-             # if an error occurs in process_msg, catch it and return as data
-             try do
-               {:ok, this_plug.process_msg(cfg, msg)}
-             catch
-               _t, e ->
-                 Logger.error(Exception.format(:error, e, __STACKTRACE__))
-
-                 {:error, e.__struct__, cfg.service.log_error(cfg, {msg, e, __STACKTRACE__})}
-             end
-           end
+           __MODULE__,
+           :get_response,
+           [this_plug, cfg, msg]
          )}
       end)
 
@@ -84,6 +106,9 @@ defmodule Plugin do
 
             nil ->
               {plug, {:error, :timeout}}
+
+            {:error, trace} ->
+              {plug, {:error, trace}}
           end
       end)
       |> task_sort()
@@ -181,7 +206,7 @@ defmodule Plugin do
       ) do
     do_rr(rest, chosen_response, [
       traceback
-      | "\nWe asked #{plug}, and it decided not to answer."
+      | "\nWe asked #{inspect(plug)}, and it decided not to answer."
     ])
   end
 
@@ -192,7 +217,7 @@ defmodule Plugin do
       ) do
     do_rr(rest, chosen_response, [
       traceback
-      | "\nWe asked #{plug}, but it timed out."
+      | "\nWe asked #{inspect(plug)}, but it timed out."
     ])
   end
 
@@ -205,12 +230,16 @@ defmodule Plugin do
       if response.callback do
         [
           traceback
-          | "\nWe asked #{plug}, and it responded with confidence #{response.confidence} offering a callback.\nWhen asked why, it said: \"#{response.why}\""
+          | "\nWe asked #{inspect(plug)}, and it responded with confidence #{inspect(response.confidence)} offering a callback.\nWhen asked why, it said: \"#{inspect(response.why)}\""
         ]
       else
         [
           traceback
-          | "\nWe asked #{plug}, and it responded with confidence #{response.confidence}:\n#{S.markdown_quote(response.text)}\nWhen asked why, it said: \"#{response.why}\""
+          | """
+            We asked #{inspect(plug)}, and it responded with confidence #{inspect(response.confidence)}:
+            #{S.markdown_quote(response.text)}
+            When asked why, it said: \"#{inspect(response.why)}\"
+            """
         ]
       end
 
@@ -225,7 +254,7 @@ defmodule Plugin do
   end
 
   def do_rr(
-        [{plug, {:error, val, _trace_location}} | rest],
+        [{plug, {:error, {val, _trace_location}}} | rest],
         chosen_response,
         traceback
       ) do
@@ -234,7 +263,7 @@ defmodule Plugin do
       chosen_response,
       [
         traceback
-        | "\nWe asked #{plug}, but there was an error of type #{val.__struct__}, message #{val.message}"
+        | "\nWe asked #{inspect(plug)}, but there was an error of type #{inspect(val.__struct__)}, message #{inspect(val.message)}"
       ]
     )
   end

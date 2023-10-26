@@ -4,7 +4,7 @@ defmodule Plugin.Sentience do
   require S.Response
   @spec! process_msg(SiteConfig.t(), S.Msg.t()) :: nil | S.Response.t()
   def process_msg(cfg, msg) do
-    if S.strip_prefix(cfg.prefix, msg.body) do
+    if S.strip_prefix(SiteConfig.fetch!(cfg, :prefix), msg.body) do
       S.Response.new(
         confidence: 1,
         text: S.confused_response(),

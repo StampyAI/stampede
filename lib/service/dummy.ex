@@ -56,12 +56,12 @@ defmodule Service.Dummy do
   """
   def site_config_schema(), do: @schema
 
-  def log_error(cfg, {source_msg, error, stacktrace}) do
+  def log_plugin_error(cfg, log) do
     send_msg(
-      cfg.server_id,
-      cfg.error_channel_id,
+      SiteConfig.fetch!(cfg, :server_id),
+      SiteConfig.fetch!(cfg, :error_channel_id),
       @system_user,
-      "#{inspect(source_msg, pretty: true)}\n#{Exception.format(:error, error, stacktrace)}"
+      log
     )
   end
 

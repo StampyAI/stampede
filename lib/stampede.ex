@@ -27,9 +27,9 @@ defmodule Stampede do
     |> IO.iodata_to_binary()
   end
 
-  #sef via(key) do
+  # sef via(key) do
   #  {:via, Registry, {Stampede.Registry, key}}
-  #end
+  # end
 
   def quick_task_via() do
     {:via, PartitionSupervisor, {Stampede.QuickTaskSupers, self()}}
@@ -101,6 +101,29 @@ defmodule Stampede do
 
   def confused_response(),
     do: "*confused beeping*"
+
+  def throw_internal_error(msg \\ "*screaming*") do
+    raise "intentional internal error: #{msg}"
+  end
+
+  # TODO: split with utf-8 binary matching:
+  # https://stackoverflow.com/a/43064115
+  def text_split(txt, len, max_pieces, current_pieces \\ 1) when is_bitstring(txt) do
+    if String.length(txt) < len do
+      [txt]
+    else
+      {this, rest} = String.split_at(txt, len)
+
+      if current_pieces >= max_pieces do
+        [this]
+      else
+        [
+          this
+          | text_split(rest, len, max_pieces, current_pieces + 1)
+        ]
+      end
+    end
+  end
 end
 
 defmodule Stampede.Interaction do

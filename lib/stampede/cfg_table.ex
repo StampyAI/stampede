@@ -82,10 +82,25 @@ defmodule Stampede.CfgTable do
     # Assuming no duplicate keys
     |> case do
       lst = [{_key, item}] when length(lst) == 1 ->
-        item
+        {:ok, item}
 
       lst when is_list(lst) and length(lst) > 1 ->
         raise "there shouldn't be multiple keys, this is a set database"
+
+      [] ->
+        {:error, :not_found}
+    end
+  end
+
+  def lookup!(server_id, key), do: lookup!({server_id, key})
+
+  def lookup!(key) do
+    case lookup(key) do
+      {:ok, item} ->
+        item
+
+      {:error, :not_found} ->
+        raise "couldn't find key in CfgTable. key: #{inspect(key)}"
     end
   end
 

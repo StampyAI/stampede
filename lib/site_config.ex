@@ -10,7 +10,7 @@ defmodule SiteConfig do
   @type! server_id :: S.server_id()
   @type! channel_id :: S.channel_id()
   @type! schema :: keyword() | struct()
-  @type! t :: map(atom(), any())
+  @type! t :: map(atom(), any()) | server_id()
 
   @schema_base [
     service: [
@@ -66,9 +66,26 @@ defmodule SiteConfig do
   @type! site_name :: atom()
   @type! cfg_list :: map(site_name(), SiteConfig.t())
 
+  @doc """
+  Fetch config attribute for a config, which can either be a map containing all the data, or just a reference in CfgTable which is expected to be present.
+  """
+  def fetch!(server_id, key)
+      when not is_map(server_id) and not is_list(server_id),
+      do: S.CfgTable.lookup!(server_id, key)
+
+  def fetch!(cfg, key) when is_map(cfg) do
+    Map.fetch!(cfg, key)
+  end
+
+  def fetch!(cfg, key) when is_list(cfg) do
+    Keyword.fetch!(cfg, key)
+  end
+
   def real_plugins(:all), do: {:ok, :all}
   def real_plugins(:none), do: {:ok, :none}
-  def real_plugins(plugs) when not is_struct(plugs, MapSet), do: {:error, "This is not a MapSet"}
+
+  def real_plugins(plugs) when not is_struct(plugs, MapSet),
+    do: raise("This is not a mapset: #{inspect(plugs)}")
 
   def real_plugins(plugs) when is_struct(plugs, MapSet) do
     existing = Plugin.ls(plugs)
@@ -76,8 +93,7 @@ defmodule SiteConfig do
     if MapSet.equal?(existing, plugs) do
       {:ok, plugs}
     else
-      {:error,
-       "Some plugins not found.\nFound: #{inspect(existing)}\nConfigured: #{inspect(plugs)}"}
+      raise "Some plugins not found.\nFound: #{inspect(existing)}\nConfigured: #{inspect(plugs)}"
     end
   end
 
