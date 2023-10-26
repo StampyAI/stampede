@@ -32,7 +32,7 @@ defmodule Stampede do
   end
 
   def quick_task_via() do
-    {:via, PartitionSupervisor, {via("QuickTaskSupers"), self()}}
+    {:via, PartitionSupervisor, {Stampede.QuickTaskSupers, self()}}
   end
 
   def services(),

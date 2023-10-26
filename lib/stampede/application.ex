@@ -74,9 +74,9 @@ defmodule Stampede.Application do
   def make_children(args) do
     default_children = [
       {Registry, keys: :unique, name: Stampede.Registry, partitions: System.schedulers_online()},
-      {PartitionSupervisor, child_spec: Task.Supervisor, name: S.via("QuickTaskSupers")},
+      {PartitionSupervisor, child_spec: Task.Supervisor, name: Stampede.QuickTaskSupers},
       # NOTE: call with Stampede.quick_task_via()
-      {Stampede.CfgTable, config_dir: Keyword.fetch!(args, :config_dir), name: S.via("CfgTable")}
+      {Stampede.CfgTable, config_dir: Keyword.fetch!(args, :config_dir), name: Stampede.CfgTable}
     ]
 
     service_tuples =

@@ -1,7 +1,7 @@
 defmodule Service.Discord do
   alias Stampede, as: S
   use TypeCheck
-  use Supervisor
+  use Supervisor, restart: :permanent
   @type! discord_channel_id :: non_neg_integer()
   @type! discord_guild_id :: non_neg_integer()
   @type! discord_user_id :: non_neg_integer()
@@ -16,13 +16,6 @@ defmodule Service.Discord do
   #  end
   # end
   # @impl Service
-
-  @doc """
-  For communication between Handler (which knows configured guilds), and Consumer (which knows only what messages it gets)
-  """
-  def via(guild_id) when is_integer(guild_id) do
-    String.to_atom("Discord_" <> Integer.to_string(guild_id))
-  end
 
   def log_error(
         discord_channel_id,
@@ -48,8 +41,8 @@ defmodule Service.Discord do
 
     children = [
       Nostrum.Application,
-      Service.Discord.Consumer,
-      {Service.Discord.Handler, args}
+      {Service.Discord.Handler, args},
+      Service.Discord.Consumer
     ]
 
     # {:ok, _} = LoggerBackends.add(Service.Discord.Logger)
@@ -65,11 +58,14 @@ defmodule Service.Discord.Handler do
   require Logger
   alias Nostrum.Api
   alias Stampede, as: S
+  alias S.{Response,Msg}
+  require Msg
+  alias Nostrum.Api
 
   defstruct!(guild_ids: _ :: %MapSet{})
 
   def start_link(args) do
-    GenServer.start_link(__MODULE__, args)
+    GenServer.start_link(__MODULE__, args, name: __MODULE__)
   end
 
   @impl GenServer
@@ -123,7 +119,7 @@ defmodule Service.Discord.Consumer do
     _ =
       case event do
         {:MESSAGE_CREATE, msg, _ws_state} ->
-          GenServer.cast(Service.Discord.via(msg.guild_id), {:MESSAGE_CREATE, msg})
+          GenServer.cast(Service.Discord.Handler, {:MESSAGE_CREATE, msg})
 
         other ->
           Task.start_link(__MODULE__, :handle_event, [other])
