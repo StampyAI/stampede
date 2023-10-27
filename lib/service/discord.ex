@@ -202,17 +202,12 @@ defmodule Service.Discord.Logger do
   @spec! handle_event(any(), logger_state()) :: {:ok, logger_state()}
   def handle_event(log_msg = {level, gl, {Logger, _message, _timestamp, _metadata}}, state)
       when node(gl) == node() do
-    IO.puts("Event level #{inspect(level)}, state level #{inspect(state[:level])}")
-
     _ =
       case Logger.compare_levels(level, state[:level]) do
         :lt ->
-          IO.puts("#{inspect(level)} < #{inspect(state[:level])}")
           nil
 
         _ ->
-          IO.puts("#{inspect(level)} >= #{inspect(state[:level])}")
-
           try do
             Service.Discord.log_serious_error(log_msg)
           catch

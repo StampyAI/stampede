@@ -108,7 +108,13 @@ defmodule Stampede do
 
   # TODO: split with utf-8 binary matching:
   # https://stackoverflow.com/a/43064115
-  def text_split(txt, len, max_pieces, current_pieces \\ 1) when is_bitstring(txt) do
+  def text_split(txt, len, max_pieces, current_pieces \\ 1)
+
+  def text_split(txt, len, _, _)
+      when is_bitstring(txt) and byte_size(txt) < len,
+      do: [txt]
+
+  def text_split(txt, len, max_pieces, current_pieces) when is_bitstring(txt) do
     if String.length(txt) < len do
       [txt]
     else
@@ -123,6 +129,42 @@ defmodule Stampede do
         ]
       end
     end
+  end
+
+  def text_chunk(txt, len, _max_pieces)
+      when byte_size(txt) < len,
+      do: [txt]
+
+  def text_chunk(txt, len, max_pieces),
+    do: text_chunk(txt, len, max_pieces, Regex.compile!(".{#{len}}"))
+
+  def text_chunk(txt, _len, max_pieces, r) when is_struct(r, Regex) do
+    String.split(txt, r, include_captures: true, trim: true, parts: max_pieces)
+  end
+
+  def take_stream_chunks(msg, len, max_pieces) do
+    stream_chunk(msg, len)
+    |> Enum.take(max_pieces)
+  end
+
+  def stream_chunk(msg, len) when byte_size(msg) < len, do: [msg]
+
+  def stream_chunk(msg, len) do
+    Stream.unfold(
+      msg,
+      fn
+        "" ->
+          nil
+
+        remaining when is_bitstring(remaining) ->
+          String.split_at(remaining, len)
+      end
+    )
+  end
+
+  def random_string_weak(bytes) do
+    :rand.bytes(bytes)
+    |> Base.encode64()
   end
 end
 
