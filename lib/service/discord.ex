@@ -22,8 +22,10 @@ defmodule Service.Discord do
   @consecutive_msg_limit 10
 
   def send_msg(channel_id, msg) when is_bitstring(msg) do
+    r = S.text_chunk_regex(@character_limit)
+
     for chunk <-
-          S.text_split(msg, @character_limit, @consecutive_msg_limit) do
+          S.text_chunk(msg, @character_limit, @consecutive_msg_limit, r) do
       do_send_msg(channel_id, chunk)
     end
   end

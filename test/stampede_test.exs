@@ -135,6 +135,22 @@ defmodule StampedeTest do
       verified = SiteConfig.load_from_string(@dummy_cfg)
       assert verified == @dummy_cfg_verified
     end
+
+    test "msg splitting functions" do
+      split_size = 100
+      max_pieces = 10
+
+      correctly_split_msg =
+        1..max_pieces
+        |> Enum.map(fn _ -> S.random_string_weak(split_size) end)
+
+      large_msg = Enum.join(correctly_split_msg) <> S.random_string_weak(div(split_size, 5))
+
+      smol_msg = "lol"
+
+      assert correctly_split_msg == S.text_chunk(large_msg, split_size, max_pieces)
+      assert [smol_msg] == S.text_chunk(smol_msg, split_size, max_pieces)
+    end
   end
 
   describe "dummy server" do

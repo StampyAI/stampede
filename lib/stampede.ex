@@ -106,65 +106,45 @@ defmodule Stampede do
     raise "intentional internal error: #{msg}"
   end
 
-  # TODO: split with utf-8 binary matching:
-  # https://stackoverflow.com/a/43064115
-  def text_split(txt, len, max_pieces, current_pieces \\ 1)
+  defguardp is_valid_chunk_args(a, b, c)
+            when is_bitstring(a) and is_integer(b) and is_integer(c)
 
-  def text_split(txt, len, _, _)
-      when is_bitstring(txt) and byte_size(txt) < len,
-      do: [txt]
+  defguardp is_valid_chunk_args(a, b, c, d)
+            when is_valid_chunk_args(a, b, c) and is_integer(d)
 
-  def text_split(txt, len, max_pieces, current_pieces) when is_bitstring(txt) do
-    if String.length(txt) < len do
-      [txt]
-    else
-      {this, rest} = String.split_at(txt, len)
+  def text_chunk(msg, len, max_pieces, premade_regex \\ nil)
+      when is_valid_chunk_args(msg, len, max_pieces) do
+    r = premade_regex || Regex.compile!("^(.{1,#{len}})(.*)", "us")
+    do_text_chunk(msg, len, max_pieces, r, 0)
+  end
 
-      if current_pieces >= max_pieces do
-        [this]
-      else
-        [
-          this
-          | text_split(rest, len, max_pieces, current_pieces + 1)
-        ]
-      end
+  def do_text_chunk(_msg, _len, max_pieces, _premade_regex, current_pieces)
+      when is_integer(current_pieces) and is_integer(max_pieces) and
+             current_pieces == max_pieces,
+      do: []
+
+  def do_text_chunk(msg, len, max_pieces, r, current_pieces)
+      when is_valid_chunk_args(msg, len, max_pieces, current_pieces) do
+    case Regex.run(r, msg, capture: :all_but_first, trim: true) do
+      [] ->
+        []
+
+      [chunk, ""] ->
+        [chunk]
+
+      [this, rest] ->
+        [this | do_text_chunk(rest, len, max_pieces, r, current_pieces + 1)]
     end
   end
 
-  def text_chunk(txt, len, _max_pieces)
-      when byte_size(txt) < len,
-      do: [txt]
-
-  def text_chunk(txt, len, max_pieces),
-    do: text_chunk(txt, len, max_pieces, Regex.compile!(".{#{len}}"))
-
-  def text_chunk(txt, _len, max_pieces, r) when is_struct(r, Regex) do
-    String.split(txt, r, include_captures: true, trim: true, parts: max_pieces)
-  end
-
-  def take_stream_chunks(msg, len, max_pieces) do
-    stream_chunk(msg, len)
-    |> Enum.take(max_pieces)
-  end
-
-  def stream_chunk(msg, len) when byte_size(msg) < len, do: [msg]
-
-  def stream_chunk(msg, len) do
-    Stream.unfold(
-      msg,
-      fn
-        "" ->
-          nil
-
-        remaining when is_bitstring(remaining) ->
-          String.split_at(remaining, len)
-      end
-    )
+  def text_chunk_regex(len) when is_integer(len) and len > 0 do
+    Regex.compile!("^(.{1,#{len}})(.*)", "us")
   end
 
   def random_string_weak(bytes) do
     :rand.bytes(bytes)
     |> Base.encode64()
+    |> String.slice(0..(bytes - 1))
   end
 end
 
