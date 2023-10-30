@@ -1,8 +1,9 @@
+# Scratch file used for deciding between different algorithms.
+
 alias Stampede, as: S
 
 split_size = 1999
 max_pieces = 10
-pre_compiled = Regex.compile!(".{#{split_size}}")
 
 fake_work = fn chunks ->
   Enum.reduce(chunks, [], fn elem, lst ->
@@ -18,27 +19,26 @@ inputs = %{
   "malicious message" => 9_999_999 |> S.random_string_weak()
 }
 
+pre_compiled = Regex.compile!("^(.{1,#{split_size}})(.*)", "us")
+r2 = Regex.compile!("(.{1,#{split_size}})", "us")
+
 Benchee.run(
   %{
-    "String.split_at method" => fn txt ->
-      S.text_split(txt, split_size, max_pieces)
+    "regex split" => fn txt ->
+      S.text_chunk_three(txt, split_size, max_pieces, r2)
       |> fake_work.()
     end,
-    "regex method" => fn txt ->
-      S.text_chunk(txt, split_size, max_pieces)
+    "regex scan" => fn txt ->
+      S.text_chunk_two(txt, split_size, max_pieces, r2)
       |> fake_work.()
     end,
-    "regex pre-compiled method" => fn txt ->
+    "regex cons" => fn txt ->
       S.text_chunk(txt, split_size, max_pieces, pre_compiled)
-      |> fake_work.()
-    end,
-    "stream-based method" => fn txt ->
-      S.stream_chunk(txt, split_size)
-      |> Stream.take(max_pieces)
       |> fake_work.()
     end
   },
   inputs: inputs,
-  time: 10,
+  time: 20,
+  reduction_time: 10,
   memory_time: 3
 )

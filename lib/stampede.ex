@@ -106,39 +106,18 @@ defmodule Stampede do
     raise "intentional internal error: #{msg}"
   end
 
-  defguardp is_valid_chunk_args(a, b, c)
-            when is_bitstring(a) and is_integer(b) and is_integer(c)
-
-  defguardp is_valid_chunk_args(a, b, c, d)
-            when is_valid_chunk_args(a, b, c) and is_integer(d)
-
   def text_chunk(msg, len, max_pieces, premade_regex \\ nil)
-      when is_valid_chunk_args(msg, len, max_pieces) do
-    r = premade_regex || Regex.compile!("^(.{1,#{len}})(.*)", "us")
-    do_text_chunk(msg, len, max_pieces, r, 0)
-  end
+      when is_bitstring(msg) and is_integer(len) and is_integer(max_pieces) and
+             (is_nil(premade_regex) or is_struct(premade_regex, Regex)) do
+    r = premade_regex || Regex.compile!("(.{1,#{len}})", "us")
 
-  def do_text_chunk(_msg, _len, max_pieces, _premade_regex, current_pieces)
-      when is_integer(current_pieces) and is_integer(max_pieces) and
-             current_pieces == max_pieces,
-      do: []
-
-  def do_text_chunk(msg, len, max_pieces, r, current_pieces)
-      when is_valid_chunk_args(msg, len, max_pieces, current_pieces) do
-    case Regex.run(r, msg, capture: :all_but_first, trim: true) do
-      [] ->
-        []
-
-      [chunk, ""] ->
-        [chunk]
-
-      [this, rest] ->
-        [this | do_text_chunk(rest, len, max_pieces, r, current_pieces + 1)]
-    end
+    Regex.scan(r, msg, trim: true, capture: :all_but_first)
+    |> Enum.take(max_pieces)
+    |> Enum.map(&hd/1)
   end
 
   def text_chunk_regex(len) when is_integer(len) and len > 0 do
-    Regex.compile!("^(.{1,#{len}})(.*)", "us")
+    Regex.compile!("(.{1,#{len}})", "us")
   end
 
   def random_string_weak(bytes) do
