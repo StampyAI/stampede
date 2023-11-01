@@ -210,6 +210,23 @@ defmodule StampedeTest do
       r = D.send_msg(s.id, :t1, :u1, "!timeout")
       assert r.text == @confused_response
     end
+
+    test "sustained interaction", s do
+      assert "locked in on admin awaiting b" ==
+               D.send_msg(s.id, :t1, :admin, "!a") |> Map.fetch!(:text)
+
+      assert "b response. awaiting c" == D.send_msg(s.id, :t1, :admin, "!b") |> Map.fetch!(:text)
+      assert nil == D.send_msg(s.id, :t2, :admin, "unrelated chatter") |> Map.fetch!(:text)
+
+      assert "b response. interaction done!" ==
+               D.send_msg(s.id, :t1, :admin, "!c") |> Map.fetch!(:text)
+
+      assert "a response. awaiting b" == D.send_msg(s.id, :t1, :admin, "!a") |> Map.fetch!(:text)
+      assert "abandoning query" == D.send_msg(s.id, :t1, :admin, "interrupt") |> Map.fetch!(:text)
+
+      assert "a response. awaiting b" == D.send_msg(s.id, :t1, :admin, "!a") |> Map.fetch!(:text)
+      assert nil == D.send_msg(s.id, :t1, :some_other_shmuck, "!b") |> Map.fetch!(:text)
+    end
   end
 
   describe "dummy server channels" do

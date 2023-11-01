@@ -125,16 +125,17 @@ defmodule Stampede do
     |> Base.encode64()
     |> String.slice(0..(bytes - 1))
   end
-end
 
-defmodule Stampede.Interaction do
-  alias Stampede.{Msg, Response}
-  use TypeCheck
-  use TypeCheck.Defstruct
+  def file_exists(path) do
+    case File.stat(path) do
+      {:ok, _} ->
+        true
 
-  defstruct!(
-    initial_msg: nil :: Msg,
-    chosen_response: nil :: nil | Response,
-    traceback: [] :: iodata() | String.t()
-  )
+      {:error, :enoent} ->
+        false
+
+      {:error, e} ->
+        {:error, e}
+    end
+  end
 end
