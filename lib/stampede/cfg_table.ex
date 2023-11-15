@@ -9,6 +9,8 @@ defmodule Stampede.CfgTable do
     table_id: _ :: any()
   )
 
+  # TODO: use Erlang persistent terms
+
   def table() do
     __MODULE__
   end

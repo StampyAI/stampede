@@ -28,7 +28,7 @@ defmodule StampedeTest do
       app_pid:
         Stampede.Application.start(:normal,
           installed_services: [:dummy],
-          services: :all,
+          services: [:dummy],
           log_to_file: false,
           serious_error_channel_service: :disabled
         )

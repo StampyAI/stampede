@@ -2,7 +2,8 @@ defmodule Plugin do
   use TypeCheck
   require Logger
   alias Stampede, as: S
-  alias S.{Msg, Response}
+  alias S.{Msg, Response, Interaction}
+  require Interaction
   @first_response_timeout 500
   @callback process_msg(SiteConfig.t(), Msg.t()) :: nil | Response.t()
 
@@ -16,6 +17,10 @@ defmodule Plugin do
     S.find_submodules(__MODULE__)
   end
 
+  def default_plugin_mfa(plug, args = [cfg, msg]) do
+    {plug, :process_msg, args}
+  end
+
   @spec! ls(:all | :none | MapSet.t()) :: MapSet.t()
   def ls(:none), do: MapSet.new()
   def ls(:all), do: ls()
@@ -24,17 +29,25 @@ defmodule Plugin do
     MapSet.intersection(enabled, ls())
   end
 
-  @type! task_result ::
-           {:error, :timeout}
-           | {:error, tuple()}
-           | {:ok, nil}
-           | {:ok, %Response{}}
-  @type! plugin_task_result :: {atom(), task_result()}
+  @type! job_result ::
+           {:job_error, :timeout}
+           | {:job_error, tuple()}
+           | {:job_ok, nil}
+           | {:job_ok, %Response{}}
+  @type! plugin_job_result :: {atom(), job_result()}
 
-  def get_response(this_plug, cfg, msg) do
+  @spec! get_response(S.module_function_args() | atom(), SiteConfig.t(), S.Msg.t()) ::
+           job_result()
+  def get_response(plugin, cfg, msg) when is_atom(plugin),
+    do: get_response(default_plugin_mfa(plugin, [cfg, msg]), cfg, msg)
+
+  def get_response({m, f, a}, cfg, msg) do
     # if an error occurs in process_msg, catch it and return as data
     try do
-      {:ok, this_plug.process_msg(cfg, msg)}
+      {
+        :job_ok,
+        apply(m, f, a)
+      }
     catch
       t, e ->
         error_type =
@@ -47,7 +60,7 @@ defmodule Plugin do
           end
 
         st = __STACKTRACE__
-        Logger.info("Caught error in plugin:\n#{Exception.format(:error, e, st)}")
+        Logger.info("Caught #{error_type} in plugin #{m}:\n#{Exception.format(:error, e, st)}")
 
         log = """
         Message from #{inspect(msg.author_id)} lead to #{error_type}, description #{inspect(e)}.
@@ -55,23 +68,31 @@ defmodule Plugin do
         #{Exception.format_stacktrace(st)}
         """
 
-        {:error,
-         {e.__struct__, apply(SiteConfig.fetch!(cfg, :service), :log_plugin_error, [cfg, log])}}
+        {:job_error,
+         {e.__struct__, spawn(SiteConfig.fetch!(cfg, :service), :log_plugin_error, [cfg, log])}}
     end
   end
 
-  @spec! get_top_response(SiteConfig.t(), Msg.t()) :: nil | Response.t()
-  def get_top_response(cfg, msg) do
+  def query_plugins(call_list, cfg, msg) do
     tasks =
-      __MODULE__.ls(SiteConfig.fetch!(cfg, :plugs))
-      |> Enum.map(fn this_plug ->
-        {this_plug,
-         Task.Supervisor.async_nolink(
-           S.quick_task_via(),
-           __MODULE__,
-           :get_response,
-           [this_plug, cfg, msg]
-         )}
+      Enum.map(call_list, fn
+        mfa = {this_plug, _func, _args} ->
+          {this_plug,
+           Task.Supervisor.async_nolink(
+             S.quick_task_via(),
+             __MODULE__,
+             :get_response,
+             [mfa, cfg, msg]
+           )}
+
+        this_plug when is_atom(this_plug) ->
+          {this_plug,
+           Task.Supervisor.async_nolink(
+             S.quick_task_via(),
+             __MODULE__,
+             :get_response,
+             [default_plugin_mfa(this_plug, [cfg, msg]), cfg, msg]
+           )}
       end)
 
     # make a map of task references to the plugins they were called for
@@ -83,7 +104,7 @@ defmodule Plugin do
 
     # to yield with Task.yield_many(), the plugins and tasks must part
     task_results =
-      Enum.map(tasks, fn {_plug, task} -> task end)
+      Enum.map(tasks, &Kernel.elem(&1, 1))
       |> Task.yield_many(timeout: @first_response_timeout)
       |> Enum.map(fn {task, result} ->
         # they are reunited :-)
@@ -92,23 +113,37 @@ defmodule Plugin do
           result || Task.shutdown(task, :brutal_kill)
         }
       end)
+      |> Enum.map(fn {task, result} ->
+        # they are reunited :-)
+        {
+          task,
+          case result do
+            {:ok, job_result} ->
+              job_result
+
+            nil ->
+              {:job_error, :timeout}
+
+            other ->
+              raise "task unexpected return, reason #{inspect(other, pretty: true)}"
+              result
+          end
+        }
+      end)
       |> Enum.map(fn
         {plug, result} ->
           case result do
-            {:ok, return} ->
+            r = {:job_ok, return} ->
               if is_struct(return, S.Response) and plug != return.origin_plug do
                 raise(
                   "Plug #{plug} doesn't match #{return.origin_plug}. I screwed up the task running code."
                 )
               end
 
-              {plug, return}
+              {plug, r}
 
-            nil ->
-              {plug, {:error, :timeout}}
-
-            {:error, trace} ->
-              {plug, {:error, trace}}
+            {:job_error, reason} ->
+              {plug, {:job_error, reason}}
           end
       end)
       |> task_sort()
@@ -120,12 +155,14 @@ defmodule Plugin do
         nil
 
       chosen_response = %Response{callback: nil} ->
-        final_int =
-          struct!(S.Interaction,
-            initial_msg: msg,
-            chosen_response: chosen_response,
-            traceback: IO.iodata_to_binary(traceback)
-          )
+        S.Interaction.new(
+          plugin: chosen_response.origin_plug,
+          msg: msg,
+          response: chosen_response,
+          channel_lock: chosen_response.channel_lock,
+          traceback: traceback
+        )
+        |> S.Interact.record_interaction!()
 
         # TODO: logging interactions
         chosen_response
@@ -140,22 +177,42 @@ defmodule Plugin do
           followup.why
         ]
 
-        final_int =
-          struct!(S.Interaction,
-            initial_msg: msg,
-            chosen_response: followup,
-            traceback: IO.iodata_to_binary(new_tb)
-          )
+        S.Interaction.new(
+          plugin: chosen_response.origin_plug,
+          msg: msg,
+          response: followup,
+          channel_lock: followup.channel_lock,
+          traceback: new_tb
+        )
+        |> S.Interact.record_interaction!()
 
-        # TODO: logging interactions
         followup
     end
   end
 
-  @spec! task_sort(list(plugin_task_result())) :: list(plugin_task_result())
+  @spec! get_top_response(SiteConfig.t(), Msg.t()) :: nil | Response.t()
+  def get_top_response(cfg, msg) do
+    case S.Interact.channel_locked?(msg.channel_id) do
+      {:lock, {m, f, a}, iid} ->
+        response = query_plugins([{m, f, a}], cfg, msg)
+
+        Map.update!(response, :traceback, fn tb ->
+          [
+            "Channel #{msg.channel_id} was locked to module #{m}, function #{f}, so we called it.\n"
+            | tb
+          ]
+        end)
+
+      false ->
+        __MODULE__.ls(SiteConfig.fetch!(cfg, :plugs))
+        |> query_plugins(cfg, msg)
+    end
+  end
+
+  @spec! task_sort(list(plugin_job_result())) :: list(plugin_job_result())
   def task_sort(tlist) do
     Enum.sort(tlist, fn
-      {_, {:ok, r1}}, {_, {:ok, r2}} ->
+      {_plug, {:job_ok, r1}}, {_, {:job_ok, r2}} ->
         cond do
           r1 && r2 ->
             r1.confidence >= r2.confidence
@@ -170,15 +227,12 @@ defmodule Plugin do
             true
         end
 
-      {_, {s1, _}}, {_, {s2, _}} ->
+      {_plug1, {s1, _}}, {_plug2, {s2, _}} ->
         case {s1, s2} do
-          {:ok, :ok} ->
+          {:job_ok, _} ->
             true
 
-          {:ok, _} ->
-            true
-
-          {_, :ok} ->
+          {_, :job_ok} ->
             false
 
           _ ->
@@ -187,7 +241,7 @@ defmodule Plugin do
     end)
   end
 
-  @spec! resolve_responses(list(plugin_task_result())) :: map()
+  @spec! resolve_responses(list(plugin_job_result())) :: map()
   def resolve_responses(tlist) do
     do_rr(tlist, nil, [])
   end
@@ -200,7 +254,7 @@ defmodule Plugin do
   end
 
   def do_rr(
-        [{plug, {:ok, nil}} | rest],
+        [{plug, {:job_ok, nil}} | rest],
         chosen_response,
         traceback
       ) do
@@ -211,7 +265,7 @@ defmodule Plugin do
   end
 
   def do_rr(
-        [{plug, {:error, :timeout}} | rest],
+        [{plug, {:job_error, :timeout}} | rest],
         chosen_response,
         traceback
       ) do
@@ -222,7 +276,7 @@ defmodule Plugin do
   end
 
   def do_rr(
-        [{plug, {:ok, response}} | rest],
+        [{plug, {:job_ok, response}} | rest],
         chosen_response,
         traceback
       ) do
@@ -254,7 +308,7 @@ defmodule Plugin do
   end
 
   def do_rr(
-        [{plug, {:error, {val, _trace_location}}} | rest],
+        [{plug, {:job_error, {val, _trace_location}}} | rest],
         chosen_response,
         traceback
       ) do
@@ -263,7 +317,7 @@ defmodule Plugin do
       chosen_response,
       [
         traceback
-        | "\nWe asked #{inspect(plug)}, but there was an error of type #{inspect(val.__struct__)}, message #{inspect(val.message)}"
+        | "\nWe asked #{inspect(plug)}, but there was an error of type #{inspect(val.__struct__)}, message #{inspect(val)}"
       ]
     )
   end

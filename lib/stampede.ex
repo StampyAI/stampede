@@ -12,6 +12,8 @@ defmodule Stampede do
   # BUG: type_check issue #189, iolist()
   @type! traceback :: String.t() | [] | maybe_improper_list(String.t(), [])
   @type! enabled_plugs :: :all | [] | nonempty_list(module())
+  @type! channel_lock_action ::
+           false | {:lock, channel_id(), module_function_args()} | {:unlock, channel_id()}
 
   @doc "use TypeCheck types in NimpleOptions, takes type expressions like @type!"
   defmacro ntc(type) do
@@ -137,5 +139,9 @@ defmodule Stampede do
       {:error, e} ->
         {:error, e}
     end
+  end
+
+  def nodes() do
+    [node()]
   end
 end

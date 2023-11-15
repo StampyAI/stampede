@@ -26,3 +26,7 @@ erl_crash.dump
 /Sites*/*
 
 /tmp/
+
+/Mnesia*
+
+/.env

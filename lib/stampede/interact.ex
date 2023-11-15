@@ -1,17 +1,5 @@
-defmodule Stampede.Interaction do
-  alias Stampede, as: S
-  alias S.{Msg, Response}
-  use TypeCheck
-  use TypeCheck.Defstruct
-
-  defstruct!(
-    msg_responses: _ :: list({Msg, Response}),
-    traceback: [] :: iodata() | String.t(),
-    channel_lock: nil :: nil | {S.channel_id(), S.module_function_args()}
-  )
-end
-
 defmodule Stampede.Interact do
+  require Logger
   alias Stampede, as: S
   alias S.{Msg, Response}
   use TypeCheck
@@ -19,12 +7,10 @@ defmodule Stampede.Interact do
 
   use GenServer
 
-  @table :interactions
-  @table_options [:named_table]
-
   defstruct!(
-    table_name: _ :: String.t(),
-    table_id: _ :: any()
+    interactions_table: _ :: any(),
+    channellock_table: _ :: any(),
+    counters_table: _ :: any()
   )
 
   def start_link(args) do
@@ -33,83 +19,164 @@ defmodule Stampede.Interact do
 
   @spec! init(keyword()) :: {:ok, map()}
   @impl GenServer
-  def init(args) do
-    table_name = Keyword.fetch!(args, :table_name)
+  def init(_args) do
+    :mnesia.create_schema(S.nodes())
+    :mnesia.start()
 
-    table_id =
-      table_path(table_name)
-      |> acquire_db!()
+    interactions_id =
+      make_or_get_table!(
+        :interactions,
+        attributes: [:id, :datetime, :plugin, :msg, :response, :traceback, :channel_lock],
+        type: :ordered_set,
+        disc_copies: S.nodes(),
+        access_mode: :read_write,
+        index: [:datetime],
+        storage_properties: [ets: [:compressed]]
+      )
 
-    {:ok, struct!(__MODULE__, table_id: table_id, table_name: table_id)}
+    channellock_id =
+      make_or_get_table!(
+        :channellocks,
+        attributes: [:channel_id, :datetime, :lock_status, :callback, :interaction_id],
+        type: :set,
+        disc_copies: S.nodes(),
+        access_mode: :read_write
+      )
+
+    counters_id =
+      make_or_get_table!(
+        :counters_table,
+        attributes: [:table_name, :count],
+        type: :set,
+        access_mode: :read_write
+      )
+
+    :ok =
+      :mnesia.wait_for_tables(
+        [interactions_id, channellock_id, counters_id],
+        :timer.seconds(5)
+      )
+
+    {:ok,
+     struct!(
+       __MODULE__,
+       interactions_table: interactions_id,
+       channellock_table: channellock_id,
+       counters_table: counters_id
+     )}
   end
 
-  @impl GenServer
-  def terminate(reason, state) do
-    count = :ets.info(state.table_id, :size)
-    # DEBUG
-    IO.puts("Interact exiting, reason: #{inspect(reason, pretty: true)}")
+  @spec! channel_locked?(S.channel_id()) :: S.channel_lock_action()
+  def channel_locked?(channel_id) do
+    :mnesia.dirty_match_object({
+      :channellocks,
+      channel_id,
+      :_,
+      :"$1",
+      :"$2",
+      :"$3"
+    })
+    |> case do
+      [{status, mfa, iid}] when is_boolean(status) ->
+        status && {:lock, mfa, iid}
 
-    IO.puts(
-      "Interact: Gracefully saving interaction table #{state.table_name} (#{count} entries)"
-    )
+      [] ->
+        false
+    end
+  end
 
-    path =
-      table_path(state.table_name)
-      |> String.to_charlist()
+  def record_interaction!(int) when int.__struct__ == Stampede.Interaction do
+    :mnesia.transaction(fn ->
+      datetime = DateTime.utc_now() |> DateTime.to_iso8601()
+      t_id = :mnesia.dirty_update_counter(:counters_table, :interactions, 1)
 
-    :ok = :ets.tab2file(state.table_id, path, sync: true, extended_info: [:md5sum, :object_count])
+      trace =
+        (is_list(int.traceback) &&
+           IO.iodata_to_binary(int.traceback)) ||
+          int.traceback
+
+      plugin = int.plugin
+      msg = int.msg
+      response = int.response
+      channel_lock = int.channel_lock
+
+      do_channel_lock!(int, datetime, t_id)
+
+      :mnesia.write(
+        :interactions,
+        {t_id, datetime, plugin, msg, response, trace, channel_lock},
+        :write
+      )
+    end)
 
     :ok
   end
 
-  defp table_path(name) do
-    Path.join("./db/", name <> ".dets")
-  end
+  def do_channel_lock!(int, datetime, int_id) do
+    case int.channel_lock do
+      {:lock, channel_id, mfa} ->
+        case channel_locked?(channel_id) do
+          false ->
+            false
 
-  def lock_path(name) do
-    table_path(name) <> ".lock"
-  end
+          {:unlock, _iid} ->
+            false
 
-  def acquire_db!(table_name) do
-    db = table_path(table_name)
-    lock = lock_path(table_name)
+          {:lock, plug, _iid} when is_atom(plug) ->
+            raise(
+              "plugin #{int.plugin} trying to lock an already-locked channel owned by #{plug}"
+            )
+        end
 
-    cond do
-      S.file_exists(db) and S.file_exists(lock) ->
-        db_backup = db <> "_#{DateTime.utc_now() |> DateTime.to_unix()}"
-
-        IO.puts(
-          "Interact: old database was left locked, backing up to #{db_backup} and starting clean"
+        :mnesia.write(
+          :channellocks,
+          {channel_id, datetime, :lock, mfa, int_id},
+          :write
         )
 
-        File.cp!(
-          db,
-          db_backup
-        )
+        :ok
 
-        File.rm!(db)
-        File.touch!(lock)
-        new_table()
+      {:unlock, channel_id} ->
+        case channel_locked?(channel_id) do
+          false ->
+            Logger.error("plugin #{int.plugin} trying to unlock an already-unlocked channel")
 
-      S.file_exists(db) and not S.file_exists(lock) ->
-        IO.puts("Interact: loading old database from #{db}")
-        load_table(db)
+          plug when plug == int.plugin ->
+            :mnesia.write(
+              :channellocks,
+              {channel_id, datetime, :unlock, nil, int_id},
+              :write
+            )
 
-      not S.file_exists(db) and not S.file_exists(lock) ->
-        IO.puts("Interact: no database found, starting a new one at #{db}")
-        File.touch!(lock)
-        new_table()
+            :ok
+
+          plug when plug != int.plugin ->
+            raise "plugin #{int.plugin} trying to take a lock from #{plug}"
+        end
+
+      nil ->
+        # do nothing
+        :ok
     end
   end
 
-  def new_table(),
-    do: :ets.new(@table, @table_options)
+  @impl GenServer
+  def terminate(reason, _state) do
+    # DEBUG
+    IO.puts("Interact exiting, reason: #{inspect(reason, pretty: true)}")
 
-  def load_table(path) when is_binary(path) do
-    {:ok, id} =
-      String.to_charlist(path)
-      |> :ets.file2tab(verify: true)
+    :mnesia.stop()
 
-    id
+    :ok
+  end
+
+  defp make_or_get_table!(name, opts) do
+    case :mnesia.create_table(name, opts) do
+      {:atomic, id} ->
+        id
+
+      {:aborted, {:already_exists, id}} ->
+        id
+    end
   end
 end

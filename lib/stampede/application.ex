@@ -16,7 +16,7 @@ defmodule Stampede.Application do
         doc: "Services installed as part of the mix project. Passed in from mix.exs"
       ],
       services: [
-        type: {:or, [{:in, [:none, :all]}, {:list, {:in, [Map.keys(S.services())]}}]},
+        type: {:or, [{:in, [:none, :all]}, {:list, {:in, Map.keys(S.services())}}]},
         default: :all,
         doc: "what will actually be started by Stampede"
       ],
@@ -34,6 +34,11 @@ defmodule Stampede.Application do
         type: {:or, [:atom, nil]},
         default: nil,
         doc: "What service should handle serious errors?"
+      ],
+      node_name: [
+        type: :atom,
+        default: "stampede@#{:inet.gethostname() |> elem(1)}" |> String.to_atom(),
+        doc: "erlang VM node name"
       ]
     )
   end
@@ -68,6 +73,8 @@ defmodule Stampede.Application do
       |> NimbleOptions.validate!(app_config_schema())
 
     if args[:log_to_file], do: :ok = Logger.add_handlers(:stampede)
+
+    if Node.self() == :nonode@nohost, do: Node.start(args[:node_name])
 
     children = make_children(args)
 
@@ -109,7 +116,8 @@ defmodule Stampede.Application do
       # {Registry, keys: :unique, name: Stampede.Registry, partitions: System.schedulers_online()},
       {PartitionSupervisor, child_spec: Task.Supervisor, name: Stampede.QuickTaskSupers},
       # NOTE: call with Stampede.quick_task_via()
-      {Stampede.CfgTable, config_dir: Keyword.fetch!(args, :config_dir), name: Stampede.CfgTable}
+      {Stampede.CfgTable, config_dir: Keyword.fetch!(args, :config_dir), name: Stampede.CfgTable},
+      Stampede.Interact
     ]
 
     service_tuples =

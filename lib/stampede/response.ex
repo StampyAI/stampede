@@ -8,7 +8,8 @@ defmodule Stampede.Response do
     text: _ :: nil | String.t(),
     origin_plug: _ :: module(),
     why: [] :: S.traceback(),
-    callback: nil :: nil | S.module_function_args()
+    callback: nil :: nil | S.module_function_args(),
+    channel_lock: false :: S.channel_lock_action()
   )
 
   @doc "makes a new Response but automatically tags the source module unless already being tagged"

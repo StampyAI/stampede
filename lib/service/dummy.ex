@@ -92,6 +92,7 @@ defmodule Service.Dummy do
 
   @spec! start_link(Keyword.t()) :: :ignore | {:error, any} | {:ok, pid}
   def start_link(cfg_overrides \\ []) do
+    Logger.debug("starting Dummy GenServer, with cfg overrides: #{inspect(cfg_overrides)}")
     GenServer.start_link(__MODULE__, cfg_overrides, name: __MODULE__)
   end
 
@@ -106,6 +107,8 @@ defmodule Service.Dummy do
 
   @impl GenServer
   def handle_call({:new_server, id, plugs}, _from, servers) do
+    Logger.debug("new Dummy server #{id}")
+
     if Map.get(servers, id, false) do
       {:reply, {:error, :already_exists}}
     else
