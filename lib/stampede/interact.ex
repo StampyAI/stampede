@@ -13,6 +13,15 @@ defmodule Stampede.Interact do
     counters_table: _ :: any()
   )
 
+  @type! timestamp :: String.t()
+  @type! interaction_id :: integer()
+
+  @typep! channellock_record ::
+            {S.channel_id(), timestamp(), boolean(), nil | mfa(), interaction_id()}
+  @typep! interaction_record ::
+            {interaction_id(), timestamp(), atom(), Msg, Response, S.traceback(),
+             S.channel_lock_action()}
+
   def start_link(args) do
     GenServer.start_link(__MODULE__, args, name: __MODULE__)
   end
@@ -20,6 +29,7 @@ defmodule Stampede.Interact do
   @spec! init(keyword()) :: {:ok, map()}
   @impl GenServer
   def init(_args) do
+    IO.puts("Interact: starting")
     :mnesia.create_schema(S.nodes())
     :mnesia.start()
 
@@ -68,17 +78,14 @@ defmodule Stampede.Interact do
 
   @spec! channel_locked?(S.channel_id()) :: S.channel_lock_action()
   def channel_locked?(channel_id) do
-    :mnesia.dirty_match_object({
-      :channellocks,
-      channel_id,
-      :_,
-      :"$1",
-      :"$2",
-      :"$3"
-    })
-    |> case do
-      [{status, mfa, iid}] when is_boolean(status) ->
-        status && {:lock, mfa, iid}
+    {:atomic, match} =
+      :mnesia.transaction(fn ->
+        :mnesia.read(:channellocks, channel_id)
+      end)
+
+    case match do
+      [{_, _, status, mfa, iid}] when is_boolean(status) ->
+        if status, do: {:lock, mfa, iid}, else: false
 
       [] ->
         false
@@ -86,78 +93,91 @@ defmodule Stampede.Interact do
   end
 
   def record_interaction!(int) when int.__struct__ == Stampede.Interaction do
-    :mnesia.transaction(fn ->
-      datetime = DateTime.utc_now() |> DateTime.to_iso8601()
-      t_id = :mnesia.dirty_update_counter(:counters_table, :interactions, 1)
+    {:atomic, _} =
+      :mnesia.transaction(fn ->
+        datetime = DateTime.utc_now() |> DateTime.to_iso8601()
+        t_id = :mnesia.dirty_update_counter(:counters_table, :interactions, 1)
 
-      trace =
-        (is_list(int.traceback) &&
-           IO.iodata_to_binary(int.traceback)) ||
-          int.traceback
+        trace =
+          (is_list(int.traceback) &&
+             IO.iodata_to_binary(int.traceback)) ||
+            int.traceback
 
-      plugin = int.plugin
-      msg = int.msg
-      response = int.response
-      channel_lock = int.channel_lock
+        plugin = int.plugin
+        msg = int.msg
+        response = int.response
+        channel_lock = int.channel_lock
 
-      do_channel_lock!(int, datetime, t_id)
+        :ok = do_channel_lock!(int, datetime, t_id)
 
-      :mnesia.write(
-        :interactions,
-        {t_id, datetime, plugin, msg, response, trace, channel_lock},
-        :write
-      )
-    end)
+        new_row = {t_id, datetime, plugin, msg, response, trace, channel_lock}
+
+        :ok = do_write_interaction!(new_row)
+
+        IO.puts("Interact: writing interaction row:\n  #{new_row}")
+      end)
 
     :ok
   end
 
+  @spec! do_channel_lock!(%S.Interaction{}, String.t(), integer()) :: :ok
   def do_channel_lock!(int, datetime, int_id) do
-    case int.channel_lock do
-      {:lock, channel_id, mfa} ->
-        case channel_locked?(channel_id) do
-          false ->
-            false
+    IO.puts(
+      "Interact: checking channel lock: #{{int, datetime, int_id} |> inspect(pretty: true)}"
+    )
 
-          {:unlock, _iid} ->
-            false
+    {:atomic, result} =
+      :mnesia.transaction(fn ->
+        case int.channel_lock do
+          new_lock = {:lock, channel_id, mfa} ->
+            case channel_locked?(channel_id) do
+              false ->
+                false
 
-          {:lock, plug, _iid} when is_atom(plug) ->
-            raise(
-              "plugin #{int.plugin} trying to lock an already-locked channel owned by #{plug}"
-            )
-        end
+              {:lock, plug, _iid} when is_atom(plug) ->
+                if plug == int.response.origin_plug do
+                  new_lock
+                else
+                  raise(
+                    "plugin #{int.plugin} trying to lock an already-locked channel owned by #{plug}"
+                  )
+                end
+            end
 
-        :mnesia.write(
-          :channellocks,
-          {channel_id, datetime, :lock, mfa, int_id},
-          :write
-        )
+            new_row =
+              {channel_id, datetime, true, mfa, int_id}
 
-        :ok
-
-      {:unlock, channel_id} ->
-        case channel_locked?(channel_id) do
-          false ->
-            Logger.error("plugin #{int.plugin} trying to unlock an already-unlocked channel")
-
-          plug when plug == int.plugin ->
-            :mnesia.write(
-              :channellocks,
-              {channel_id, datetime, :unlock, nil, int_id},
-              :write
-            )
+            do_write_channellock!(new_row)
+            IO.puts("Interact: writing channel lock:\n  #{new_row |> inspect(pretty: true)}")
 
             :ok
 
-          plug when plug != int.plugin ->
-            raise "plugin #{int.plugin} trying to take a lock from #{plug}"
-        end
+          {:unlock, channel_id} ->
+            case channel_locked?(channel_id) do
+              false ->
+                Logger.error("plugin #{int.plugin} trying to unlock an already-unlocked channel")
 
-      nil ->
-        # do nothing
-        :ok
-    end
+              plug when plug == int.plugin ->
+                new_row =
+                  {channel_id, datetime, false, nil, int_id}
+
+                do_write_channellock!(new_row)
+
+                IO.puts("Interact: writing channel lock:\n  #{new_row |> inspect(pretty: true)}")
+                :ok
+
+              plug when plug != int.plugin ->
+                raise "plugin #{int.plugin} trying to take a lock from #{plug}"
+            end
+
+          nil ->
+            # do nothing
+            IO.puts("Interact: channel lock noop")
+            :ok
+        end
+      end)
+
+    result
   end
 
   @impl GenServer
@@ -178,5 +198,33 @@ defmodule Stampede.Interact do
       {:aborted, {:already_exists, id}} ->
         id
     end
+  end
+
+  @spec! do_write_channellock!(channellock_record()) :: :ok
+  defp do_write_channellock!(record) do
+    {:atomic, _} =
+      :mnesia.transaction(fn ->
+        :mnesia.write(
+          :channellocks,
+          record,
+          :write
+        )
+      end)
+
+    :ok
+  end
+
+  @spec! do_write_interaction!(interaction_record()) :: :ok
+  defp do_write_interaction!(record) do
+    {:atomic, _} =
+      :mnesia.transaction(fn ->
+        :mnesia.write(
+          :interactions,
+          record,
+          :write
+        )
+      end)
+
+    :ok
   end
 end

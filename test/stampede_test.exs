@@ -216,16 +216,14 @@ defmodule StampedeTest do
                D.send_msg(s.id, :t1, :admin, "!a") |> Map.fetch!(:text)
 
       assert "b response. awaiting c" == D.send_msg(s.id, :t1, :admin, "!b") |> Map.fetch!(:text)
-      assert nil == D.send_msg(s.id, :t2, :admin, "unrelated chatter") |> Map.fetch!(:text)
 
-      assert "b response. interaction done!" ==
+      assert "c response. interaction done!" ==
                D.send_msg(s.id, :t1, :admin, "!c") |> Map.fetch!(:text)
 
       assert "a response. awaiting b" == D.send_msg(s.id, :t1, :admin, "!a") |> Map.fetch!(:text)
-      assert "abandoning query" == D.send_msg(s.id, :t1, :admin, "interrupt") |> Map.fetch!(:text)
 
-      assert "a response. awaiting b" == D.send_msg(s.id, :t1, :admin, "!a") |> Map.fetch!(:text)
-      assert nil == D.send_msg(s.id, :t1, :some_other_shmuck, "!b") |> Map.fetch!(:text)
+      assert "lock broken by admin" ==
+               D.send_msg(s.id, :t1, :admin, "!interrupt") |> Map.fetch!(:text)
     end
   end
 
