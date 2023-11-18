@@ -17,10 +17,13 @@ defmodule Stampede.Interact do
   @type! interaction_id :: integer()
 
   @typep! channellock_record ::
-            {S.channel_id(), timestamp(), boolean(), nil | mfa(), interaction_id()}
+            {S.channel_id(), timestamp(), boolean(), nil | S.module_function_args(),
+             interaction_id()}
   @typep! interaction_record ::
-            {interaction_id(), timestamp(), atom(), Msg, Response, S.traceback(),
+            {interaction_id(), timestamp(), atom(), %Msg{}, %Response{}, S.traceback(),
              S.channel_lock_action()}
+  @type! channel_lock_status ::
+           false | {S.module_function_args(), atom(), interaction_id()}
 
   def start_link(args) do
     GenServer.start_link(__MODULE__, args, name: __MODULE__)
@@ -76,16 +79,27 @@ defmodule Stampede.Interact do
      )}
   end
 
-  @spec! channel_locked?(S.channel_id()) :: S.channel_lock_action()
+  @spec! channel_locked?(S.channel_id()) :: channel_lock_status()
   def channel_locked?(channel_id) do
     {:atomic, match} =
-      :mnesia.transaction(fn ->
+      transaction(fn ->
         :mnesia.read(:channellocks, channel_id)
       end)
 
     case match do
       [{_, _, status, mfa, iid}] when is_boolean(status) ->
-        if status, do: {:lock, mfa, iid}, else: false
+        if status do
+          # get plugin
+          {:atomic, plug} =
+            transaction(fn ->
+              [{plug}] = :mnesia.match_object(:interactions, {iid, :_, :"$1", :_, :_, :_, :_})
+              plug
+            end)
+
+          {mfa, plug, iid}
+        else
+          false
+        end
 
       [] ->
         false
@@ -94,7 +108,7 @@ defmodule Stampede.Interact do
 
   def record_interaction!(int) when int.__struct__ == Stampede.Interaction do
     {:atomic, _} =
-      :mnesia.transaction(fn ->
+      transaction(fn ->
         datetime = DateTime.utc_now() |> DateTime.to_iso8601()
         t_id = :mnesia.dirty_update_counter(:counters_table, :interactions, 1)
 
@@ -127,7 +141,7 @@ defmodule Stampede.Interact do
     )
 
     {:atomic, result} =
-      :mnesia.transaction(fn ->
+      transaction(fn ->
         case int.channel_lock do
           new_lock = {:lock, channel_id, mfa} ->
             case channel_locked?(channel_id) do
@@ -147,7 +161,7 @@ defmodule Stampede.Interact do
             new_row =
               {channel_id, datetime, true, mfa, int_id}
 
-            do_write_channellock!(new_row)
+            :ok = do_write_channellock!(new_row)
             IO.puts("Interact: writing channel lock:\n  #{new_row |> inspect(pretty: true)}")
 
             :ok
@@ -161,19 +175,25 @@ defmodule Stampede.Interact do
                 new_row =
                   {channel_id, datetime, false, nil, int_id}
 
-                do_write_channellock!(new_row)
+                :ok = do_write_channellock!(new_row)
 
                 IO.puts("Interact: writing channel lock:\n  #{new_row |> inspect(pretty: true)}")
                 :ok
 
               plug when plug != int.plugin ->
                 raise "plugin #{int.plugin} trying to take a lock from #{plug}"
+
+              other ->
+                raise "bad channel_locked? return #{other |> inspect(pretty: true)}"
             end
 
-          nil ->
+          false ->
             # do nothing
             IO.puts("Interact: channel lock noop")
             :ok
+
+          other ->
+            IO.puts("Interact: bad lock #{other |> inspect(pretty: true)}")
         end
       end)
 
@@ -203,7 +223,7 @@ defmodule Stampede.Interact do
   @spec! do_write_channellock!(channellock_record()) :: :ok
   defp do_write_channellock!(record) do
     {:atomic, _} =
-      :mnesia.transaction(fn ->
+      transaction(fn ->
         :mnesia.write(
           :channellocks,
           record,
@@ -217,7 +237,7 @@ defmodule Stampede.Interact do
   @spec! do_write_interaction!(interaction_record()) :: :ok
   defp do_write_interaction!(record) do
     {:atomic, _} =
-      :mnesia.transaction(fn ->
+      transaction(fn ->
         :mnesia.write(
           :interactions,
           record,
@@ -226,5 +246,14 @@ defmodule Stampede.Interact do
       end)
 
     :ok
+  end
+
+  defp transaction(f) do
+    # {:atomic, f.()}
+    case :mnesia.transaction(f) do
+      ret = {:atomic, _} -> ret
+      {:aborted, error} -> IO.puts("Bad transaction abort: #{error |> inspect(pretty: true)}")
+      other -> IO.puts("Bad transaction: #{other |> inspect(pretty: true)}")
+    end
   end
 end
