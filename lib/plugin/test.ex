@@ -59,7 +59,7 @@ defmodule Plugin.Test do
   end
 
   def lock_callback(_cfg, msg, :b) do
-    case msg.content do
+    case msg.body do
       "!b" ->
         S.Response.new(
           confidence: 10,
@@ -81,7 +81,7 @@ defmodule Plugin.Test do
   end
 
   def lock_callback(_cfg, msg, :c) do
-    case msg.content do
+    case msg.body do
       "!c" ->
         S.Response.new(
           confidence: 10,

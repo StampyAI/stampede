@@ -104,18 +104,21 @@ defmodule StampedeTest do
     end
 
     test "sustained interaction", s do
-      assert "locked in on admin awaiting b" ==
-               D.send_msg(s.id, :t1, :admin, "!a") |> Map.fetch!(:text)
+      uname = :admin
 
-      assert "b response. awaiting c" == D.send_msg(s.id, :t1, :admin, "!b") |> Map.fetch!(:text)
+      assert "locked in on #{uname} awaiting b" ==
+               D.send_msg(s.id, :t1, uname, "!a") |> Map.fetch!(:text)
+
+      assert "b response. awaiting c" == D.send_msg(s.id, :t1, uname, "!b") |> Map.fetch!(:text)
 
       assert "c response. interaction done!" ==
-               D.send_msg(s.id, :t1, :admin, "!c") |> Map.fetch!(:text)
+               D.send_msg(s.id, :t1, uname, "!c") |> Map.fetch!(:text)
 
-      assert "a response. awaiting b" == D.send_msg(s.id, :t1, :admin, "!a") |> Map.fetch!(:text)
+      assert "locked in on #{uname} awaiting b" ==
+               D.send_msg(s.id, :t1, uname, "!a") |> Map.fetch!(:text)
 
       assert "lock broken by admin" ==
-               D.send_msg(s.id, :t1, :admin, "!interrupt") |> Map.fetch!(:text)
+               D.send_msg(s.id, :t1, uname, "!interrupt") |> Map.fetch!(:text)
     end
   end
 

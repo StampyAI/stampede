@@ -196,7 +196,7 @@ defmodule Plugin do
       {{m, f, a}, _plugin, _iid} ->
         response = query_plugins([{m, f, [cfg, msg | a]}], cfg, msg)
 
-        Map.update!(response, :traceback, fn tb ->
+        Map.update!(response, :why, fn tb ->
           [
             "Channel #{msg.channel_id} was locked to module #{m}, function #{f}, so we called it.\n"
             | tb

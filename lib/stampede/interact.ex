@@ -55,7 +55,7 @@ defmodule Stampede.Interact do
   @spec! init(any()) :: {:ok, mod_state()}
   @impl GenServer
   def init(_args \\ %{}) do
-    IO.puts("Interact: starting")
+    Logger.debug("Interact: starting")
     :ok = S.ensure_schema_exists(S.nodes())
     :ok = Memento.start()
     # Memento.info() # DEBUG
@@ -72,7 +72,7 @@ defmodule Stampede.Interact do
       end)
 
     case match do
-      [{_, _, status, mfa, iid}] when is_boolean(status) ->
+      %ChannelLockTable{lock_status: status, callback: mfa, interaction_id: iid} ->
         if status do
           # get plugin
           plug =
@@ -130,6 +130,20 @@ defmodule Stampede.Interact do
           {:lock, channel_id, mfa} ->
             case channel_locked?(channel_id) do
               false ->
+                new_row =
+                  struct!(
+                    ChannelLockTable,
+                    channel_id: channel_id,
+                    datetime: datetime,
+                    lock_status: true,
+                    callback: mfa,
+                    interaction_id: int_id
+                  )
+
+                :ok = do_write_channellock!(new_row)
+
+                # IO.puts("Interact: writing new channel lock:\n  #{new_row |> inspect(pretty: true)}") # DEBUG
+
                 :ok
 
               {_mfa, plug, _iid} when is_atom(plug) ->
@@ -151,7 +165,7 @@ defmodule Stampede.Interact do
 
                 :ok = do_write_channellock!(new_row)
 
-                # IO.puts("Interact: writing channel lock:\n  #{new_row |> inspect(pretty: true)}") # DEBUG
+                # IO.puts("Interact: updating channel lock:\n  #{new_row |> inspect(pretty: true)}") # DEBUG
 
                 :ok
             end
@@ -162,7 +176,7 @@ defmodule Stampede.Interact do
                 Logger.error("plugin #{int.plugin} trying to unlock an already-unlocked channel")
                 :ok
 
-              plug when plug == int.plugin ->
+              {_, plug, _} when plug == int.plugin ->
                 new_row =
                   struct!(
                     ChannelLockTable,
@@ -179,7 +193,7 @@ defmodule Stampede.Interact do
                 :ok
 
               plug when plug != int.plugin ->
-                raise "plugin #{int.plugin} trying to take a lock from #{plug}"
+                raise "plugin #{int.plugin |> inspect()} trying to take a lock from #{plug |> inspect()}"
 
               other ->
                 raise "bad channel_locked? return #{other |> inspect(pretty: true)}"
@@ -200,8 +214,8 @@ defmodule Stampede.Interact do
 
   @impl GenServer
   def terminate(reason, _state) do
-    # DEBUG
-    IO.puts("Interact exiting, reason: #{inspect(reason, pretty: true)}")
+    # # DEBUG
+    # IO.puts("Interact exiting, reason: #{inspect(reason, pretty: true)}")
 
     :ok = Memento.stop()
 
