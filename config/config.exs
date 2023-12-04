@@ -37,4 +37,8 @@ config :stampede, :logger, [
 config :nostrum,
   gateway_intents: :all
 
+config :mnesia,
+  # Notice the single quotes
+  dir: ~c".mnesia/#{Mix.env()}/#{node()}"
+
 import_config("config.secret.exs")

@@ -193,7 +193,7 @@ defmodule Plugin do
   @spec! get_top_response(SiteConfig.t(), Msg.t()) :: nil | Response.t()
   def get_top_response(cfg, msg) do
     case S.Interact.channel_locked?(msg.channel_id) do
-      {:lock, {m, f, a}, _iid} ->
+      {{m, f, a}, _plugin, _iid} ->
         response = query_plugins([{m, f, [cfg, msg | a]}], cfg, msg)
 
         Map.update!(response, :traceback, fn tb ->

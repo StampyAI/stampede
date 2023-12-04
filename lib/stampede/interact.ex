@@ -1,98 +1,83 @@
+defmodule Stampede.Interact.IntTable do
+  use TypeCheck
+  alias Stampede, as: S
+
+  use Memento.Table,
+    attributes: [:id, :datetime, :plugin, :msg, :response, :traceback, :channel_lock],
+    type: :ordered_set,
+    disc_copies: S.nodes(),
+    access_mode: :read_write,
+    autoincrement: true,
+    index: [:datetime],
+    storage_properties: [ets: [:compressed]]
+
+  @type! t ::
+           {integer(), S.timestamp(), atom(), %S.Msg{}, %S.Response{}, S.traceback(),
+            S.channel_lock_action()}
+end
+
+defmodule Stampede.Interact.ChannelLockTable do
+  use TypeCheck
+  alias Stampede, as: S
+
+  use Memento.Table,
+    attributes: [:channel_id, :datetime, :lock_status, :callback, :interaction_id],
+    type: :set,
+    autoincrement: false,
+    disc_copies: S.nodes(),
+    access_mode: :read_write
+
+  @type! t ::
+           {S.channel_id(), S.timestamp(), boolean(), nil | S.module_function_args(), integer()}
+end
+
 defmodule Stampede.Interact do
   require Logger
   alias Stampede, as: S
   alias S.{Msg, Response}
+  alias S.Interact.{IntTable, ChannelLockTable}
   use TypeCheck
   use TypeCheck.Defstruct
 
   use GenServer
 
-  defstruct!(
-    interactions_table: _ :: any(),
-    channellock_table: _ :: any(),
-    counters_table: _ :: any()
-  )
-
   @type! timestamp :: String.t()
   @type! interaction_id :: integer()
 
-  @typep! channellock_record ::
-            {S.channel_id(), timestamp(), boolean(), nil | S.module_function_args(),
-             interaction_id()}
-  @typep! interaction_record ::
-            {interaction_id(), timestamp(), atom(), %Msg{}, %Response{}, S.traceback(),
-             S.channel_lock_action()}
   @type! channel_lock_status ::
            false | {S.module_function_args(), atom(), interaction_id()}
+  @typep! mod_state :: nil | []
 
   def start_link(args) do
     GenServer.start_link(__MODULE__, args, name: __MODULE__)
   end
 
-  @spec! init(keyword()) :: {:ok, map()}
+  @spec! init(any()) :: {:ok, mod_state()}
   @impl GenServer
-  def init(_args) do
+  def init(_args \\ %{}) do
     IO.puts("Interact: starting")
-    :mnesia.create_schema(S.nodes())
-    :mnesia.start()
+    :ok = S.ensure_schema_exists(S.nodes())
+    :ok = Memento.start()
+    # Memento.info() # DEBUG
+    :ok = S.ensure_tables_exist([ChannelLockTable, IntTable])
 
-    interactions_id =
-      make_or_get_table!(
-        :interactions,
-        attributes: [:id, :datetime, :plugin, :msg, :response, :traceback, :channel_lock],
-        type: :ordered_set,
-        disc_copies: S.nodes(),
-        access_mode: :read_write,
-        index: [:datetime],
-        storage_properties: [ets: [:compressed]]
-      )
-
-    channellock_id =
-      make_or_get_table!(
-        :channellocks,
-        attributes: [:channel_id, :datetime, :lock_status, :callback, :interaction_id],
-        type: :set,
-        disc_copies: S.nodes(),
-        access_mode: :read_write
-      )
-
-    counters_id =
-      make_or_get_table!(
-        :counters_table,
-        attributes: [:table_name, :count],
-        type: :set,
-        access_mode: :read_write
-      )
-
-    :ok =
-      :mnesia.wait_for_tables(
-        [interactions_id, channellock_id, counters_id],
-        :timer.seconds(5)
-      )
-
-    {:ok,
-     struct!(
-       __MODULE__,
-       interactions_table: interactions_id,
-       channellock_table: channellock_id,
-       counters_table: counters_id
-     )}
+    {:ok, nil}
   end
 
   @spec! channel_locked?(S.channel_id()) :: channel_lock_status()
   def channel_locked?(channel_id) do
-    {:atomic, match} =
+    match =
       transaction(fn ->
-        :mnesia.read(:channellocks, channel_id)
+        Memento.Query.read(ChannelLockTable, channel_id)
       end)
 
     case match do
       [{_, _, status, mfa, iid}] when is_boolean(status) ->
         if status do
           # get plugin
-          {:atomic, plug} =
+          plug =
             transaction(fn ->
-              [{plug}] = :mnesia.match_object(:interactions, {iid, :_, :"$1", :_, :_, :_, :_})
+              [%{plugin: plug}] = Memento.Query.match(IntTable, {iid, :_, :"$1", :_, :_, :_, :_})
               plug
             end)
 
@@ -101,34 +86,33 @@ defmodule Stampede.Interact do
           false
         end
 
-      [] ->
+      nil ->
         false
     end
   end
 
+  @spec! record_interaction!(%S.Interaction{}) :: :ok
   def record_interaction!(int) when int.__struct__ == Stampede.Interaction do
-    {:atomic, _} =
-      transaction(fn ->
-        datetime = DateTime.utc_now() |> DateTime.to_iso8601()
-        t_id = :mnesia.dirty_update_counter(:counters_table, :interactions, 1)
-
-        trace =
+    new_row =
+      struct!(
+        IntTable,
+        datetime: S.time(),
+        traceback:
           (is_list(int.traceback) &&
              IO.iodata_to_binary(int.traceback)) ||
-            int.traceback
+            int.traceback,
+        plugin: int.plugin,
+        msg: int.msg,
+        response: int.response,
+        channel_lock: int.channel_lock
+      )
 
-        plugin = int.plugin
-        msg = int.msg
-        response = int.response
-        channel_lock = int.channel_lock
+    _ =
+      transaction(fn ->
+        int_id = do_write_interaction!(new_row)
+        :ok = do_channel_lock!(int, new_row.datetime, int_id)
 
-        :ok = do_channel_lock!(int, datetime, t_id)
-
-        new_row = {t_id, datetime, plugin, msg, response, trace, channel_lock}
-
-        :ok = do_write_interaction!(new_row)
-
-        IO.puts("Interact: writing interaction row:\n  #{new_row}")
+        # IO.puts("Interact: writing interaction row:\n  #{new_row |> S.pp()}") # DEBUG
       end)
 
     :ok
@@ -136,48 +120,62 @@ defmodule Stampede.Interact do
 
   @spec! do_channel_lock!(%S.Interaction{}, String.t(), integer()) :: :ok
   def do_channel_lock!(int, datetime, int_id) do
-    IO.puts(
-      "Interact: checking channel lock: #{{int, datetime, int_id} |> inspect(pretty: true)}"
-    )
+    # IO.puts( # DEBUG
+    #   "Interact: checking channel lock: #{{int, datetime, int_id} |> inspect(pretty: true)}"
+    # )
 
-    {:atomic, result} =
+    result =
       transaction(fn ->
         case int.channel_lock do
-          new_lock = {:lock, channel_id, mfa} ->
+          {:lock, channel_id, mfa} ->
             case channel_locked?(channel_id) do
               false ->
-                false
+                :ok
 
-              {:lock, plug, _iid} when is_atom(plug) ->
-                if plug == int.response.origin_plug do
-                  new_lock
-                else
+              {_mfa, plug, _iid} when is_atom(plug) ->
+                if plug != int.response.origin_plug do
                   raise(
                     "plugin #{int.plugin} trying to lock an already-locked channel owned by #{plug}"
                   )
                 end
+
+                new_row =
+                  struct!(
+                    ChannelLockTable,
+                    channel_id: channel_id,
+                    datetime: datetime,
+                    lock_status: true,
+                    callback: mfa,
+                    interaction_id: int_id
+                  )
+
+                :ok = do_write_channellock!(new_row)
+
+                # IO.puts("Interact: writing channel lock:\n  #{new_row |> inspect(pretty: true)}") # DEBUG
+
+                :ok
             end
-
-            new_row =
-              {channel_id, datetime, true, mfa, int_id}
-
-            :ok = do_write_channellock!(new_row)
-            IO.puts("Interact: writing channel lock:\n  #{new_row |> inspect(pretty: true)}")
-
-            :ok
 
           {:unlock, channel_id} ->
             case channel_locked?(channel_id) do
               false ->
                 Logger.error("plugin #{int.plugin} trying to unlock an already-unlocked channel")
+                :ok
 
               plug when plug == int.plugin ->
                 new_row =
-                  {channel_id, datetime, false, nil, int_id}
+                  struct!(
+                    ChannelLockTable,
+                    channel_id: channel_id,
+                    datetime: datetime,
+                    lock_status: false,
+                    callback: nil,
+                    interaction_id: int_id
+                  )
 
                 :ok = do_write_channellock!(new_row)
 
-                IO.puts("Interact: writing channel lock:\n  #{new_row |> inspect(pretty: true)}")
+                # IO.puts("Interact: writing channel lock:\n  #{new_row |> inspect(pretty: true)}") # DEBUG
                 :ok
 
               plug when plug != int.plugin ->
@@ -189,11 +187,11 @@ defmodule Stampede.Interact do
 
           false ->
             # do nothing
-            IO.puts("Interact: channel lock noop")
+            # IO.puts("Interact: channel lock noop") # DEBUG
             :ok
 
           other ->
-            IO.puts("Interact: bad lock #{other |> inspect(pretty: true)}")
+            raise "Interact: bad lock #{other |> inspect(pretty: true)}"
         end
       end)
 
@@ -205,55 +203,32 @@ defmodule Stampede.Interact do
     # DEBUG
     IO.puts("Interact exiting, reason: #{inspect(reason, pretty: true)}")
 
-    :mnesia.stop()
+    :ok = Memento.stop()
 
     :ok
   end
 
-  defp make_or_get_table!(name, opts) do
-    case :mnesia.create_table(name, opts) do
-      {:atomic, id} ->
-        id
-
-      {:aborted, {:already_exists, id}} ->
-        id
-    end
-  end
-
-  @spec! do_write_channellock!(channellock_record()) :: :ok
+  @spec! do_write_channellock!(%ChannelLockTable{}) :: :ok
   defp do_write_channellock!(record) do
-    {:atomic, _} =
+    _ =
       transaction(fn ->
-        :mnesia.write(
-          :channellocks,
-          record,
-          :write
-        )
+        Memento.Query.write(record)
       end)
 
     :ok
   end
 
-  @spec! do_write_interaction!(interaction_record()) :: :ok
+  @spec! do_write_interaction!(%IntTable{}) :: integer()
   defp do_write_interaction!(record) do
-    {:atomic, _} =
+    %{id: new_id} =
       transaction(fn ->
-        :mnesia.write(
-          :interactions,
-          record,
-          :write
-        )
+        Memento.Query.write(record)
       end)
 
-    :ok
+    new_id
   end
 
   defp transaction(f) do
-    # {:atomic, f.()}
-    case :mnesia.transaction(f) do
-      ret = {:atomic, _} -> ret
-      {:aborted, error} -> IO.puts("Bad transaction abort: #{error |> inspect(pretty: true)}")
-      other -> IO.puts("Bad transaction: #{other |> inspect(pretty: true)}")
-    end
+    Memento.transaction!(f)
   end
 end

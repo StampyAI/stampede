@@ -37,7 +37,7 @@ defmodule Stampede.Application do
       ],
       node_name: [
         type: :atom,
-        default: "stampede@#{:inet.gethostname() |> elem(1)}" |> String.to_atom(),
+        default: "stampede_#{Mix.env()}@#{:inet.gethostname() |> elem(1)}" |> String.to_atom(),
         doc: "erlang VM node name"
       ]
     )
@@ -74,25 +74,28 @@ defmodule Stampede.Application do
 
     if args[:log_to_file], do: :ok = Logger.add_handlers(:stampede)
 
-    if Node.self() == :nonode@nohost, do: Node.start(args[:node_name])
+    ## changing node names after boot confuses Mnesia
+    # {:ok, _} = if Node.self() == :nonode@nohost,
+    #  do: Node.start(args[:node_name])
 
     children = make_children(args)
 
-    case args[:serious_error_channel_service] do
-      nil ->
-        Logger.error("No :serious_error_channel_service configured")
+    _ =
+      case args[:serious_error_channel_service] do
+        nil ->
+          Logger.error("No :serious_error_channel_service configured")
 
-      :disabled ->
-        Logger.info(":serious_error_channel_service disabled")
+        :disabled ->
+          Logger.info(":serious_error_channel_service disabled")
 
-      :discord ->
-        Logger.info("Discord handling :serious_error_channel_service")
-        {:ok, _} = LoggerBackends.add(Service.Discord.Logger)
+        :discord ->
+          Logger.info("Discord handling :serious_error_channel_service")
+          {:ok, _} = LoggerBackends.add(Service.Discord.Logger)
 
-      # :ok = :logger.add_handler(:error_man, Service.Discord.Logger, [])
-      other ->
-        Logger.error("Unknown :serious_error_channel_service #{inspect(other)}")
-    end
+        # :ok = :logger.add_handler(:error_man, Service.Discord.Logger, [])
+        other ->
+          Logger.error("Unknown :serious_error_channel_service #{inspect(other)}")
+      end
 
     # TODO: move activation into service modules themselves
 

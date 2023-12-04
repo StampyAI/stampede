@@ -14,6 +14,7 @@ defmodule Stampede do
   @type! enabled_plugs :: :all | [] | nonempty_list(module())
   @type! channel_lock_action ::
            false | {:lock, channel_id(), module_function_args()} | {:unlock, channel_id()}
+  @type! timestamp :: String.t()
 
   @doc "use TypeCheck types in NimpleOptions, takes type expressions like @type!"
   defmacro ntc(type) do
@@ -143,5 +144,52 @@ defmodule Stampede do
 
   def nodes() do
     [node()]
+  end
+
+  @spec! time() :: timestamp()
+  def time() do
+    DateTime.utc_now() |> DateTime.to_iso8601()
+  end
+
+  def pp(thing) do
+    inspect(thing, pretty: true)
+  end
+
+  def ensure_schema_exists(nodes) when is_list(nodes) and nodes != [] do
+    # NOTE: failing with multi-node list only returns the first node in error
+    n1 = hd(nodes)
+
+    case Memento.Schema.create(nodes) do
+      {:error, {^n1, {:already_exists, ^n1}}} ->
+        :ok
+
+      :ok ->
+        :ok
+
+      other ->
+        raise "Memento schema creation error: #{pp(other)}"
+    end
+  end
+
+  @spec! ensure_tables_exist(list(atom())) :: :ok
+  def ensure_tables_exist(tables) when is_list(tables) do
+    Enum.each(tables, fn t ->
+      case Memento.Table.create(t) do
+        :ok ->
+          :ok
+
+        {:error, {:already_exists, ^t}} ->
+          :ok
+
+        other ->
+          raise "Memento table creation error: #{pp(other)}"
+      end
+    end)
+
+    :ok =
+      Memento.wait(
+        tables,
+        :timer.seconds(5)
+      )
   end
 end

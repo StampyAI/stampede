@@ -56,6 +56,8 @@ defmodule Service.Dummy do
   """
   def site_config_schema(), do: @schema
 
+  # PUBLIC API FUNCTIONS
+
   def log_plugin_error(cfg, log) do
     send_msg(
       SiteConfig.fetch!(cfg, :server_id),
@@ -89,6 +91,8 @@ defmodule Service.Dummy do
   def new_server(new_server_id, plugs \\ nil) do
     GenServer.call(__MODULE__, {:new_server, new_server_id, plugs})
   end
+
+  # PLUMBING
 
   @spec! start_link(Keyword.t()) :: :ignore | {:error, any} | {:ok, pid}
   def start_link(cfg_overrides \\ []) do
