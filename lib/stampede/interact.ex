@@ -56,6 +56,7 @@ defmodule Stampede.Interact do
   @impl GenServer
   def init(_args \\ %{}) do
     Logger.debug("Interact: starting")
+    _ = Memento.stop()
     :ok = S.ensure_schema_exists(S.nodes())
     :ok = Memento.start()
     # Memento.info() # DEBUG

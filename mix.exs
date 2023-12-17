@@ -9,8 +9,8 @@ defmodule Stampede.MixProject do
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       dialyzer: dialyzer(),
-      preferred_cli_env: [release: :prod, t: :test],
-      aliases: [t: "test --no-start"]
+      preferred_cli_env: [release: :prod, test: :test],
+      aliases: [test: "test --no-start"]
     ]
   end
 

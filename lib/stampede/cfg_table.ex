@@ -6,60 +6,66 @@ defmodule Stampede.CfgTable do
 
   defstruct!(
     config_dir: _ :: binary(),
-    table_id: _ :: any()
+    published_keys: _ :: %MapSet{}
   )
 
-  # TODO: use Erlang persistent terms
-
-  def table() do
-    __MODULE__
-  end
-
   def start_link(args) do
-    GenServer.start_link(__MODULE__, args)
+    GenServer.start_link(__MODULE__, args, name: __MODULE__)
   end
 
   @spec! init(keyword()) :: {:ok, map()}
   @impl GenServer
   def init(args) do
     config_dir = Keyword.fetch!(args, :config_dir)
-    table_id = make_filled_table(config_dir)
-    {:ok, struct!(__MODULE__, table_id: table_id, config_dir: config_dir)}
+    keys = make_filled_table(config_dir)
+    {:ok, struct!(__MODULE__, published_keys: keys, config_dir: config_dir)}
   end
 
   @doc """
   Handle creation and population of a new table, and optionally deleting the old one
   """
-  def make_filled_table(config_dir, old_table \\ nil) do
-    ets_settings = [:named_table]
-    # ets_settings = [:set, :protected,
-    #  tweaks: [
-    #    read_concurrency: true,
-    #    write_concurrency: false
-    #  ]]
+  def make_filled_table(config_dir, old_keys \\ nil) do
     table_contents =
       SiteConfig.load_all(config_dir)
       |> make_table_contents()
 
-    if old_table, do: :ets.delete(old_table)
-    table_id = :ets.new(table(), ets_settings)
-    true = :ets.insert_new(table_id, table_contents)
+    if old_keys != nil do
+      table_contents
+      |> MapSet.new(fn {k, _v} -> k end)
+      |> MapSet.difference(old_keys)
+      |> Enum.map(fn key ->
+        erased = :persistent_term.erase(key)
+        {key, erased}
+      end)
+      |> Enum.each(fn {key, erased} ->
+        if not erased, do: raise("cfg cleanup issue, key: #{inspect(key)}"), else: :ok
+      end)
+    end
 
-    table_id
+    Enum.each(table_contents, fn {key, value} ->
+      :ok = :persistent_term.put(key, value)
+    end)
+
+    table_contents
+    |> Map.keys()
+    |> MapSet.new()
   end
 
   @doc """
   With given cfgs, creates a schema like this:
 
-    server_id, {service, filename}
+    {server_id, :filename}, filename
+    # then the rest of the keys:
     {server_id, config_key_1}, config_value_1
     {server_id, config_key_2}, config_value_2
+    # etc
   """
   @spec! make_table_contents(SiteConfig.cfg_list()) ::
-           list({S.server_id() | {S.server_id(), atom()}, any()})
+           map({S.server_id(), atom()}, any())
   def make_table_contents(cfgs) do
-    Stream.map(cfgs, &cfg_to_entries/1)
+    Enum.map(cfgs, &cfg_to_entries/1)
     |> Enum.concat()
+    |> Map.new()
   end
 
   def cfg_to_entries({filename, cfg}), do: cfg_to_entries(filename, cfg)
@@ -79,18 +85,12 @@ defmodule Stampede.CfgTable do
     do: lookup({server_id, key})
 
   def lookup(key) do
-    table()
-    |> :ets.lookup(key)
-    # Assuming no duplicate keys
-    |> case do
-      lst = [{_key, item}] when length(lst) == 1 ->
-        {:ok, item}
-
-      lst when is_list(lst) and length(lst) > 1 ->
-        raise "there shouldn't be multiple keys, this is a set database"
-
-      [] ->
+    case :persistent_term.get(key, :not_found) do
+      :not_found ->
         {:error, :not_found}
+
+      item ->
+        {:ok, item}
     end
   end
 
@@ -106,26 +106,90 @@ defmodule Stampede.CfgTable do
     end
   end
 
+  def member(key) do
+    case lookup(key) do
+      {:ok, _} ->
+        true
+
+      _ ->
+        false
+    end
+  end
+
   def server_configured?(server_id) do
-    table()
-    |> :ets.member({server_id, :service})
+    member({server_id, :service})
   end
 
+  @spec! servers_configured() ::
+           %MapSet{}
+  def servers_configured() do
+    GenServer.call(__MODULE__, :servers_configured_all)
+  end
+
+  @spec! servers_configured(service_name :: S.service_name()) ::
+           %MapSet{}
   def servers_configured(service_name) do
-    table()
-    |> :ets.match({{:"$1", :service}, service_name})
-    |> MapSet.new(&hd(&1))
+    GenServer.call(__MODULE__, {:servers_configured_for_service, service_name})
   end
 
+  @spec! reload_cfgs(nil | String.t()) :: :ok
   def reload_cfgs(dir \\ nil) do
-    table()
-    |> GenServer.call({:reload_cfgs, dir})
+    GenServer.call(__MODULE__, {:reload_cfgs, dir})
   end
 
+  @spec! table_dump() :: map()
   def table_dump() do
-    table()
-    |> :ets.tab2list()
-    |> Map.new()
+    GenServer.call(__MODULE__, :published_keys)
+    |> Map.new(fn key ->
+      {key, lookup!(key)}
+    end)
+  end
+
+  def handle_call(:servers_configured_all, _, state) do
+    {
+      :reply,
+      state.published_keys
+      |> MapSet.new(fn {server, _item} -> server end),
+      state
+    }
+
+    # |> TypeCheck.conforms!({:reply, %MapSet{}, %__MODULE__{}})
+  end
+
+  def handle_call({:servers_configured_for_service, service}, _, state) do
+    return =
+      state.published_keys
+      |> Enum.reduce(MapSet.new(), fn
+        {server, :service}, acc ->
+          s = lookup!({server, :service})
+
+          if s == service do
+            MapSet.put(acc, server)
+          else
+            acc
+          end
+
+        {_server, _item}, acc ->
+          acc
+      end)
+
+    {
+      :reply,
+      return,
+      state
+    }
+
+    # |> TypeCheck.conforms!({:reply, %MapSet{}, %__MODULE__{}})
+  end
+
+  def handle_call(:published_keys, _, state) do
+    {
+      :reply,
+      state.published_keys,
+      state
+    }
+
+    # |> TypeCheck.conforms!({:reply, %MapSet{}, %__MODULE__{}})
   end
 
   @impl GenServer

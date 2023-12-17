@@ -15,6 +15,7 @@ defmodule Stampede do
   @type! channel_lock_action ::
            false | {:lock, channel_id(), module_function_args()} | {:unlock, channel_id()}
   @type! timestamp :: String.t()
+  @type! service_name :: atom()
 
   @doc "use TypeCheck types in NimpleOptions, takes type expressions like @type!"
   defmacro ntc(type) do
@@ -38,6 +39,7 @@ defmodule Stampede do
     {:via, PartitionSupervisor, {Stampede.QuickTaskSupers, self()}}
   end
 
+  @spec! services() :: map(service_name(), module())
   def services(),
     do: %{
       discord: Service.Discord,
