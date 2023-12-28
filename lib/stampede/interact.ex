@@ -1,19 +1,30 @@
 defmodule Stampede.Interact.IntTable do
   use TypeCheck
+  alias Stampede.Msg
+  alias Stampede.Response
   alias Stampede, as: S
 
   use Memento.Table,
-    attributes: [:id, :datetime, :plugin, :msg, :response, :traceback, :channel_lock],
+    attributes: [:id, :datetime, :plugin, :msg_id, :msg, :response, :traceback, :channel_lock],
     type: :ordered_set,
     disc_copies: S.nodes(),
     access_mode: :read_write,
     autoincrement: true,
-    index: [:datetime],
+    index: [:datetime, :msg_id],
     storage_properties: [ets: [:compressed]]
 
-  @type! t ::
-           {integer(), S.timestamp(), atom(), %S.Msg{}, %S.Response{}, S.traceback(),
-            S.channel_lock_action()}
+  def validate!(record) when is_struct(record, __MODULE__) do
+    TypeCheck.conforms!(record, %__MODULE__{
+      id: nil | integer(),
+      datetime: S.timestamp(),
+      plugin: module(),
+      msg_id: S.msg_id(),
+      msg: %Msg{},
+      response: %Response{},
+      traceback: String.t(),
+      channel_lock: S.channel_lock_action()
+    })
+  end
 end
 
 defmodule Stampede.Interact.ChannelLockTable do
@@ -27,25 +38,27 @@ defmodule Stampede.Interact.ChannelLockTable do
     disc_copies: S.nodes(),
     access_mode: :read_write
 
-  @type! t ::
-           {S.channel_id(), S.timestamp(), boolean(), nil | S.module_function_args(), integer()}
+  def validate!(record) when is_struct(record, __MODULE__) do
+    TypeCheck.conforms!(record, %__MODULE__{
+      channel_id: S.channel_id(),
+      datetime: S.timestamp(),
+      lock_status: boolean(),
+      callback: nil | S.module_function_args(),
+      interaction_id: integer()
+    })
+  end
 end
 
 defmodule Stampede.Interact do
   require Logger
+  alias Stampede.Interaction
   alias Stampede, as: S
-  alias S.{Msg, Response}
   alias S.Interact.{IntTable, ChannelLockTable}
   use TypeCheck
   use TypeCheck.Defstruct
 
   use GenServer
 
-  @type! timestamp :: String.t()
-  @type! interaction_id :: integer()
-
-  @type! channel_lock_status ::
-           false | {S.module_function_args(), atom(), interaction_id()}
   @typep! mod_state :: nil | []
 
   def start_link(args) do
@@ -59,13 +72,46 @@ defmodule Stampede.Interact do
     _ = Memento.stop()
     :ok = S.ensure_schema_exists(S.nodes())
     :ok = Memento.start()
-    # Memento.info() # DEBUG
+    # # DEBUG
+    # Memento.info()
+    # Memento.Schema.info()
     :ok = S.ensure_tables_exist([ChannelLockTable, IntTable])
 
     {:ok, nil}
   end
 
-  @spec! channel_locked?(S.channel_id()) :: channel_lock_status()
+  @spec! get(S.msg_id()) :: {:ok, %IntTable{}} | {:error, any()}
+  def get(msg_id) do
+    transaction(fn ->
+      Memento.Query.select(
+        IntTable,
+        {:==, :msg_id, msg_id}
+      )
+      |> case do
+        [result] ->
+          {:ok, result}
+
+        [] ->
+          {:error, :not_found}
+
+        results when is_list(results) ->
+          raise "multiple entries found for one msg_id"
+      end
+    end)
+  end
+
+  @spec! get_traceback(S.msg_id()) :: {:ok, S.traceback()} | {:error, any()}
+  def get_traceback(msg_id) do
+    transaction(fn ->
+      get(msg_id)
+      |> case do
+        {:ok, x} -> {:ok, x.traceback}
+        other -> other
+      end
+    end)
+  end
+
+  @spec! channel_locked?(S.channel_id()) :: S.channel_lock_status()
   def channel_locked?(channel_id) do
     match =
       transaction(fn ->
@@ -78,7 +124,9 @@ defmodule Stampede.Interact do
           # get plugin
           plug =
             transaction(fn ->
-              [%{plugin: plug}] = Memento.Query.match(IntTable, {iid, :_, :"$1", :_, :_, :_, :_})
+              [%{plugin: plug}] =
+                Memento.Query.match(IntTable, {iid, :_, :"$1", :_, :_, :_, :_, :_})
+
               plug
             end)
 
@@ -97,23 +145,26 @@ defmodule Stampede.Interact do
     new_row =
       struct!(
         IntTable,
+        id: nil,
         datetime: S.time(),
+        plugin: int.plugin,
+        msg_id: int.msg.id,
+        msg: int.msg,
+        response: int.response,
         traceback:
           (is_list(int.traceback) &&
              IO.iodata_to_binary(int.traceback)) ||
             int.traceback,
-        plugin: int.plugin,
-        msg: int.msg,
-        response: int.response,
         channel_lock: int.channel_lock
       )
+      |> IntTable.validate!()
+
+    # IO.puts("Interact: writing interaction row:\n  #{new_row |> S.pp()}") # DEBUG
 
     _ =
       transaction(fn ->
         int_id = do_write_interaction!(new_row)
         :ok = do_channel_lock!(int, new_row.datetime, int_id)
-
-        # IO.puts("Interact: writing interaction row:\n  #{new_row |> S.pp()}") # DEBUG
       end)
 
     :ok
@@ -214,8 +265,8 @@ defmodule Stampede.Interact do
   end
 
   @impl GenServer
-  def terminate(reason, _state) do
-    # # DEBUG
+  def terminate(_reason, _state) do
+    # DEBUG
     # IO.puts("Interact exiting, reason: #{inspect(reason, pretty: true)}")
 
     :ok = Memento.stop()
@@ -225,6 +276,8 @@ defmodule Stampede.Interact do
 
   @spec! do_write_channellock!(%ChannelLockTable{}) :: :ok
   defp do_write_channellock!(record) do
+    ChannelLockTable.validate!(record)
+
     _ =
       transaction(fn ->
         Memento.Query.write(record)
@@ -241,6 +294,24 @@ defmodule Stampede.Interact do
       end)
 
     new_id
+  end
+
+  @spec! read_interaction!(any()) :: %Interaction{}
+  def read_interaction!(msg_id) do
+    do_read_interaction(msg_id)
+    |> case do
+      nil ->
+        raise "Interact: couldn't find Interaction for #{msg_id |> inspect()}"
+
+      other ->
+        other
+    end
+  end
+
+  defp do_read_interaction(msg_id) do
+    transaction(fn ->
+      Memento.Query.select(IntTable, {:==, :msg_id, msg_id})
+    end)
   end
 
   defp transaction(f) do

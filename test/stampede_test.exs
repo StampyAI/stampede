@@ -52,7 +52,8 @@ defmodule StampedeTest do
       assert "pong!" == D.send_msg(s.id, :t1, :u1, "!ping") |> Map.fetch!(:text)
 
       assert D.channel_history(s.id, :t1) ==
-               {{:u1, "no response"}, {:u1, "!ping"}, {:server, "pong!"}}
+               [{0, :u1, "no response"}, {1, :u1, "!ping"}, {2, :server, "pong!"}]
+               |> Enum.reverse()
     end
 
     test "ignores messages from other servers", s do
@@ -62,7 +63,8 @@ defmodule StampedeTest do
       assert nil == D.send_msg(:shouldnt_exist, :t1, :u1, "!ping")
 
       assert D.channel_history(s.id, :t1) ==
-               {{:nope, "nada"}, {:abc, "def"}, {:u1, "!ping"}, {:server, "pong!"}}
+               [{0, :nope, "nada"}, {1, :abc, "def"}, {2, :u1, "!ping"}, {3, :server, "pong!"}]
+               |> Enum.reverse()
     end
 
     test "plugin raising", s do
@@ -76,7 +78,7 @@ defmodule StampedeTest do
              "error not being logged"
 
       assert D.channel_history(s.id, :t1) ==
-               {{:u1, "!raise"}, {:server, @confused_response}}
+               [{0, :u1, "!raise"}, {1, :server, @confused_response}] |> Enum.reverse()
     end
 
     test "plugin throwing", s do
@@ -90,7 +92,7 @@ defmodule StampedeTest do
              "error not being logged"
 
       assert D.channel_history(s.id, :t1) ==
-               {{:u1, "!throw"}, {:server, @confused_response}}
+               [{0, :u1, "!throw"}, {1, :server, @confused_response}] |> Enum.reverse()
     end
 
     test "plugin with callback", s do
@@ -126,7 +128,7 @@ defmodule StampedeTest do
     @describetag :dummy
     test "one message", s do
       D.send_msg(s.id, :t1, :u1, "lol")
-      assert D.channel_history(s.id, :t1) == {{:u1, "lol"}}
+      assert D.channel_history(s.id, :t1) == [{0, :u1, "lol"}]
     end
 
     test "many messages", s do
@@ -135,12 +137,13 @@ defmodule StampedeTest do
         |> Enum.map(fn x ->
           {:t1, :u1, "#{x}"}
         end)
-        |> Enum.map(fn {a, u, m} ->
+        |> Enum.reduce({[], 0}, fn {a, u, m}, {lst, i} ->
           D.send_msg(s.id, a, u, m)
-          {u, m}
+          {[{i, u, m} | lst], i + 1}
         end)
+        |> elem(0)
 
-      assert D.channel_history(s.id, :t1) == List.to_tuple(dummy_messages)
+      assert D.channel_history(s.id, :t1) == dummy_messages
     end
   end
 
@@ -165,4 +168,13 @@ defmodule StampedeTest do
       assert :foobar == newtable.server_id
     end
   end
+
+  # describe "interaction logging" do
+  #   @describetag :dummy
+  #   test "interaction is logged" do
+  #     D.send_msg(s.id, :t1, :u1, "!ping")
+  #     :timer.sleep(100)
+  #     # check interaction was logged, without Why plugin
+  #   end
+  # end
 end

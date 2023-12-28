@@ -5,6 +5,7 @@ defmodule Plugin do
   alias S.{Msg, Response, Interaction}
   require Interaction
   @first_response_timeout 500
+
   @callback process_msg(SiteConfig.t(), Msg.t()) :: nil | Response.t()
 
   defmacro __using__(_opts \\ []) do
@@ -17,8 +18,8 @@ defmodule Plugin do
     S.find_submodules(__MODULE__)
   end
 
-  def default_plugin_mfa(plug, args = [cfg, msg]) do
-    {plug, :process_msg, args}
+  def default_plugin_mfa(plug, [cfg, msg]) do
+    {plug, :process_msg, [cfg, msg]}
   end
 
   @spec! ls(:all | :none | MapSet.t()) :: MapSet.t()

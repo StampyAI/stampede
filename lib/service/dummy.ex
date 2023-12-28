@@ -8,18 +8,22 @@ defmodule Service.Dummy do
 
   # Imaginary server types
   @opaque! dummy_user_id :: atom()
-  @system_user :server
   @opaque! dummy_channel_id :: atom()
   @opaque! dummy_server_id :: identifier() | atom()
+  @opaque! dummy_msg_index :: integer()
+  @type! dummy_msg_id ::
+           {dummy_server_id(), dummy_channel_id(), dummy_user_id(), dummy_msg_index()}
   # "one channel"
   @typep! msg_content :: String.t() | nil
   # one message, tagged with channel
   @typep! msg_tuple :: {dummy_channel_id(), dummy_user_id(), msg_content()}
-  @typep! channel :: tuple()
+  @typep! channel :: list({dummy_msg_index(), dummy_user_id(), msg_content()})
   # multiple channels
   @typep! channel_buffers :: %{dummy_channel_id() => channel()} | %{}
   @typep! dummy_servers :: %{dummy_server_id() => {SiteConfig.t(), channel_buffers()}}
   @typep! dummy_state :: dummy_servers() | %{}
+
+  @system_user :server
 
   @schema NimbleOptions.new!(
             SiteConfig.merge_custom_schema(
@@ -71,11 +75,12 @@ defmodule Service.Dummy do
            dummy_server_id(),
            dummy_channel_id(),
            dummy_user_id(),
-           msg_content()
+           msg_content(),
+           keyword()
          ) ::
-           nil | Response.t()
-  def send_msg(server_id, channel, user, text) do
-    GenServer.call(__MODULE__, {:msg_new, {server_id, channel, user, text}})
+           %{response: nil | Response.t(), posted_msg_id: dummy_msg_id()} | nil | Response.t()
+  def send_msg(server_id, channel, user, text, opts \\ []) do
+    GenServer.call(__MODULE__, {:msg_new, {server_id, channel, user, text}, opts})
   end
 
   @spec! channel_history(dummy_server_id(), dummy_channel_id()) :: channel()
@@ -129,41 +134,40 @@ defmodule Service.Dummy do
     end
   end
 
-  def handle_call({:msg_new, {server_id, channel, user, text}}, _from, servers) do
+  # if opts has key :return_id, returns the id of posted message along with any response msg
+  def handle_call({:msg_new, msg_tuple = {server_id, channel, user, _text}, opts}, _from, servers) do
     if not Map.has_key?(servers, server_id) do
       # ignore unconfigured server
       {:reply, nil, servers}
     else
-      {cfg, buf} = Map.fetch!(servers, server_id)
+      %{
+        msg_id: incoming_msg_id,
+        msg_object: incoming_msg,
+        new_state: new_state_1
+      } = do_add_new_msg(msg_tuple, servers)
 
-      buf2 = channel_buffers_append(buf, {channel, user, text})
+      cfg = Map.fetch!(servers, server_id) |> elem(0)
+      response = Plugin.get_top_response(cfg, incoming_msg)
 
-      our_msg =
-        Msg.new(
-          body: text,
-          channel_id: channel,
-          author_id: user,
-          server_id: server_id
-        )
+      result =
+        case response do
+          response when is_struct(response, Response) ->
+            %{new_state: new_state_2} =
+              do_post_response({server_id, channel}, response, new_state_1)
 
-      response = Plugin.get_top_response(cfg, our_msg)
+            {:reply, %{response: response, posted_msg_id: incoming_msg_id}, new_state_2}
 
-      if response do
-        buf3 = channel_buffers_append(buf2, {channel, @system_user, response.text})
+          nil ->
+            {:reply, %{response: nil, posted_msg_id: incoming_msg_id}, new_state_1}
+        end
 
-        new_state =
-          Map.update!(servers, server_id, fn {cfg, _} ->
-            {cfg, buf3}
-          end)
+      case Keyword.get(opts, :return_id, false) do
+        true ->
+          result
 
-        {:reply, response, new_state}
-      else
-        new_state =
-          Map.update!(servers, server_id, fn {cfg, _} ->
-            {cfg, buf2}
-          end)
-
-        {:reply, response, new_state}
+        false ->
+          {status, %{response: response}, state} = result
+          {status, response, state}
       end
     end
   end
@@ -178,6 +182,47 @@ defmodule Service.Dummy do
 
   @spec! channel_buffers_append(channel_buffers(), msg_tuple()) :: channel_buffers()
   def channel_buffers_append(bufs, {channel, user, msg}) do
-    Map.update(bufs, channel, {{user, msg}}, &Tuple.append(&1, {user, msg}))
+    Map.update(bufs, channel, [{0, user, msg}], fn lst = [{last_id, _, _} | _] ->
+      [{last_id + 1, user, msg} | lst]
+    end)
+  end
+
+  defp do_post_response({server_id, channel}, response, servers)
+       when is_struct(response, Response) do
+    {server_id, channel, @system_user, response.text}
+    |> do_add_new_msg(servers)
+  end
+
+  @spec! do_add_new_msg(tuple(), dummy_state()) :: %{
+           msg_id: dummy_msg_id(),
+           msg_object: %Msg{},
+           new_state: dummy_state()
+         }
+  defp do_add_new_msg({server_id, channel, user, text}, servers) do
+    {_cfg, buf} = Map.fetch!(servers, server_id)
+
+    buf_updated = channel_buffers_append(buf, {channel, user, text})
+
+    msg_id = {server_id, channel, user, buf_updated |> Map.fetch!(channel) |> hd() |> elem(0)}
+
+    msg_object =
+      Msg.new(
+        id: msg_id,
+        body: text,
+        channel_id: channel,
+        author_id: user,
+        server_id: server_id
+      )
+
+    new_state =
+      Map.update!(servers, server_id, fn {cfg, _} ->
+        {cfg, buf_updated}
+      end)
+
+    %{
+      msg_id: msg_id,
+      msg_object: msg_object,
+      new_state: new_state
+    }
   end
 end

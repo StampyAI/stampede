@@ -43,6 +43,7 @@ defmodule StampedeStatelessTest do
     test "basic test plugin" do
       msg =
         S.Msg.new(
+          id: 0,
           body: "!ping",
           channel_id: :t1,
           author_id: :u1,
@@ -54,6 +55,7 @@ defmodule StampedeStatelessTest do
 
       msg =
         S.Msg.new(
+          id: 0,
           body: "!raise",
           channel_id: :t1,
           author_id: :u1,
@@ -69,6 +71,7 @@ defmodule StampedeStatelessTest do
 
       msg =
         S.Msg.new(
+          id: 0,
           body: "!throw",
           channel_id: :t1,
           author_id: :u1,
@@ -84,6 +87,7 @@ defmodule StampedeStatelessTest do
 
       msg =
         S.Msg.new(
+          id: 0,
           body: "!callback",
           channel_id: :t1,
           author_id: :u1,
@@ -98,13 +102,13 @@ defmodule StampedeStatelessTest do
 
     test "dummy channel_buffers" do
       example_history = %{
-        c1: {{:a1, "m1"}, {:a2, "m2"}},
-        c2: {{:a3, "m3"}, {:a3, "m4"}}
+        c1: [{1, :a1, "m1"}, {0, :a2, "m2"}],
+        c2: [{1, :a3, "m4"}, {0, :a3, "m3"}]
       }
 
       assert D.channel_buffers_append(example_history, {:c2, :a4, "m5"}) == %{
-               c1: {{:a1, "m1"}, {:a2, "m2"}},
-               c2: {{:a3, "m3"}, {:a3, "m4"}, {:a4, "m5"}}
+               c1: [{1, :a1, "m1"}, {0, :a2, "m2"}],
+               c2: [{2, :a4, "m5"}, {1, :a3, "m4"}, {0, :a3, "m3"}]
              }
     end
 

@@ -1,11 +1,13 @@
 defmodule Service.Discord do
   alias Stampede, as: S
+  alias S.{Msg, Channel}
   use TypeCheck
   use Supervisor, restart: :permanent
   require Logger
   @type! discord_channel_id :: non_neg_integer()
   @type! discord_guild_id :: non_neg_integer()
   @type! discord_user_id :: non_neg_integer()
+  @type! discord_msg_id :: non_neg_integer()
 
   # @behaviour Service
 
@@ -20,6 +22,16 @@ defmodule Service.Discord do
 
   @character_limit 1999
   @consecutive_msg_limit 10
+
+  def into_msg(msg) do
+    Msg.new(
+      body: msg.content,
+      channel_id: msg.channel_id,
+      author_id: msg.author.id,
+      server_id: msg.guild_id,
+      referenced_msg: Map.get(msg, :referenced_msg, nil)
+    )
+  end
 
   def send_msg(channel_id, msg) when is_bitstring(msg) do
     r = S.text_chunk_regex(@character_limit)
@@ -75,6 +87,25 @@ defmodule Service.Discord do
     :ok
   end
 
+  @spec! get_referenced_msg(Msg.t()) :: {:ok, Msg.t()} | {:error, any()}
+  def get_referenced_msg(msg) do
+    get_msg({
+      msg.channel_id,
+      msg.referenced_msg_id
+    })
+  end
+
+  @spec! get_msg({discord_channel_id(), discord_msg_id()}) :: {:ok, Msg.t()} | {:error, any()}
+  def get_msg({channel_id, msg_id}) do
+    case Nostrum.Api.get_channel_message(channel_id, msg_id) do
+      {:ok, discord_msg} ->
+        {:ok, into_msg(discord_msg)}
+
+      other ->
+        {:error, other}
+    end
+  end
+
   def start_link(args) do
     Supervisor.start_link(__MODULE__, args, name: __MODULE__)
   end
@@ -126,12 +157,7 @@ defmodule Service.Discord.Handler do
   def handle_cast({:MESSAGE_CREATE, msg}, state) do
     if msg.guild_id in state.guild_ids do
       our_msg =
-        Msg.new(
-          body: msg.content,
-          channel_id: msg.channel_id,
-          author_id: msg.author.id,
-          server_id: msg.guild_id
-        )
+        Service.Discord.into_msg(msg)
 
       case Plugin.get_top_response(msg.guild_id, our_msg) do
         %Response{text: r_text} when r_text != nil ->

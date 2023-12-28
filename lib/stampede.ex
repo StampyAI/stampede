@@ -3,6 +3,7 @@ defmodule Stampede do
   @type! channel_id :: any()
   @type! server_id :: any()
   @type! user_id :: any()
+  @type! msg_id :: any()
   @type! log_level ::
            :emergency | :alert | :critical | :error | :warning | :warn | :notice | :info | :debug
   @type! log_msg ::
@@ -14,6 +15,8 @@ defmodule Stampede do
   @type! enabled_plugs :: :all | [] | nonempty_list(module())
   @type! channel_lock_action ::
            false | {:lock, channel_id(), module_function_args()} | {:unlock, channel_id()}
+  @type! channel_lock_status ::
+           false | {module_function_args(), atom(), integer()}
   @type! timestamp :: String.t()
   @type! service_name :: atom()
 
@@ -186,6 +189,9 @@ defmodule Stampede do
         other ->
           raise "Memento table creation error: #{pp(other)}"
       end
+
+      # DEBUG
+      Memento.Table.info(t)
     end)
 
     :ok =
