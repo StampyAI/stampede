@@ -6,6 +6,8 @@ defmodule Service.Dummy do
   require S
   alias S.{Msg, Response}
 
+  use Service
+
   # Imaginary server types
   @opaque! dummy_user_id :: atom()
   @opaque! dummy_channel_id :: atom()
@@ -53,7 +55,7 @@ defmodule Service.Dummy do
   This service can be used for testing and experimentation, by taking the role
   of a service relaying messages to Stampede.
 
-  It expects one config per service instance, which is not how real services should work.
+  It expects one config per service instance, where real services expect one per server.
 
   SiteConfig/startup args:
   #{NimbleOptions.docs(@schema)}
@@ -62,6 +64,7 @@ defmodule Service.Dummy do
 
   # PUBLIC API FUNCTIONS
 
+  @impl Service
   def log_plugin_error(cfg, log) do
     send_msg(
       SiteConfig.fetch!(cfg, :server_id),
@@ -69,7 +72,17 @@ defmodule Service.Dummy do
       @system_user,
       log
     )
+
+    :ok
   end
+
+  # TODO
+  @impl Service
+  def log_serious_error(_), do: :ok
+
+  @impl Service
+  def send_msg({server_id, channel, user}, text, opts \\ []),
+    do: send_msg(server_id, channel, user, text, opts)
 
   @spec! send_msg(
            dummy_server_id(),
@@ -82,6 +95,30 @@ defmodule Service.Dummy do
   def send_msg(server_id, channel, user, text, opts \\ []) do
     GenServer.call(__MODULE__, {:msg_new, {server_id, channel, user, text}, opts})
   end
+
+  @impl Service
+  def into_msg({msg_id = {server_id, channel, user, _id}, text}) do
+    ref =
+      case Regex.run(~r/^\@Msg_\(\d+\)/, text) do
+        [id] ->
+          {server_id, channel, user, id}
+
+        nil ->
+          nil
+      end
+
+    Msg.new(
+      id: msg_id,
+      body: text,
+      channel_id: channel,
+      author_id: user,
+      server_id: server_id,
+      referenced_msg_id: ref
+    )
+  end
+
+  @impl Service
+  def txt_source_block(txt) when is_binary(txt), do: S.markdown_source(txt)
 
   @spec! channel_history(dummy_server_id(), dummy_channel_id()) :: channel()
   def channel_history(server_id, channel) do
@@ -100,6 +137,7 @@ defmodule Service.Dummy do
   # PLUMBING
 
   @spec! start_link(Keyword.t()) :: :ignore | {:error, any} | {:ok, pid}
+  @impl Service
   def start_link(cfg_overrides \\ []) do
     Logger.debug("starting Dummy GenServer, with cfg overrides: #{inspect(cfg_overrides)}")
     GenServer.start_link(__MODULE__, cfg_overrides, name: __MODULE__)
@@ -135,7 +173,11 @@ defmodule Service.Dummy do
   end
 
   # if opts has key :return_id, returns the id of posted message along with any response msg
-  def handle_call({:msg_new, msg_tuple = {server_id, channel, user, _text}, opts}, _from, servers) do
+  def handle_call(
+        {:msg_new, msg_tuple = {server_id, channel, _user, _text}, opts},
+        _from,
+        servers
+      ) do
     if not Map.has_key?(servers, server_id) do
       # ignore unconfigured server
       {:reply, nil, servers}
@@ -205,14 +247,7 @@ defmodule Service.Dummy do
 
     msg_id = {server_id, channel, user, buf_updated |> Map.fetch!(channel) |> hd() |> elem(0)}
 
-    msg_object =
-      Msg.new(
-        id: msg_id,
-        body: text,
-        channel_id: channel,
-        author_id: user,
-        server_id: server_id
-      )
+    msg_object = into_msg({msg_id, text})
 
     new_state =
       Map.update!(servers, server_id, fn {cfg, _} ->

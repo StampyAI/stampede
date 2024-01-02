@@ -14,7 +14,7 @@ defmodule Plugin.Why do
     at_module =
       ~r/"[Ww]h(?:(?:y did)|(?:at made)) you say th(?:(?:at)|(?:is))(?P<specific>,? specifically)?"/
 
-    # Should we process the message:\?
+    # Should we process the message?
     text = S.strip_prefix(SiteConfig.fetch!(cfg, :prefix), msg.body)
 
     cond do
@@ -32,7 +32,10 @@ defmodule Plugin.Why do
       true ->
         # Ok, let's return a traceback.
         {:ok, traceback} = S.Interact.get_traceback(msg.referenced_msg_id)
-        cleaned = Service.source_block(traceback)
+
+        cleaned =
+          SiteConfig.fetch!(cfg, :service)
+          |> apply(:source_block, [traceback])
 
         Response.new(
           confidence: valid_confidence,

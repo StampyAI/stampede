@@ -39,6 +39,11 @@ defmodule Stampede.Application do
         type: :atom,
         default: "stampede_#{Mix.env()}@#{:inet.gethostname() |> elem(1)}" |> String.to_atom(),
         doc: "erlang VM node name"
+      ],
+      clear_state: [
+        type: :boolean,
+        default: false,
+        doc: "clear tables associated with this environment"
       ]
     )
   end
@@ -120,7 +125,7 @@ defmodule Stampede.Application do
       {PartitionSupervisor, child_spec: Task.Supervisor, name: Stampede.QuickTaskSupers},
       # NOTE: call with Stampede.quick_task_via()
       {Stampede.CfgTable, config_dir: Keyword.fetch!(args, :config_dir), name: Stampede.CfgTable},
-      Stampede.Interact
+      {Stampede.Interact, wipe_tables: Keyword.fetch!(args, :clear_state)}
     ]
 
     service_tuples =

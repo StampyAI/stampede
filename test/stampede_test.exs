@@ -26,11 +26,13 @@ defmodule StampedeTest do
   setup_all do
     %{
       app_pid:
-        Stampede.Application.start(:normal,
+        Stampede.Application.start(
+          :normal,
           installed_services: [:dummy],
           services: [:dummy],
           log_to_file: false,
-          serious_error_channel_service: :disabled
+          serious_error_channel_service: :disabled,
+          clear_state: true
         )
     }
   end
@@ -169,12 +171,22 @@ defmodule StampedeTest do
     end
   end
 
-  # describe "interaction logging" do
-  #   @describetag :dummy
-  #   test "interaction is logged" do
-  #     D.send_msg(s.id, :t1, :u1, "!ping")
-  #     :timer.sleep(100)
-  #     # check interaction was logged, without Why plugin
-  #   end
-  # end
+  describe "interaction logging" do
+    @describetag :dummy
+    test "interaction is logged", s do
+      %{posted_msg_id: posted_msg_id} = D.send_msg(s.id, :t1, :u1, "!ping", return_id: true)
+      :timer.sleep(100)
+      # check interaction was logged, without Why plugin
+      slug = S.Interact.get({s.id, :t1, :u1, 0})
+      assert match?({:ok, %S.Interact.IntTable{}}, slug)
+    end
+
+    test "Why plugin returns trace", s do
+      %{posted_msg_id: posted_msg_id} = D.send_msg(s.id, :t1, :u1, "!ping", return_id: true)
+      :timer.sleep(100)
+
+      assert :lol ==
+               D.send_msg(s.id, :t1, :u1, "!Why did you say that, specifically?", return_id: true)
+    end
+  end
 end

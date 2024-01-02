@@ -9,7 +9,7 @@ defmodule Stampede.Msg do
     channel_id: _ :: S.channel_id(),
     author_id: _ :: S.user_id(),
     server_id: _ :: S.server_id(),
-    at_msg_id: nil :: S.msg_id()
+    referenced_msg_id: nil :: S.msg_id()
   )
 
   def new(keys), do: struct!(__MODULE__, keys)

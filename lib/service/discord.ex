@@ -4,6 +4,9 @@ defmodule Service.Discord do
   use TypeCheck
   use Supervisor, restart: :permanent
   require Logger
+
+  use Service
+
   @type! discord_channel_id :: non_neg_integer()
   @type! discord_guild_id :: non_neg_integer()
   @type! discord_user_id :: non_neg_integer()
@@ -23,6 +26,7 @@ defmodule Service.Discord do
   @character_limit 1999
   @consecutive_msg_limit 10
 
+  @impl Service
   def into_msg(msg) do
     Msg.new(
       body: msg.content,
@@ -33,13 +37,24 @@ defmodule Service.Discord do
     )
   end
 
-  def send_msg(channel_id, msg) when is_bitstring(msg) do
+  @impl Service
+  def send_msg(channel_id, msg, _opts \\ []) when is_bitstring(msg) do
     r = S.text_chunk_regex(@character_limit)
 
     for chunk <-
           S.text_chunk(msg, @character_limit, @consecutive_msg_limit, r) do
       do_send_msg(channel_id, chunk)
     end
+    |> Enum.reduce(:all_good, fn
+      _, s when s != :all_good ->
+        s
+
+      {:ok, _}, :all_good ->
+        :all_good
+
+      e = {:error, _}, :all_good ->
+        e
+    end)
   end
 
   def do_send_msg(channel_id, msg, try \\ 0) do
@@ -60,10 +75,12 @@ defmodule Service.Discord do
           do_send_msg(channel_id, msg, try + 1)
         else
           IO.puts(:stderr, "send_msg: gave up trying to send message. Nothing else to do.")
+          {:error, e}
         end
     end
   end
 
+  @impl Service
   def log_serious_error(log_msg = {level, _gl, {Logger, message, _timestamp, _metadata}}) do
     # TODO: disable if Discord not connected/working
     IO.puts("log_serious_error recieved:\n#{inspect(log_msg, pretty: true)}")
@@ -73,8 +90,11 @@ defmodule Service.Discord do
       channel_id,
       "Erlang-level error #{inspect(level)}:\n#{inspect(message, pretty: true)}"
     )
+
+    :ok
   end
 
+  @impl Service
   def log_plugin_error(cfg, log) do
     channel_id = SiteConfig.fetch!(cfg, :error_channel_id)
 
@@ -106,6 +126,16 @@ defmodule Service.Discord do
     end
   end
 
+  @impl Service
+  def txt_source_block(txt) when is_binary(txt) do
+    """
+    ```
+    #{txt}
+    ```
+    """
+  end
+
+  @impl Service
   def start_link(args) do
     Supervisor.start_link(__MODULE__, args, name: __MODULE__)
   end

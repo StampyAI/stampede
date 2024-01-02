@@ -61,13 +61,15 @@ defmodule Stampede.Interact do
 
   @typep! mod_state :: nil | []
 
+  @all_tables [ChannelLockTable, IntTable]
+
   def start_link(args) do
     GenServer.start_link(__MODULE__, args, name: __MODULE__)
   end
 
   @spec! init(any()) :: {:ok, mod_state()}
   @impl GenServer
-  def init(_args \\ %{}) do
+  def init(args \\ []) do
     Logger.debug("Interact: starting")
     _ = Memento.stop()
     :ok = S.ensure_schema_exists(S.nodes())
@@ -75,13 +77,27 @@ defmodule Stampede.Interact do
     # # DEBUG
     # Memento.info()
     # Memento.Schema.info()
-    :ok = S.ensure_tables_exist([ChannelLockTable, IntTable])
+    :ok = S.ensure_tables_exist(@all_tables)
+
+    if Keyword.get(args, :wipe_tables) == true do
+      _ = clear_all_tables()
+    end
 
     {:ok, nil}
   end
 
   @spec! get(S.msg_id()) :: {:ok, %IntTable{}} | {:error, any()}
-  def get(msg_id) do
+  def get(msg_id_unsafe) do
+    msg_id =
+      case msg_id_unsafe do
+        tup when is_tuple(tup) ->
+          # BUG: :mnesia needs literal tuples to be wrapped in order to match correctly
+          {tup}
+
+        not_tup ->
+          not_tup
+      end
+
     transaction(fn ->
       Memento.Query.select(
         IntTable,
@@ -315,6 +331,18 @@ defmodule Stampede.Interact do
   end
 
   defp transaction(f) do
-    Memento.transaction!(f)
+    Memento.Transaction.execute!(f, 10)
+  end
+
+  def clear_all_tables() do
+    Logger.info("Interact: clearing all tables for #{Mix.env()}")
+
+    @all_tables
+    |> Enum.each(fn t ->
+      case Memento.Table.clear(t) do
+        :ok -> :ok
+        e = {:error, _reason} -> raise e
+      end
+    end)
   end
 end

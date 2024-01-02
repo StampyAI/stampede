@@ -27,11 +27,20 @@ defmodule Stampede do
     end
   end
 
-  @spec markdown_quote(String.t()) :: String.t()
+  @spec! markdown_quote(String.t()) :: String.t()
   def markdown_quote(str) when is_binary(str) do
     String.split(str, "\n")
     |> Enum.map(&["> " | [&1 | "\n"]])
     |> IO.iodata_to_binary()
+  end
+
+  @spec! markdown_source(String.t()) :: String.t()
+  def markdown_source(txt) when is_binary(txt) do
+    """
+    ```
+    #{txt}
+    ```
+    """
   end
 
   # sef via(key) do
