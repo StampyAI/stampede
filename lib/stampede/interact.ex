@@ -121,8 +121,11 @@ defmodule Stampede.Interact do
     transaction(fn ->
       get(msg_id)
       |> case do
-        {:ok, x} -> {:ok, x.traceback}
-        other -> other
+        {:ok, record} ->
+          {:ok, record.traceback}
+
+        other ->
+          other
       end
     end)
   end
@@ -167,10 +170,7 @@ defmodule Stampede.Interact do
         msg_id: int.msg.id,
         msg: int.msg,
         response: int.response,
-        traceback:
-          (is_list(int.traceback) &&
-             IO.iodata_to_binary(int.traceback)) ||
-            int.traceback,
+        traceback: int.traceback |> IO.iodata_to_binary(),
         channel_lock: int.channel_lock
       )
       |> IntTable.validate!()
@@ -292,7 +292,7 @@ defmodule Stampede.Interact do
 
   @spec! do_write_channellock!(%ChannelLockTable{}) :: :ok
   defp do_write_channellock!(record) do
-    ChannelLockTable.validate!(record)
+    _ = ChannelLockTable.validate!(record)
 
     _ =
       transaction(fn ->

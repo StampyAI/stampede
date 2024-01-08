@@ -29,11 +29,12 @@ defmodule Service.Discord do
   @impl Service
   def into_msg(msg) do
     Msg.new(
+      id: msg.id,
       body: msg.content,
       channel_id: msg.channel_id,
       author_id: msg.author.id,
       server_id: msg.guild_id,
-      referenced_msg: Map.get(msg, :referenced_msg, nil)
+      referenced_msg_id: Map.get(msg, :referenced_msg, nil)
     )
   end
 
@@ -82,14 +83,24 @@ defmodule Service.Discord do
 
   @impl Service
   def log_serious_error(log_msg = {level, _gl, {Logger, message, _timestamp, _metadata}}) do
-    # TODO: disable if Discord not connected/working
-    IO.puts("log_serious_error recieved:\n#{inspect(log_msg, pretty: true)}")
-    channel_id = Application.fetch_env!(:stampede, :serious_error_channel_id)
+    try do
+      # TODO: disable if Discord not connected/working
+      IO.puts("log_serious_error recieved:\n#{inspect(log_msg, pretty: true)}")
+      channel_id = Application.fetch_env!(:stampede, :serious_error_channel_id)
 
-    send_msg(
-      channel_id,
-      "Erlang-level error #{inspect(level)}:\n#{inspect(message, pretty: true)}"
-    )
+      send_msg(
+        channel_id,
+        "Erlang-level error #{inspect(level)}:\n#{inspect(message, pretty: true)}"
+      )
+    catch
+      t, e ->
+        IO.puts("""
+        ERROR: Logging serious error to Discord failed. We have no option, and resending would probably cause an infinite loop.
+
+        Here's the error:
+        #{S.pp({t, e})}
+        """)
+    end
 
     :ok
   end

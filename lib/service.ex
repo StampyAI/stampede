@@ -18,4 +18,13 @@ defmodule Service do
       @behaviour unquote(__MODULE__)
     end
   end
+
+  def apply_service_function(cfg, func_name, args)
+      when is_atom(func_name) and is_list(args) do
+    SiteConfig.fetch!(cfg, :service)
+    |> apply(:txt_source_block, args)
+  end
+
+  def txt_source_block(cfg, text),
+    do: apply_service_function(cfg, :txt_source_block, [text])
 end

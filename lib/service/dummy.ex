@@ -66,12 +66,13 @@ defmodule Service.Dummy do
 
   @impl Service
   def log_plugin_error(cfg, log) do
-    send_msg(
-      SiteConfig.fetch!(cfg, :server_id),
-      SiteConfig.fetch!(cfg, :error_channel_id),
-      @system_user,
-      log
-    )
+    _ =
+      send_msg(
+        SiteConfig.fetch!(cfg, :server_id),
+        SiteConfig.fetch!(cfg, :error_channel_id),
+        @system_user,
+        log
+      )
 
     :ok
   end
@@ -84,6 +85,7 @@ defmodule Service.Dummy do
   def send_msg({server_id, channel, user}, text, opts \\ []),
     do: send_msg(server_id, channel, user, text, opts)
 
+  # BUG: why does Dialyzer not acknowledge unwrapped nil and Response?
   @spec! send_msg(
            dummy_server_id(),
            dummy_channel_id(),
@@ -93,19 +95,12 @@ defmodule Service.Dummy do
          ) ::
            %{response: nil | Response.t(), posted_msg_id: dummy_msg_id()} | nil | Response.t()
   def send_msg(server_id, channel, user, text, opts \\ []) do
-    GenServer.call(__MODULE__, {:msg_new, {server_id, channel, user, text}, opts})
+    GenServer.call(__MODULE__, {:add_msg, {server_id, channel, user, text}, opts})
   end
 
   @impl Service
   def into_msg({msg_id = {server_id, channel, user, _id}, text}) do
-    ref =
-      case Regex.run(~r/^\@Msg_\(\d+\)/, text) do
-        [id] ->
-          {server_id, channel, user, id}
-
-        nil ->
-          nil
-      end
+    ref = get_reference(text, {server_id, channel, user})
 
     Msg.new(
       id: msg_id,
@@ -174,7 +169,7 @@ defmodule Service.Dummy do
 
   # if opts has key :return_id, returns the id of posted message along with any response msg
   def handle_call(
-        {:msg_new, msg_tuple = {server_id, channel, _user, _text}, opts},
+        {:add_msg, msg_tuple = {server_id, channel, _user, _text}, opts},
         _from,
         servers
       ) do
@@ -209,7 +204,10 @@ defmodule Service.Dummy do
 
         false ->
           {status, %{response: response}, state} = result
-          {status, response, state}
+
+          result
+          |> Tuple.delete_at(1)
+          |> Tuple.insert_at(1, response)
       end
     end
   end
@@ -259,5 +257,15 @@ defmodule Service.Dummy do
       msg_object: msg_object,
       new_state: new_state
     }
+  end
+
+  def get_reference(text, {server_id, channel, user}) do
+    case Regex.run(~r/@Msg_(\d+)$/, text, capture: :all_but_first) do
+      [id] ->
+        {server_id, channel, user, id |> String.to_integer()}
+
+      nil ->
+        nil
+    end
   end
 end

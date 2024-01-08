@@ -15,13 +15,14 @@ defmodule StampedeTest do
     plugs:
       - Test
       - Sentience
+      - Why
   """
   @dummy_cfg_verified %{
     service: Service.Dummy,
     server_id: :testing,
     error_channel_id: :error,
     prefix: "!",
-    plugs: MapSet.new([Plugin.Test, Plugin.Sentience])
+    plugs: MapSet.new([Plugin.Test, Plugin.Sentience, Plugin.Why])
   }
   setup_all do
     %{
@@ -41,7 +42,7 @@ defmodule StampedeTest do
     id = context.test
 
     if Map.get(context, :dummy, false) do
-      :ok = D.new_server(id, MapSet.new([Plugin.Test, Plugin.Sentience]))
+      :ok = D.new_server(id, MapSet.new([Plugin.Test, Plugin.Sentience, Plugin.Why]))
     end
 
     %{id: id}
@@ -71,7 +72,7 @@ defmodule StampedeTest do
 
     test "plugin raising", s do
       {result, log} = with_log(fn -> D.send_msg(s.id, :t1, :u1, "!raise") end)
-      assert match?(%{text: @confused_response}, result), "message return not functional"
+      assert match?(%{text: @confused_response}, result)
       assert String.contains?(log, "SillyError"), "SillyError not thrown"
 
       assert D.channel_history(s.id, :error)
@@ -85,7 +86,7 @@ defmodule StampedeTest do
 
     test "plugin throwing", s do
       {result, log} = with_log(fn -> D.send_msg(s.id, :t1, :u1, "!throw") end)
-      assert match?(%{text: @confused_response}, result), "message return not functional"
+      assert result.text == @confused_response
       assert String.contains?(log, "SillyThrow"), "SillyThrow not thrown"
 
       assert D.channel_history(s.id, :error)
@@ -183,10 +184,13 @@ defmodule StampedeTest do
 
     test "Why plugin returns trace", s do
       %{posted_msg_id: posted_msg_id} = D.send_msg(s.id, :t1, :u1, "!ping", return_id: true)
+      msg_num = posted_msg_id |> elem(3)
       :timer.sleep(100)
 
       assert :lol ==
-               D.send_msg(s.id, :t1, :u1, "!Why did you say that, specifically?", return_id: true)
+               D.send_msg(s.id, :t1, :u1, "!Why did you say that, specifically? @Msg_#{msg_num}",
+                 return_id: true
+               )
     end
   end
 end

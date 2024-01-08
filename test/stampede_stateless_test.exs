@@ -133,4 +133,10 @@ defmodule StampedeStatelessTest do
       assert [smol_msg] == S.text_chunk(smol_msg, split_size, max_pieces)
     end
   end
+
+  test "Why reference get" do
+    assert {:server, :channel, :user, 22} ==
+             "test msg @Msg_22"
+             |> Service.Dummy.get_reference({:server, :channel, :user})
+  end
 end

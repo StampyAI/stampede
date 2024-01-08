@@ -11,7 +11,9 @@ defmodule Stampede do
   @type! prefix :: String.t() | Regex.t()
   @type! module_function_args :: {module(), atom(), tuple() | list()}
   # BUG: type_check issue #189, iolist()
-  @type! traceback :: String.t() | [] | maybe_improper_list(String.t(), [])
+  #      this stand-in isn't type complete but it'll do
+  @type! io_list :: String.t() | [] | maybe_improper_list()
+  @type! traceback :: io_list()
   @type! enabled_plugs :: :all | [] | nonempty_list(module())
   @type! channel_lock_action ::
            false | {:lock, channel_id(), module_function_args()} | {:unlock, channel_id()}

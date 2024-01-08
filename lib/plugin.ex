@@ -7,6 +7,7 @@ defmodule Plugin do
   @first_response_timeout 500
 
   @callback process_msg(SiteConfig.t(), Msg.t()) :: nil | Response.t()
+  @callback is_at_module(SiteConfig.t(), Msg.t()) :: boolean() | {:cleaned, text :: String.t()}
 
   defmacro __using__(_opts \\ []) do
     quote do
@@ -60,17 +61,18 @@ defmodule Plugin do
               "a throw"
           end
 
-        st = __STACKTRACE__
-        Logger.info("Caught #{error_type} in plugin #{m}:\n#{Exception.format(:error, e, st)}")
+        st = Exception.format(:error, e, __STACKTRACE__)
 
         log = """
-        Message from #{inspect(msg.author_id)} lead to #{error_type}, description #{inspect(e)}.
-        Stacktrace:
-        #{Exception.format_stacktrace(st)}
+        Message from #{inspect(msg.author_id)} lead to #{error_type} in plugin #{m}:
+        #{st}
         """
 
-        {:job_error,
-         {e.__struct__, spawn(SiteConfig.fetch!(cfg, :service), :log_plugin_error, [cfg, log])}}
+        Logger.error(log)
+
+        _ = spawn(SiteConfig.fetch!(cfg, :service), :log_plugin_error, [cfg, log])
+
+        {:job_error, {e, st}}
     end
   end
 
@@ -284,17 +286,21 @@ defmodule Plugin do
     tb =
       if response.callback do
         [
-          traceback
-          | "\nWe asked #{inspect(plug)}, and it responded with confidence #{inspect(response.confidence)} offering a callback.\nWhen asked why, it said: \"#{inspect(response.why)}\""
+          traceback,
+          "\nWe asked #{inspect(plug)}, and it responded with confidence #{inspect(response.confidence)} offering a callback.\nWhen asked why, it said: \"",
+          response.why,
+          "\""
         ]
       else
         [
-          traceback
-          | """
-            We asked #{inspect(plug)}, and it responded with confidence #{inspect(response.confidence)}:
-            #{S.markdown_quote(response.text)}
-            When asked why, it said: \"#{inspect(response.why)}\"
-            """
+          traceback,
+          """
+          We asked #{inspect(plug)}, and it responded with confidence #{inspect(response.confidence)}:
+          #{S.markdown_quote(response.text)}
+          """,
+          "When asked why, it said: \"",
+          response.why,
+          "\""
         ]
       end
 
@@ -318,7 +324,7 @@ defmodule Plugin do
       chosen_response,
       [
         traceback
-        | "\nWe asked #{inspect(plug)}, but there was an error of type #{inspect(val.__struct__)}, message #{inspect(val)}"
+        | "\nWe asked #{inspect(plug)}, but there was an error of type #{inspect(val)}."
       ]
     )
   end
