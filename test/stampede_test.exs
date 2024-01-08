@@ -188,9 +188,12 @@ defmodule StampedeTest do
       :timer.sleep(100)
 
       assert :lol ==
-               D.send_msg(s.id, :t1, :u1, "!Why did you say that, specifically? @Msg_#{msg_num}",
-                 return_id: true
-               )
+               D.send_msg(s.id, :t1, :u1, "!Why did you say that, specifically? @Msg_#{msg_num}")
+    end
+
+    test "Why plugin returns error on bad ID", s do
+      assert :lol ==
+               D.send_msg(s.id, :t1, :u1, "!Why did you say that, specifically? @Msg_9999")
     end
   end
 end

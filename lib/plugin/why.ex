@@ -1,6 +1,7 @@
 defmodule Plugin.Why do
   use TypeCheck
   require Stampede.Response
+  alias TypeCheck.Internals.UserTypes.Stampede.Response
   alias Stampede, as: S
   alias S.{Msg, Response, Interaction}
   require Interaction
@@ -46,14 +47,27 @@ defmodule Plugin.Why do
               )
 
             ref ->
-              # Ok, let's return a traceback.
-              {:ok, traceback} = S.Interact.get_traceback(ref)
+              # Ok, let's return oa traceback.
+              case S.Interact.get_traceback(ref) do
+                {:ok, traceback} ->
+                  Response.new(
+                    confidence: valid_confidence,
+                    text: traceback,
+                    why: ["User asked why I said something, so I told them."]
+                  )
 
-              Response.new(
-                confidence: valid_confidence,
-                text: traceback,
-                why: ["User asked why I said something, so I told them."]
-              )
+                other ->
+                  Response.new(
+                    confidence: valid_confidence,
+                    text: "Couldn't find an interaction for that message.",
+                    why: [
+                      "We checked for an interaction from message ",
+                      S.pp(ref),
+                      " but found nothing. The Interact database returned:\n",
+                      S.pp(other)
+                    ]
+                  )
+              end
           end
         end
     end
