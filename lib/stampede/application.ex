@@ -8,7 +8,7 @@ defmodule Stampede.Application do
 
   use Application
 
-  def app_config_schema() do
+  def startup_schema() do
     NimbleOptions.new!(
       installed_services: [
         type: {:or, [{:in, [[]]}, {:list, {:in, Map.keys(S.services())}}]},
@@ -49,12 +49,12 @@ defmodule Stampede.Application do
   end
 
   @impl Application
-  def start(_type, override_args \\ []) do
+  def start(_type, startup_override_args \\ []) do
     :ok = Logger.metadata(stampede_component: :application)
 
     # first validation fills defaults
-    args =
-      NimbleOptions.validate!(override_args, app_config_schema())
+    startup_args =
+      NimbleOptions.validate!(startup_override_args, startup_schema())
       |> S.keyword_put_new_if_not_falsy(
         :services,
         Application.get_env(:stampede, :services, false)
@@ -77,18 +77,18 @@ defmodule Stampede.Application do
         end
       )
       # ensure our transformation went correctly
-      |> NimbleOptions.validate!(app_config_schema())
+      |> NimbleOptions.validate!(startup_schema())
 
-    if args[:log_to_file], do: :ok = Logger.add_handlers(:stampede)
+    if startup_args[:log_to_file], do: :ok = Logger.add_handlers(:stampede)
 
     ## changing node names after boot confuses Mnesia :(
     # {:ok, _} = if Node.self() == :nonode@nohost,
-    #  do: Node.start(args[:node_name])
+    #  do: Node.start(startup_args[:node_name])
 
-    children = make_children(args)
+    children = make_children(startup_args)
 
     _ =
-      case args[:serious_error_channel_service] do
+      case startup_args[:serious_error_channel_service] do
         nil ->
           Logger.error("No :serious_error_channel_service configured")
 
@@ -121,17 +121,18 @@ defmodule Stampede.Application do
     installed |> Enum.map(&service_spec(&1))
   end
 
-  def make_children(args) do
+  def make_children(startup_args) do
     default_children = [
       {PartitionSupervisor, child_spec: Task.Supervisor, name: Stampede.QuickTaskSupers},
+      {Stampede.CfgTable, config_dir: Keyword.fetch!(startup_args, :config_dir)},
       # NOTE: call with Stampede.quick_task_via()
-      {Stampede.Interact, wipe_tables: Keyword.fetch!(args, :clear_state)}
+      {Stampede.Interact, wipe_tables: Keyword.fetch!(startup_args, :clear_state)}
     ]
 
     service_tuples =
-      case Keyword.fetch!(args, :services) do
+      case Keyword.fetch!(startup_args, :services) do
         :all ->
-          installed = Keyword.fetch!(args, :installed_services)
+          installed = Keyword.fetch!(startup_args, :installed_services)
           Logger.debug("Stampede starting all services: #{inspect(installed)}")
           all_services(installed)
 

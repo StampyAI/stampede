@@ -30,6 +30,7 @@ defmodule Service do
   end
 
   # service polymorphism basically
+  @spec! apply_service_function(SiteConfig.t(), atom(), list()) :: any()
   def apply_service_function(cfg, func_name, args)
       when is_atom(func_name) and is_list(args) do
     SiteConfig.fetch!(cfg, :service)

@@ -148,8 +148,8 @@ defmodule SiteConfig do
 
   @spec! load(String.t()) :: SiteConfig.t()
   def load(path) do
-    str = File.read!(path)
-    load_from_string(str)
+    File.read!(path)
+    |> load_from_string()
   end
 
   @spec! load_all(String.t()) :: cfg_list()
