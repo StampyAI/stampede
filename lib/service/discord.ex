@@ -200,10 +200,11 @@ defmodule Service.Discord.Handler do
            {:noreply, any()}
   def handle_cast({:MESSAGE_CREATE, msg}, state) do
     if msg.guild_id in state.guild_ids do
+      our_cfg = S.CfgTable.get_server(Service.Discord, msg.guild_id)
       our_msg =
         Service.Discord.into_msg(msg)
 
-      case Plugin.get_top_response(msg.guild_id, our_msg) do
+      case Plugin.get_top_response(our_cfg, our_msg) do
         %Response{text: r_text} when r_text != nil ->
           Api.create_message(msg.channel_id, r_text)
 

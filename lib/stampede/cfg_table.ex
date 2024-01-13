@@ -75,6 +75,12 @@ defmodule Stampede.CfgTable do
     :persistent_term.get(__MODULE__)
   end
 
+  def get_server(service, id) do
+    :persistent_term.get(__MODULE__)
+    |> Map.fetch!(service)
+    |> Map.fetch!(id)
+  end
+
   @impl GenServer
   def handle_call({:reload_cfgs, new_dir}, _from, state = %{config_dir: config_dir}) do
     :ok = publish_terms(config_dir)
