@@ -88,10 +88,13 @@ defmodule Service.Discord do
       IO.puts("log_serious_error recieved:\n#{inspect(log_msg, pretty: true)}")
       channel_id = Application.fetch_env!(:stampede, :serious_error_channel_id)
 
-      send_msg(
-        channel_id,
-        "Erlang-level error #{inspect(level)}:\n#{inspect(message, pretty: true)}"
-      )
+      log =
+        """
+        Erlang-level error #{inspect(level)}:
+        #{message |> S.pp() |> txt_source_block()}
+        """
+
+      _ = send_msg(channel_id, log)
     catch
       t, e ->
         IO.puts("""
@@ -118,6 +121,15 @@ defmodule Service.Discord do
     :ok
   end
 
+  @impl Service
+  def txt_source_block(txt) when is_binary(txt) do
+    """
+    ```
+    #{txt}
+    ```
+    """
+  end
+
   @spec! get_referenced_msg(Msg.t()) :: {:ok, Msg.t()} | {:error, any()}
   def get_referenced_msg(msg) do
     get_msg({
@@ -135,15 +147,6 @@ defmodule Service.Discord do
       other ->
         {:error, other}
     end
-  end
-
-  @impl Service
-  def txt_source_block(txt) when is_binary(txt) do
-    """
-    ```
-    #{txt}
-    ```
-    """
   end
 
   @impl Service

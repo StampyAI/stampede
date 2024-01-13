@@ -10,13 +10,16 @@ defmodule SiteConfig do
   @type! server_id :: S.server_id()
   @type! channel_id :: S.channel_id()
   @type! schema :: keyword() | struct()
-  @type! t :: map(atom(), any()) | server_id()
+  @type! site_name :: atom()
+  @type! cfg_list :: map(service(), map(server_id(), SiteConfig.t()))
+  @type! t :: map(atom(), any())
 
   @schema_base [
     service: [
       required: true,
       type: :atom,
-      doc: "Which service does your server reside on? Affects what config options are valid."
+      doc:
+        "Which service does your server reside on? Affects what config options are valid. A basic atom which becomes the module name, i.e. :discord -> Service.Discord"
     ],
     server_id: [
       required: true,
@@ -41,7 +44,7 @@ defmodule SiteConfig do
     ]
   ]
   @doc """
-  A basic Cfg schema, extended by the specific service it's written for.
+  A basic Cfg schema, to be extended by the specific service it's written for.
 
   #{NimbleOptions.docs(NimbleOptions.new!(@schema_base))}
   """
@@ -57,28 +60,11 @@ defmodule SiteConfig do
     end)
   end
 
-  def schema(:dummy),
-    do: Service.Dummy.site_config_schema()
-
-  def schema(:discord),
-    do: NimbleOptions.new!(schema_base())
-
-  @type! site_name :: atom()
-  @type! cfg_list :: map(site_name(), SiteConfig.t())
-
-  @doc """
-  Fetch config attribute for a config, which can either be a map containing all the data, or just a reference in CfgTable which is expected to be present.
-  """
-  def fetch!(server_id, key)
-      when not is_map(server_id) and not is_list(server_id),
-      do: S.CfgTable.lookup!(server_id, key)
+  def schema(atom),
+    do: S.service_atom_to_name(atom) |> apply(:site_config_schema, [])
 
   def fetch!(cfg, key) when is_map(cfg) do
     Map.fetch!(cfg, key)
-  end
-
-  def fetch!(cfg, key) when is_list(cfg) do
-    Keyword.fetch!(cfg, key)
   end
 
   def real_plugins(:all), do: {:ok, :all}
@@ -169,20 +155,31 @@ defmodule SiteConfig do
   @spec! load_all(String.t()) :: cfg_list()
   def load_all(dir) do
     target_dir = dir
-    # case Application.fetch_env!(:stampede, :compile_env) do
-    #  :prod ->
-    #    dir
-
-    #  other when is_atom(other) ->
-    #    dir <> "_" <> Atom.to_string(other)
-    # end
+    IO.puts("target dir " <> dir)
 
     Path.wildcard(target_dir <> "/*")
-    |> Enum.map(fn path ->
+    |> Enum.reduce(Map.new(), fn path, service_map ->
       site_name = String.to_atom(Path.basename(path, ".yml"))
-      config = load(path)
-      {site_name, config}
+      # IO.puts("add #{site_name} at #{path} to #{S.pp(service_map)}") # DEBUG
+      config =
+        load(path)
+        |> Map.put(:filename, site_name)
+
+      # IO.puts("got config #{S.pp(config)}") # DEBUG
+      service = Map.fetch!(config, :service)
+      server_id = Map.fetch!(config, :server_id)
+
+      service_map
+      |> Map.put_new(service, Map.new())
+      |> Map.update!(service, fn
+        server_map ->
+          # IO.puts("add server #{server_id} to service #{service}") # DEBUG
+          Map.put(server_map, server_id, config)
+      end)
     end)
-    |> Enum.into(%{})
+
+    # Did you know that "default" in Map.update/4 isn't an input to the
+    # function? It just skips the function and adds that default to the map.
+    # I didn't know that. Now I do.
   end
 end

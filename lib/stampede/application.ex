@@ -52,6 +52,7 @@ defmodule Stampede.Application do
   def start(_type, override_args \\ []) do
     :ok = Logger.metadata(stampede_component: :application)
 
+    # first validation fills defaults
     args =
       NimbleOptions.validate!(override_args, app_config_schema())
       |> S.keyword_put_new_if_not_falsy(
@@ -75,11 +76,12 @@ defmodule Stampede.Application do
           end
         end
       )
+      # ensure our transformation went correctly
       |> NimbleOptions.validate!(app_config_schema())
 
     if args[:log_to_file], do: :ok = Logger.add_handlers(:stampede)
 
-    ## changing node names after boot confuses Mnesia
+    ## changing node names after boot confuses Mnesia :(
     # {:ok, _} = if Node.self() == :nonode@nohost,
     #  do: Node.start(args[:node_name])
 
@@ -121,10 +123,8 @@ defmodule Stampede.Application do
 
   def make_children(args) do
     default_children = [
-      # {Registry, keys: :unique, name: Stampede.Registry, partitions: System.schedulers_online()},
       {PartitionSupervisor, child_spec: Task.Supervisor, name: Stampede.QuickTaskSupers},
       # NOTE: call with Stampede.quick_task_via()
-      {Stampede.CfgTable, config_dir: Keyword.fetch!(args, :config_dir), name: Stampede.CfgTable},
       {Stampede.Interact, wipe_tables: Keyword.fetch!(args, :clear_state)}
     ]
 
@@ -152,8 +152,6 @@ defmodule Stampede.Application do
   end
 
   def handle_info(:DOWN, _, _, worker_pid, reason) do
-    Logger.alert(
-      "Process #{inspect(worker_pid, pretty: true)} crashed, reason: #{inspect(reason, pretty: true)}"
-    )
+    Logger.alert("Process #{worker_pid |> S.pp()} crashed, reason: #{reason |> S.pp()}")
   end
 end

@@ -150,9 +150,9 @@ defmodule StampedeTest do
     end
   end
 
-  describe "cfg_table" do
+  describe "SiteConfig" do
     @tag :tmp_dir
-    test "make_table_contents", s do
+    test "load_all", s do
       ids = Atom.to_string(s.id)
 
       this_cfg =
@@ -164,8 +164,8 @@ defmodule StampedeTest do
 
       newtable =
         SiteConfig.load_all(s.tmp_dir)
-        |> S.CfgTable.make_table_contents()
-        |> Map.new(fn {{_srv, k}, v} -> {k, v} end)
+        |> Map.fetch!(Service.Dummy)
+        |> Map.fetch!(:foobar)
 
       assert "!" == newtable.prefix
       assert :foobar == newtable.server_id
