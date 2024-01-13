@@ -155,7 +155,7 @@ defmodule SiteConfig do
   @spec! load_all(String.t()) :: cfg_list()
   def load_all(dir) do
     target_dir = dir
-    IO.puts("target dir " <> dir)
+    # IO.puts("target dir " <> dir) # DEBUG
 
     Path.wildcard(target_dir <> "/*")
     |> Enum.reduce(Map.new(), fn path, service_map ->
