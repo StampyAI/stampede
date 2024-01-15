@@ -50,7 +50,12 @@ defmodule StampedeStatelessTest do
           server_id: :none
         )
 
-      r = Plugin.Test.process_msg(nil, msg)
+      dummy_cfg = %{
+        __struct__: SiteConfig,
+        prefix: "!"
+      }
+
+      r = Plugin.Test.process_msg(dummy_cfg, msg)
       assert r.text == "pong!"
 
       msg =
@@ -63,7 +68,7 @@ defmodule StampedeStatelessTest do
         )
 
       try do
-        Plugin.Test.process_msg(nil, msg)
+        Plugin.Test.process_msg(dummy_cfg, msg)
       catch
         _t, e ->
           assert is_struct(e, SillyError)
@@ -79,7 +84,7 @@ defmodule StampedeStatelessTest do
         )
 
       try do
-        Plugin.Test.process_msg(nil, msg)
+        Plugin.Test.process_msg(dummy_cfg, msg)
       catch
         _t, e ->
           assert e == SillyThrow
@@ -94,9 +99,9 @@ defmodule StampedeStatelessTest do
           server_id: :none
         )
 
-      %{callback: {m, f, a}} = Plugin.Test.process_msg(nil, msg)
+      %{callback: {m, f, a}} = Plugin.Test.process_msg(dummy_cfg, msg)
 
-      cbr = apply(m, f, [nil | a])
+      cbr = apply(m, f, [dummy_cfg | a])
       assert String.starts_with?(cbr.text, "Called back with")
     end
 

@@ -12,6 +12,22 @@ defmodule Plugin do
   defmacro __using__(_opts \\ []) do
     quote do
       @behaviour unquote(__MODULE__)
+
+      @impl Plugin
+      def is_at_module(cfg, msg) do
+        # Should we process the message?
+        text =
+          SiteConfig.fetch!(cfg, :prefix)
+          |> S.strip_prefix(msg.body)
+
+        if text do
+          {:cleaned, text}
+        else
+          false
+        end
+      end
+
+      defoverridable is_at_module: 2
     end
   end
 
@@ -61,7 +77,7 @@ defmodule Plugin do
               "a throw"
           end
 
-        st = Exception.format(:error, e, __STACKTRACE__)
+        st = Exception.format(t, e, __STACKTRACE__)
 
         log = """
         Message from #{inspect(msg.author_id)} lead to #{error_type} in plugin #{m}:

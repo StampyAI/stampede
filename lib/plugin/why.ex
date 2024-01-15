@@ -8,20 +8,6 @@ defmodule Plugin.Why do
 
   use Plugin
 
-  @impl Plugin
-  def is_at_module(cfg, msg) do
-    # Should we process the message?
-    text =
-      SiteConfig.fetch!(cfg, :prefix)
-      |> S.strip_prefix(msg.body)
-
-    if text do
-      {:cleaned, text}
-    else
-      false
-    end
-  end
-
   @spec! process_msg(SiteConfig.t(), S.Msg.t()) :: nil | S.Response.t()
   def process_msg(cfg, msg) do
     valid_confidence = 10

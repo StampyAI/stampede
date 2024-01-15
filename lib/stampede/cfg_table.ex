@@ -82,8 +82,8 @@ defmodule Stampede.CfgTable do
   end
 
   @impl GenServer
-  def handle_call({:reload_cfgs, new_dir}, _from, state = %{config_dir: config_dir}) do
-    :ok = publish_terms(config_dir)
-    {:noreply, state}
+  def handle_call({:reload_cfgs, new_dir}, _from, state = %{config_dir: _config_dir}) do
+    :ok = publish_terms(new_dir)
+    {:noreply, state |> Map.put(:config_dir, new_dir)}
   end
 end

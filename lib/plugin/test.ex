@@ -7,16 +7,16 @@ defmodule Plugin.Test do
 
   @spec! process_msg(any(), S.Msg.t()) :: nil | S.Response.t()
   @impl Plugin
-  def process_msg(_cfg, msg) do
-    case msg.body do
-      "!ping" ->
+  def process_msg(cfg, msg) do
+    case is_at_module(cfg, msg) do
+      {:cleaned, "ping"} ->
         S.Response.new(
           confidence: 10,
           text: "pong!",
           why: ["They pinged so I ponged!"]
         )
 
-      "!callback" ->
+      {:cleaned, "callback"} ->
         num = :rand.uniform(10)
 
         S.Response.new(
@@ -27,7 +27,7 @@ defmodule Plugin.Test do
         )
 
       # test channel locks
-      "!a" ->
+      {:cleaned, "a"} ->
         S.Response.new(
           confidence: 10,
           text: "locked in on #{msg.author_id} awaiting b",
@@ -36,14 +36,14 @@ defmodule Plugin.Test do
           channel_lock: {:lock, msg.channel_id, {__MODULE__, :lock_callback, [:b]}}
         )
 
-      "!timeout" ->
+      {:cleaned, "timeout"} ->
         :timer.seconds(11) |> Process.sleep()
         raise "This job should be killed before here"
 
-      "!raise" ->
+      {:cleaned, "raise"} ->
         raise SillyError
 
-      "!throw" ->
+      {:cleaned, "throw"} ->
         throw(SillyThrow)
 
       _ ->
@@ -58,9 +58,9 @@ defmodule Plugin.Test do
     )
   end
 
-  def lock_callback(_cfg, msg, :b) do
-    case msg.body do
-      "!b" ->
+  def lock_callback(cfg, msg, :b) do
+    case is_at_module(cfg, msg) do
+      {:cleaned, "b"} ->
         S.Response.new(
           confidence: 10,
           text: "b response. awaiting c",
@@ -73,16 +73,16 @@ defmodule Plugin.Test do
         S.Response.new(
           confidence: 10,
           text: "lock broken by #{msg.author_id}",
-          why: ["Unmatched message, #{other}"],
+          why: ["Unmatched message, #{other |> S.pp()}"],
           callback: nil,
           channel_lock: {:unlock, msg.channel_id}
         )
     end
   end
 
-  def lock_callback(_cfg, msg, :c) do
-    case msg.body do
-      "!c" ->
+  def lock_callback(cfg, msg, :c) do
+    case is_at_module(cfg, msg) do
+      {:cleaned, "c"} ->
         S.Response.new(
           confidence: 10,
           text: "c response. interaction done!",

@@ -166,6 +166,11 @@ defmodule Service.Discord do
 
     Supervisor.init(children, strategy: :one_for_one)
   end
+
+  @impl Service
+  def reload_configs() do
+    GenServer.call(Service.Discord.Handler, :reload_configs)
+  end
 end
 
 defmodule Service.Discord.Handler do
@@ -186,13 +191,24 @@ defmodule Service.Discord.Handler do
 
   @impl GenServer
   def init(args) do
-    settings =
+    new_state =
       struct!(
         __MODULE__,
         Keyword.put_new(args, :guild_ids, S.CfgTable.servers_configured(Service.Discord))
       )
 
-    {:ok, settings}
+    {:ok, new_state}
+  end
+
+  def handle_call(:reload_configs, state) do
+    # TODO: harden this
+    new_state =
+      struct!(
+        __MODULE__,
+        Keyword.put_new(state, :guild_ids, S.CfgTable.servers_configured(Service.Discord))
+      )
+
+    {:reply, :ok, new_state}
   end
 
   @impl GenServer
@@ -201,6 +217,7 @@ defmodule Service.Discord.Handler do
   def handle_cast({:MESSAGE_CREATE, msg}, state) do
     if msg.guild_id in state.guild_ids do
       our_cfg = S.CfgTable.get_server(Service.Discord, msg.guild_id)
+
       our_msg =
         Service.Discord.into_msg(msg)
 

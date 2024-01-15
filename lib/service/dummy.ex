@@ -203,7 +203,7 @@ defmodule Service.Dummy do
           result
 
         false ->
-          {status, %{response: response}, state} = result
+          {_status, %{response: response}, _state} = result
 
           result
           |> Tuple.delete_at(1)

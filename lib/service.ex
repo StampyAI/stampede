@@ -11,6 +11,7 @@ defmodule Service do
                  {module :: Logger, message :: term(), _timestamp :: term(), _metadata :: term()}}
             ) :: :ok
   @callback site_config_schema() :: NimbleOptions.t()
+  @callback reload_configs() :: :ok | {:error, any()}
 
   @callback txt_source_block(txt :: binary()) :: binary()
 
