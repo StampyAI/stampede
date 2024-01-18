@@ -73,6 +73,8 @@ defmodule Service.Discord do
             "send_msg: discord message send failure ##{try}, error #{inspect(e, pretty: true)}. Trying again..."
           )
 
+          :ok = Process.sleep(500)
+
           do_send_msg(channel_id, msg, try + 1)
         else
           IO.puts(:stderr, "send_msg: gave up trying to send message. Nothing else to do.")
