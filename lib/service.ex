@@ -14,6 +14,7 @@ defmodule Service do
   @callback reload_configs() :: :ok | {:error, any()}
 
   @callback txt_source_block(txt :: binary()) :: binary()
+  @callback txt_quote_block(txt :: binary()) :: binary()
 
   defmacro __using__(_opts \\ []) do
     quote do

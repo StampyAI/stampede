@@ -175,15 +175,40 @@ defmodule Stampede.Interact do
       )
       |> IntTable.validate!()
 
-    # IO.puts("Interact: writing interaction row:\n  #{new_row |> S.pp()}") # DEBUG
+    # IO.puts("Interact: new interaction:\n#{new_row |> S.pp()}") # DEBUG
 
-    _ =
+    new_record =
       transaction(fn ->
-        int_id = do_write_interaction!(new_row)
-        :ok = do_channel_lock!(int, new_row.datetime, int_id)
+        result = do_write_interaction!(new_row)
+        :ok = do_channel_lock!(int, new_row.datetime, result.id)
+        result
       end)
 
+    :ok = announce_interaction(new_record)
+
     :ok
+  end
+
+  @spec! announce_interaction(%IntTable{}) :: :ok
+  def announce_interaction(rec) do
+    to_print = [
+      server: rec.msg.server_id,
+      responding_to: rec.msg.author_id,
+      responding_plug: rec.response.origin_plug,
+      response: rec.response.text,
+      channel_lock:
+        if rec.channel_lock do
+          rec.channel_lock |> inspect()
+        else
+          false
+        end
+    ]
+
+    """
+    NEW INTERACTION #{rec.id}
+    #{to_print |> S.pp()}
+    """
+    |> IO.puts()
   end
 
   @spec! do_channel_lock!(%S.Interaction{}, String.t(), integer()) :: :ok
@@ -302,14 +327,11 @@ defmodule Stampede.Interact do
     :ok
   end
 
-  @spec! do_write_interaction!(%IntTable{}) :: integer()
+  @spec! do_write_interaction!(%IntTable{}) :: %IntTable{}
   defp do_write_interaction!(record) do
-    %{id: new_id} =
-      transaction(fn ->
-        Memento.Query.write(record)
-      end)
-
-    new_id
+    transaction(fn ->
+      Memento.Query.write(record)
+    end)
   end
 
   @spec! read_interaction!(any()) :: %Interaction{}

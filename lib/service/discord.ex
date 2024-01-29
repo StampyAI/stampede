@@ -1,6 +1,6 @@
 defmodule Service.Discord do
   alias Stampede, as: S
-  alias S.{Msg, Channel}
+  alias S.{Msg}
   use TypeCheck
   use Supervisor, restart: :permanent
   require Logger
@@ -33,13 +33,13 @@ defmodule Service.Discord do
       body: msg.content,
       channel_id: msg.channel_id,
       author_id: msg.author.id,
-      server_id: msg.guild_id,
+      server_id: msg.guild_id || {:dm, __MODULE__},
       referenced_msg_id: Map.get(msg, :referenced_msg, nil)
     )
   end
 
   @impl Service
-  def send_msg(channel_id, msg, _opts \\ []) when is_bitstring(msg) do
+  def send_msg(channel_id, msg, _opts \\ []) do
     r = S.text_chunk_regex(@character_limit)
 
     for chunk <-
@@ -124,12 +124,15 @@ defmodule Service.Discord do
   end
 
   @impl Service
-  def txt_source_block(txt) when is_binary(txt) do
-    """
-    ```
-    #{txt}
-    ```
-    """
+  def txt_source_block(txt) when is_binary(txt),
+    do: S.markdown_source(txt)
+
+  @impl Service
+  def txt_quote_block(txt) when is_binary(txt),
+    do: S.markdown_quote(txt)
+
+  def is_dm(msg) do
+    msg.guild_id == nil
   end
 
   @spec! get_referenced_msg(Msg.t()) :: {:ok, Msg.t()} | {:error, any()}
@@ -162,8 +165,8 @@ defmodule Service.Discord do
 
     children = [
       Nostrum.Application,
-      {Service.Discord.Handler, args},
-      Service.Discord.Consumer
+      {__MODULE__.Handler, args},
+      __MODULE__.Consumer
     ]
 
     Supervisor.init(children, strategy: :one_for_one)
@@ -171,7 +174,7 @@ defmodule Service.Discord do
 
   @impl Service
   def reload_configs() do
-    GenServer.call(Service.Discord.Handler, :reload_configs)
+    GenServer.call(__MODULE__.Handler, :reload_configs)
   end
 end
 
@@ -184,31 +187,44 @@ defmodule Service.Discord.Handler do
   alias S.{Response, Msg}
   require Msg
   alias Nostrum.Api
+  alias Service.Discord
 
-  defstruct!(guild_ids: _ :: %MapSet{})
+  defstruct!(
+    guild_ids: _ :: %MapSet{},
+    vip_ids: _ :: %MapSet{}
+  )
 
   def start_link(args) do
     GenServer.start_link(__MODULE__, args, name: __MODULE__)
   end
 
   @impl GenServer
-  def init(args) do
-    new_state =
-      struct!(
-        __MODULE__,
-        Keyword.put_new(args, :guild_ids, S.CfgTable.servers_configured(Service.Discord))
-      )
+  def init(_) do
+    new_state = update_state()
 
     {:ok, new_state}
   end
 
-  def handle_call(:reload_configs, state) do
+  @spec! update_state() :: %__MODULE__{}
+  defp update_state() do
+    struct!(
+      __MODULE__,
+      guild_ids: S.CfgTable.servers_configured(Discord),
+      vip_ids: S.CfgTable.vips_configured(Discord)
+    )
+  end
+
+  @spec! update_state(%__MODULE__{}) :: %__MODULE__{}
+  defp update_state(state) do
+    state
+    |> Map.put(:guild_ids, S.CfgTable.servers_configured(Discord))
+    |> Map.put(:vip_ids, S.CfgTable.vips_configured(Discord))
+  end
+
+  @impl GenServer
+  def handle_call(:reload_configs, _, state) do
     # TODO: harden this
-    new_state =
-      struct!(
-        __MODULE__,
-        Keyword.put_new(state, :guild_ids, S.CfgTable.servers_configured(Service.Discord))
-      )
+    new_state = update_state(state)
 
     {:reply, :ok, new_state}
   end
@@ -216,25 +232,55 @@ defmodule Service.Discord.Handler do
   @impl GenServer
   @spec! handle_cast({:MESSAGE_CREATE, %Nostrum.Struct.Message{}}, %__MODULE__{}) ::
            {:noreply, any()}
-  def handle_cast({:MESSAGE_CREATE, msg}, state) do
-    if msg.guild_id in state.guild_ids do
-      our_cfg = S.CfgTable.get_server(Service.Discord, msg.guild_id)
+  def handle_cast({:MESSAGE_CREATE, discord_msg}, state) do
+    case Nostrum.Cache.Me.get() do
+      author when discord_msg.author.id == author.id ->
+        # This is our own message, do nothing
+        nil
 
-      our_msg =
-        Service.Discord.into_msg(msg)
+      nil ->
+        raise "We don't know our own identity. This should never happen"
 
-      case Plugin.get_top_response(our_cfg, our_msg) do
-        %Response{text: r_text} when r_text != nil ->
-          Api.create_message(msg.channel_id, r_text)
+      _ ->
+        # Message from somebody else
+        cond do
+          discord_msg.guild_id in state.guild_ids ->
+            do_msg_create(discord_msg)
 
-        nil ->
-          :do_nothing
-      end
+          Discord.is_dm(discord_msg) ->
+            if discord_msg.author.id in state.vip_ids do
+              do_msg_create(discord_msg)
+            else
+              Logger.warning("""
+              User wanted to DM but is not in vip_ids. \
+              Username: #{discord_msg.author |> Nostrum.Struct.User.full_name() |> inspect()} \
+              Message:
+              #{discord_msg.content |> Discord.txt_quote_block()}
+              """)
+            end
 
-      {:noreply, state}
-    else
-      Logger.error("guild #{msg.guild_id} NOT found in #{inspect(state.guild_ids)}")
-      {:noreply, state}
+          true ->
+            Logger.error(
+              "guild #{discord_msg.guild_id |> inspect()} NOT found in #{inspect(state.guild_ids)}"
+            )
+        end
+    end
+
+    {:noreply, state}
+  end
+
+  defp do_msg_create(discord_msg) do
+    our_msg =
+      Discord.into_msg(discord_msg)
+
+    our_cfg = S.CfgTable.get_server(Discord, our_msg.server_id)
+
+    case Plugin.get_top_response(our_cfg, our_msg) do
+      %Response{text: r_text} when r_text != nil ->
+        Api.create_message(our_msg.channel_id, r_text)
+
+      nil ->
+        :do_nothing
     end
   end
 end

@@ -24,7 +24,12 @@ defmodule SiteConfig do
     server_id: [
       required: true,
       type: :any,
-      doc: "Discord Guild ID, Slack group, etc"
+      doc: "Discord Guild ID, Slack group, etc. Name 'DM' for direct message handling"
+    ],
+    vip_ids: [
+      default: MapSet.new(),
+      type: :any,
+      doc: "User IDs, who are trusted to not abuse the bot"
     ],
     error_channel_id: [
       required: true,
@@ -41,8 +46,14 @@ defmodule SiteConfig do
       default: :all,
       type: {:custom, __MODULE__, :real_plugins, []},
       doc: "Which plugins will be asked for responses."
+    ],
+    dm_handler: [
+      default: false,
+      type: :boolean,
+      doc: "Use this config for DMs received on this service. Only one config per service"
     ]
   ]
+  @mapset_keys [:vip_ids]
   @doc """
   A basic Cfg schema, to be extended by the specific service it's written for.
 
@@ -92,6 +103,7 @@ defmodule SiteConfig do
     transforms = [
       &concat_plugs/2,
       &make_regex/2,
+      make_mapsets(@mapset_keys),
       fn kwlist, _ ->
         Keyword.update!(kwlist, :service, &S.service_atom_to_name(&1))
       end
@@ -132,6 +144,21 @@ defmodule SiteConfig do
       end)
     else
       kwlist
+    end
+  end
+
+  @spec! make_mapsets(list(atom())) :: (keyword(), any() -> keyword())
+  def make_mapsets(keys) do
+    fn kwlist, _schema ->
+      Enum.reduce(keys, kwlist, fn key, acc ->
+        case Keyword.get(acc, key, false) do
+          false ->
+            acc
+
+          enum when is_list(enum) or enum == [] ->
+            Keyword.update!(acc, key, fn enum -> MapSet.new(enum) end)
+        end
+      end)
     end
   end
 
@@ -176,10 +203,71 @@ defmodule SiteConfig do
           # IO.puts("add server #{server_id} to service #{service}") # DEBUG
           Map.put(server_map, server_id, config)
       end)
+      |> make_configs_for_dm_handling()
     end)
 
     # Did you know that "default" in Map.update/4 isn't an input to the
     # function? It just skips the function and adds that default to the map.
-    # I didn't know that. Now I do.
+    # I didn't know that. Now I do. :')
+  end
+
+  @spec! make_configs_for_dm_handling(cfg_list()) :: cfg_list()
+  @doc """
+  Create a config with key {:dm, service} which all DMs for a service are handled under.
+  If server_id is not "DM", it will be duplicated with one for the server and
+  one for the DMs.
+  Collects all VIPs for that service and puts them in the DM config.
+  """
+  def make_configs_for_dm_handling(service_map) do
+    Map.new(service_map, fn {service, site_map} ->
+      dupe_checked =
+        Enum.reduce(
+          site_map,
+          {Map.new(), MapSet.new(), MapSet.new()},
+          # Accumulator keeps a map for the sites being processed, and a mapset to check for duplicate keys
+          fn {server_id, orig_cfg}, {site_acc, services_handled, service_vips} ->
+            if not orig_cfg.dm_handler do
+              {
+                Map.put(site_acc, server_id, orig_cfg),
+                services_handled,
+                if vips = Map.get(orig_cfg, :vip_ids, false) do
+                  MapSet.union(service_vips, vips)
+                else
+                  service_vips
+                end
+              }
+            else
+              if orig_cfg.service in services_handled do
+                raise "duplicate dm_handler for service #{orig_cfg.service |> inspect()}"
+              end
+
+              dm_key = {:dm, orig_cfg.service}
+              dm_cfg = Map.put(orig_cfg, :server_id, dm_key)
+
+              # config is for DM handling exclusively
+              new_site_acc =
+                if server_id != "DM" do
+                  Map.put(site_acc, server_id, orig_cfg)
+                else
+                  site_acc
+                end
+                |> Map.put(dm_key, dm_cfg)
+
+              {
+                new_site_acc,
+                services_handled |> MapSet.put(orig_cfg.service),
+                if vips = Map.get(orig_cfg, :vip_ids, false) do
+                  MapSet.union(service_vips, vips)
+                else
+                  service_vips
+                end
+              }
+            end
+          end
+        )
+        |> elem(0)
+
+      {service, dupe_checked}
+    end)
   end
 end

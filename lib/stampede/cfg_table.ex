@@ -65,6 +65,25 @@ defmodule Stampede.CfgTable do
     |> MapSet.new()
   end
 
+  @spec! vips_configured(service_name :: S.service_name()) ::
+           %MapSet{}
+  def vips_configured(service_name) do
+    :persistent_term.get(__MODULE__)
+    # |> IO.inspect(pretty: true) # DEBUG
+    |> Map.fetch!(service_name)
+    |> Map.values()
+    |> Enum.reduce(MapSet.new(), fn
+      cfg, vips ->
+        case Map.get(cfg, :vip_ids, false) do
+          false ->
+            vips
+
+          more_vips when is_struct(more_vips, MapSet) ->
+            MapSet.union(more_vips, vips)
+        end
+    end)
+  end
+
   @spec! reload_cfgs(nil | String.t()) :: :ok
   def reload_cfgs(dir \\ nil) do
     GenServer.call(__MODULE__, {:reload_cfgs, dir})

@@ -10,6 +10,7 @@ defmodule StampedeStatelessTest do
     server_id: testing
     error_channel_id: error
     prefix: "!"
+    dm_handler: true
     plugs:
       - Test
       - Sentience
@@ -19,7 +20,9 @@ defmodule StampedeStatelessTest do
     server_id: :testing,
     error_channel_id: :error,
     prefix: "!",
-    plugs: MapSet.new([Plugin.Test, Plugin.Sentience])
+    plugs: MapSet.new([Plugin.Test, Plugin.Sentience]),
+    vip_ids: MapSet.new(),
+    dm_handler: true
   }
 
   describe "stateless functions" do
@@ -120,6 +123,23 @@ defmodule StampedeStatelessTest do
     test "SiteConfig load" do
       verified = SiteConfig.load_from_string(@dummy_cfg)
       assert verified == @dummy_cfg_verified
+    end
+
+    test "SiteConfig dm handler" do
+      cfg = @dummy_cfg_verified
+
+      svmap =
+        %{cfg.service => %{cfg.server_id => cfg}}
+        |> SiteConfig.make_configs_for_dm_handling()
+
+      #  |> IO.inspect(pretty: true) # Debug
+
+      key = {:dm, cfg.service}
+
+      assert key ==
+               Map.fetch!(svmap, cfg.service)
+               |> Map.fetch!({:dm, cfg.service})
+               |> Map.fetch!(:server_id)
     end
 
     test "msg splitting functions" do

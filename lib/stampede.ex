@@ -29,11 +29,16 @@ defmodule Stampede do
     end
   end
 
+  @spec! txt_indent(String.t(), String.t()) :: String.t()
+  def txt_indent(str, prefix \\ "  ") when is_binary(str) do
+    String.split(str, "\n")
+    |> Enum.map(&[prefix | [&1 | "\n"]])
+    |> IO.iodata_to_binary()
+  end
+
   @spec! markdown_quote(String.t()) :: String.t()
   def markdown_quote(str) when is_binary(str) do
-    String.split(str, "\n")
-    |> Enum.map(&["> " | [&1 | "\n"]])
-    |> IO.iodata_to_binary()
+    txt_indent(str, "> ")
   end
 
   @spec! markdown_source(String.t()) :: String.t()
