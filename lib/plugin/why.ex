@@ -1,12 +1,15 @@
 defmodule Plugin.Why do
   use TypeCheck
   require Stampede.Response
+  alias Plugin.Why.Debugging
   alias TypeCheck.Internals.UserTypes.Stampede.Response
   alias Stampede, as: S
   alias S.{Msg, Response, Interaction}
   require Interaction
 
   use Plugin
+
+  def msg_fail(), do: "Couldn't find an interaction for that message."
 
   @spec! process_msg(SiteConfig.t(), S.Msg.t()) :: nil | S.Response.t()
   def process_msg(cfg, msg) do
@@ -45,7 +48,7 @@ defmodule Plugin.Why do
                 other ->
                   Response.new(
                     confidence: valid_confidence,
-                    text: "Couldn't find an interaction for that message.",
+                    text: msg_fail(),
                     why: [
                       "We checked for an interaction from message ",
                       S.pp(ref),
@@ -57,5 +60,10 @@ defmodule Plugin.Why do
           end
         end
     end
+  end
+
+  defmodule Debugging do
+    def probably_a_traceback(str) when is_binary(str),
+      do: String.match?(str, ~r/We asked/)
   end
 end

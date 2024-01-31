@@ -187,13 +187,17 @@ defmodule StampedeTest do
       msg_num = posted_msg_id |> elem(3)
       :timer.sleep(100)
 
-      assert :lol ==
-               D.send_msg(s.id, :t1, :u1, "!Why did you say that, specifically? @Msg_#{msg_num}")
+      D.send_msg(s.id, :t1, :u1, "!Why did you say that, specifically? @Msg_#{msg_num}")
+      |> Map.fetch!(:text)
+      |> Plugin.Why.Debugging.probably_a_traceback()
+      |> assert("couldn't find traceback, maybe regex needs update?")
     end
 
     test "Why plugin returns error on bad ID", s do
-      assert :lol ==
-               D.send_msg(s.id, :t1, :u1, "!Why did you say that, specifically? @Msg_9999")
+      D.send_msg(s.id, :t1, :u1, "!Why did you say that, specifically? @Msg_9999")
+      |> Map.fetch!(:text)
+      |> String.match?(Regex.compile!(Plugin.Why.msg_fail()))
+      |> assert()
     end
   end
 end
