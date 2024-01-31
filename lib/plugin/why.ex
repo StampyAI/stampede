@@ -33,7 +33,7 @@ defmodule Plugin.Why do
               )
 
             ref ->
-              # Ok, let's return oa traceback.
+              # Ok, let's return a traceback.
               case S.Interact.get_traceback(ref) do
                 {:ok, traceback} ->
                   Response.new(
