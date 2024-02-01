@@ -5,6 +5,8 @@ defmodule Plugin.Test do
   require S.Response
   use Plugin
 
+  # TODO: make all except ping only respond to admins
+
   @spec! process_msg(any(), S.Msg.t()) :: nil | S.Response.t()
   @impl Plugin
   def process_msg(cfg, msg) do

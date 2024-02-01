@@ -142,6 +142,29 @@ defmodule StampedeStatelessTest do
                |> Map.fetch!(:server_id)
     end
 
+    test "vip check" do
+      vips = %{some_server: :admin}
+
+      assert S.is_vip_in_this_context(
+               vips,
+               :some_server,
+               :admin
+             )
+
+      assert S.is_vip_in_this_context(
+               vips,
+               nil,
+               :admin
+             )
+
+      assert false ==
+               S.is_vip_in_this_context(
+                 vips,
+                 :some_server,
+                 :non_admin
+               )
+    end
+
     test "msg splitting functions" do
       split_size = 100
       max_pieces = 10

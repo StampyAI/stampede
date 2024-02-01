@@ -64,22 +64,12 @@ defmodule Service.Dummy do
 
   # PUBLIC API FUNCTIONS
 
+  @spec! start_link(Keyword.t()) :: :ignore | {:error, any} | {:ok, pid}
   @impl Service
-  def log_plugin_error(cfg, log) do
-    _ =
-      send_msg(
-        SiteConfig.fetch!(cfg, :server_id),
-        SiteConfig.fetch!(cfg, :error_channel_id),
-        @system_user,
-        log
-      )
-
-    :ok
+  def start_link(cfg_overrides \\ []) do
+    Logger.debug("starting Dummy GenServer, with cfg overrides: #{inspect(cfg_overrides)}")
+    GenServer.start_link(__MODULE__, cfg_overrides, name: __MODULE__)
   end
-
-  # TODO
-  @impl Service
-  def log_serious_error(_), do: :ok
 
   @impl Service
   def send_msg({server_id, channel, user}, text, opts \\ []),
@@ -99,6 +89,23 @@ defmodule Service.Dummy do
   end
 
   @impl Service
+  def log_plugin_error(cfg, log) do
+    _ =
+      send_msg(
+        SiteConfig.fetch!(cfg, :server_id),
+        SiteConfig.fetch!(cfg, :error_channel_id),
+        @system_user,
+        log
+      )
+
+    :ok
+  end
+
+  # TODO
+  @impl Service
+  def log_serious_error(_), do: :ok
+
+  @impl Service
   def into_msg({msg_id = {server_id, channel, user, _id}, text}) do
     ref = get_reference(text, {server_id, channel, user})
 
@@ -113,7 +120,18 @@ defmodule Service.Dummy do
   end
 
   @impl Service
+  def reload_configs(), do: :ok
+
+  @impl Service
+  def author_is_privileged(server_id, author_id) do
+    GenServer.call(__MODULE__, {:author_is_privileged, server_id, author_id})
+  end
+
+  @impl Service
   def txt_source_block(txt) when is_binary(txt), do: S.markdown_source(txt)
+
+  @impl Service
+  def txt_quote_block(txt) when is_binary(txt), do: S.markdown_quote(txt)
 
   @spec! channel_history(dummy_server_id(), dummy_channel_id()) :: channel()
   def channel_history(server_id, channel) do
@@ -130,13 +148,6 @@ defmodule Service.Dummy do
   end
 
   # PLUMBING
-
-  @spec! start_link(Keyword.t()) :: :ignore | {:error, any} | {:ok, pid}
-  @impl Service
-  def start_link(cfg_overrides \\ []) do
-    Logger.debug("starting Dummy GenServer, with cfg overrides: #{inspect(cfg_overrides)}")
-    GenServer.start_link(__MODULE__, cfg_overrides, name: __MODULE__)
-  end
 
   @impl GenServer
   @spec! init(Keyword.t()) :: {:ok, dummy_state()}
@@ -218,6 +229,16 @@ defmodule Service.Dummy do
 
   def handle_call({:server_dump, server_id}, _from, servers) do
     {:reply, Map.fetch!(servers, server_id) |> elem(1), servers}
+  end
+
+  def handle_call({:author_is_privileged, _server_id, author_id}, _from, state) do
+    case author_id do
+      :admin ->
+        {:reply, true, state}
+
+      _other ->
+        {:reply, false, state}
+    end
   end
 
   @spec! channel_buffers_append(channel_buffers(), msg_tuple()) :: channel_buffers()

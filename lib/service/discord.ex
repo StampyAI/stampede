@@ -9,19 +9,8 @@ defmodule Service.Discord do
 
   @type! discord_channel_id :: non_neg_integer()
   @type! discord_guild_id :: non_neg_integer()
-  @type! discord_user_id :: non_neg_integer()
+  @type! discord_author_id :: non_neg_integer()
   @type! discord_msg_id :: non_neg_integer()
-
-  # @behaviour Service
-
-  # @impl Service
-  # def should_start(_config) do
-  #  case Application.get_env(:nostrum, :token, nil) do
-  #    nil -> false
-  #    _ -> true
-  #  end
-  # end
-  # @impl Service
 
   @character_limit 1999
   @consecutive_msg_limit 10
@@ -84,6 +73,19 @@ defmodule Service.Discord do
   end
 
   @impl Service
+  def log_plugin_error(cfg, log) do
+    channel_id = SiteConfig.fetch!(cfg, :error_channel_id)
+
+    _ =
+      Nostrum.Api.create_message(
+        channel_id,
+        content: log
+      )
+
+    :ok
+  end
+
+  @impl Service
   def log_serious_error(log_msg = {level, _gl, {Logger, message, _timestamp, _metadata}}) do
     try do
       # TODO: disable if Discord not connected/working
@@ -111,16 +113,13 @@ defmodule Service.Discord do
   end
 
   @impl Service
-  def log_plugin_error(cfg, log) do
-    channel_id = SiteConfig.fetch!(cfg, :error_channel_id)
+  def reload_configs() do
+    GenServer.call(__MODULE__.Handler, :reload_configs)
+  end
 
-    _ =
-      Nostrum.Api.create_message(
-        channel_id,
-        content: log
-      )
-
-    :ok
+  @impl Service
+  def author_is_privileged(server_id, author_id) do
+    GenServer.call(__MODULE__.Handler, {:author_is_privileged, server_id, author_id})
   end
 
   @impl Service
@@ -131,9 +130,7 @@ defmodule Service.Discord do
   def txt_quote_block(txt) when is_binary(txt),
     do: S.markdown_quote(txt)
 
-  def is_dm(msg) do
-    msg.guild_id == nil
-  end
+  def is_dm(msg), do: msg.guild_id == nil
 
   @spec! get_referenced_msg(Msg.t()) :: {:ok, Msg.t()} | {:error, any()}
   def get_referenced_msg(msg) do
@@ -171,11 +168,6 @@ defmodule Service.Discord do
 
     Supervisor.init(children, strategy: :one_for_one)
   end
-
-  @impl Service
-  def reload_configs() do
-    GenServer.call(__MODULE__.Handler, :reload_configs)
-  end
 end
 
 defmodule Service.Discord.Handler do
@@ -189,10 +181,17 @@ defmodule Service.Discord.Handler do
   alias Nostrum.Api
   alias Service.Discord
 
+  @typep! vips :: S.CfgTable.vips()
+
   defstruct!(
     guild_ids: _ :: %MapSet{},
-    vip_ids: _ :: %MapSet{}
+    vip_ids: _ :: vips()
   )
+
+  @spec! is_vip_in_this_context(vips(), Discord.discord_guild_id(), Discord.discord_author_id()) ::
+           boolean()
+  def is_vip_in_this_context(vips, server_id, author_id),
+    do: S.is_vip_in_this_context(vips, server_id, author_id)
 
   def start_link(args) do
     GenServer.start_link(__MODULE__, args, name: __MODULE__)
@@ -229,6 +228,14 @@ defmodule Service.Discord.Handler do
     {:reply, :ok, new_state}
   end
 
+  def handle_call({:author_is_privileged, server_id, author_id}, _from, state) do
+    {
+      :reply,
+      is_vip_in_this_context(state.vip_ids, server_id, author_id),
+      state
+    }
+  end
+
   @impl GenServer
   @spec! handle_cast({:MESSAGE_CREATE, %Nostrum.Struct.Message{}}, %__MODULE__{}) ::
            {:noreply, any()}
@@ -248,7 +255,7 @@ defmodule Service.Discord.Handler do
             do_msg_create(discord_msg)
 
           Discord.is_dm(discord_msg) ->
-            if discord_msg.author.id in state.vip_ids do
+            if is_vip_in_this_context(state.vip_ids, discord_msg.guild_id, discord_msg.author.id) do
               do_msg_create(discord_msg)
             else
               Logger.warning("""

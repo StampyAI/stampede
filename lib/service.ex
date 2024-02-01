@@ -1,20 +1,22 @@
 defmodule Service do
   use TypeCheck
 
-  @callback start_link(Keyword.t()) :: :ignore | {:error, any} | {:ok, pid}
+  @callback site_config_schema() :: NimbleOptions.t()
+  @callback into_msg(service_message :: term()) :: %Stampede.Msg{}
   @callback send_msg(destination :: term(), text :: binary(), opts :: keyword()) :: term()
   @callback log_plugin_error(cfg :: struct(), log :: binary()) :: :ok
-  @callback into_msg(service_message :: term()) :: %Stampede.Msg{}
   @callback log_serious_error(
               log_msg ::
                 {level :: Stampede.log_level(), _gl :: term(),
                  {module :: Logger, message :: term(), _timestamp :: term(), _metadata :: term()}}
             ) :: :ok
-  @callback site_config_schema() :: NimbleOptions.t()
   @callback reload_configs() :: :ok | {:error, any()}
+  @callback author_is_privileged(server_id :: any(), author_id :: any()) :: boolean()
 
   @callback txt_source_block(txt :: binary()) :: binary()
   @callback txt_quote_block(txt :: binary()) :: binary()
+
+  @callback start_link(Keyword.t()) :: :ignore | {:error, any} | {:ok, pid}
 
   defmacro __using__(_opts \\ []) do
     quote do

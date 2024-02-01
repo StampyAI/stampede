@@ -65,21 +65,27 @@ defmodule Stampede.CfgTable do
     |> MapSet.new()
   end
 
-  @spec! vips_configured(service_name :: S.service_name()) ::
-           %MapSet{}
+  @type! vips :: map(server_id :: S.server_id(), author_id :: S.user_id())
+
+  @spec! vips_configured(service_name :: S.service_name()) :: vips()
   def vips_configured(service_name) do
     :persistent_term.get(__MODULE__)
     # |> IO.inspect(pretty: true) # DEBUG
     |> Map.fetch!(service_name)
     |> Map.values()
-    |> Enum.reduce(MapSet.new(), fn
+    |> Enum.reduce(Map.new(), fn
       cfg, vips ->
         case Map.get(cfg, :vip_ids, false) do
           false ->
             vips
 
           more_vips when is_struct(more_vips, MapSet) ->
-            MapSet.union(more_vips, vips)
+            Map.put(
+              vips,
+              cfg.server_id,
+              more_vips
+              |> MapSet.union(vips)
+            )
         end
     end)
   end
