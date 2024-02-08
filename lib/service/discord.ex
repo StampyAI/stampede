@@ -7,6 +7,12 @@ defmodule Service.Discord do
 
   use Service
 
+  @moduledoc """
+  Connect to one or more Discord servers.
+  Config options:
+  #{NimbleOptions.docs(@site_config_schema, nest_level: 1)}
+  """
+
   @type! discord_channel_id :: non_neg_integer()
   @type! discord_guild_id :: non_neg_integer()
   @type! discord_author_id :: non_neg_integer()

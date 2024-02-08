@@ -1,21 +1,12 @@
 # Stampede
 
-**TODO: Add description**
+Stampede is a chat bot backend meant to serve multiple servers and services simultaneously, choosing its response between multiple competing plugins to choose the most relevant response. It focuses on supporting a conversational style, and can use LLMs, but will prefer to answer questions from databases if possible.
 
-## Installation
+Stampede is in a very early state and may drastically change. It is a sequel to the [Stampy](https://github.com/StampyAI/stampy) Discord bot.
 
-If [available in Hex](https://hex.pm/docs/publish), the package can be installed
-by adding `stampede` to your list of dependencies in `mix.exs`:
+## Use
 
-```elixir
-def deps do
-  [
-    {:stampede, "~> 0.1.0"}
-  ]
-end
-```
+Configurations are written in YAML and left in `./Sites/`. In different environments (such as `test` and `dev`) it will use configs from `./Sites_{environment-name}`.
 
-Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
-and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
-be found at <https://hexdocs.pm/stampede>.
-
+- `./lib/services` defines services where chat requests are incoming.
+- `./lib/plugin` defines plugins which suggest potential responses, along with a confidence estimate for how relevant the response would be. Plugins which use resources or take time will offer a *callback* instead, which will only be called if no other plugins have higher confidence.

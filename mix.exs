@@ -4,13 +4,21 @@ defmodule Stampede.MixProject do
   def project do
     [
       app: :stampede,
-      version: "0.1.0",
+      version: "0.1.1-dev",
       elixir: "~> 1.15",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       dialyzer: dialyzer(),
       preferred_cli_env: [release: :prod, test: :test],
-      aliases: [test: "test --no-start"]
+      aliases: [test: "test --no-start"],
+
+      # Docs
+      name: "Stampede",
+      source_url: "https://github.com/ProducerMatt/stampede",
+      docs: [
+        main: "Stampede",
+        extras: ["README.md"]
+      ]
     ]
   end
 
@@ -54,6 +62,7 @@ defmodule Stampede.MixProject do
     [
       {:dialyxir, "~> 1.4", runtime: false},
       {:credo, "~> 1.7", runtime: false},
+      {:ex_doc, "~> 0.31", only: :dev, runtime: false},
       # {:nostrum, "~> 0.8.0", runtime: false},
       {:nostrum, github: "Kraigie/nostrum", runtime: false},
       {:logger_backends, "~> 1.0"},

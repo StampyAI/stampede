@@ -22,12 +22,17 @@ defmodule Service do
     quote do
       @behaviour unquote(__MODULE__)
 
-      # default schema
+      # in order to use the default schema in doc strings, use this attribute, as the function will not be found when the compiler is compiling the docstring.
+      # For example:
+      #
+      #   @moduledoc """
+      #   Config options:
+      #   #{NimbleOptions.docs(@site_config_schema)}
+      #   """
+      @site_config_schema SiteConfig.schema_base() |> NimbleOptions.new!()
+
       @impl unquote(__MODULE__)
-      def site_config_schema() do
-        SiteConfig.schema_base()
-        |> NimbleOptions.new!()
-      end
+      def site_config_schema(), do: @site_config_schema
 
       defoverridable site_config_schema: 0
     end
