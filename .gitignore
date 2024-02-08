@@ -30,3 +30,5 @@ erl_crash.dump
 /.mnesia
 
 /.env
+
+/priv
