@@ -225,6 +225,10 @@ defmodule Stampede do
     Service.apply_service_function(cfg, :author_is_privileged, [cfg.server_id, msg.author_id])
   end
 
+  def reload_service(cfg) do
+    Service.apply_service_function(cfg, :reload_configs, [])
+  end
+
   @spec! is_vip_in_this_context(map(), server_id(), user_id()) :: boolean()
   def is_vip_in_this_context(vips, nil, author_id),
     do: author_id in Map.values(vips)

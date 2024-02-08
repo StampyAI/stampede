@@ -25,7 +25,7 @@ defmodule StampedeTest do
     plugs: MapSet.new([Plugin.Test, Plugin.Sentience, Plugin.Why])
   }
   setup_all do
-    %{
+    return = %{
       app_pid:
         Stampede.Application.start(
           :normal,
@@ -36,6 +36,13 @@ defmodule StampedeTest do
           clear_state: true
         )
     }
+
+    {
+      :sys.get_state(Service.Dummy)
+    }
+    |> IO.inspect(pretty: true)
+
+    return
   end
 
   setup context do
@@ -44,6 +51,11 @@ defmodule StampedeTest do
     if Map.get(context, :dummy, false) do
       :ok = D.new_server(id, MapSet.new([Plugin.Test, Plugin.Sentience, Plugin.Why]))
     end
+
+    {
+      :sys.get_state(Service.Dummy)
+    }
+    |> IO.inspect(pretty: true)
 
     %{id: id}
   end
@@ -178,23 +190,24 @@ defmodule StampedeTest do
       %{posted_msg_id: posted_msg_id} = D.send_msg(s.id, :t1, :u1, "!ping", return_id: true)
       :timer.sleep(100)
       # check interaction was logged, without Why plugin
-      slug = S.Interact.get({s.id, :t1, :u1, 0})
+      slug = S.Interact.get(posted_msg_id)
       assert match?({:ok, %S.Interact.IntTable{}}, slug)
     end
 
     test "Why plugin returns trace", s do
       %{posted_msg_id: posted_msg_id} = D.send_msg(s.id, :t1, :u1, "!ping", return_id: true)
-      msg_num = posted_msg_id |> elem(3)
       :timer.sleep(100)
 
-      D.send_msg(s.id, :t1, :u1, "!Why did you say that, specifically? @Msg_#{msg_num}")
+      D.send_msg(s.id, :t1, :u1, "!Why did you say that, specifically?", ref: posted_msg_id)
       |> Map.fetch!(:text)
       |> Plugin.Why.Debugging.probably_a_traceback()
       |> assert("couldn't find traceback, maybe regex needs update?")
     end
 
     test "Why plugin returns error on bad ID", s do
-      D.send_msg(s.id, :t1, :u1, "!Why did you say that, specifically? @Msg_9999")
+      D.send_msg(s.id, :t1, :u1, "!Why did you say that, specifically?",
+        ref: {s.id, :t1, :system, 9999}
+      )
       |> Map.fetch!(:text)
       |> String.match?(Regex.compile!(Plugin.Why.msg_fail()))
       |> assert()

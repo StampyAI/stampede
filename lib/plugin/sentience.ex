@@ -8,6 +8,7 @@ defmodule Plugin.Sentience do
       S.Response.new(
         confidence: 1,
         text: S.confused_response(),
+        origin_msg_id: msg.id,
         why: ["I didn't have any better ideas."]
       )
     else

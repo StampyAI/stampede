@@ -24,6 +24,7 @@ defmodule Stampede.Response do
     confidence: _ :: number(),
     text: _ :: nil | String.t(),
     origin_plug: _ :: module(),
+    origin_msg_id: _ :: nil | S.msg_id(),
     why: [] :: S.traceback(),
     callback: nil :: nil | S.module_function_args(),
     channel_lock: false :: S.channel_lock_action()

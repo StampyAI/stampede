@@ -2,6 +2,7 @@ defmodule Stampede.CfgTable do
   use GenServer
   use TypeCheck
   use TypeCheck.Defstruct
+  require Logger
   alias Stampede, as: S
 
   defstruct!(config_dir: _ :: binary())
@@ -36,7 +37,7 @@ defmodule Stampede.CfgTable do
   end
 
   @doc """
-  Handle creation and population of a new table, and optionally deleting the old one
+  Handle creation and population of a new table, and deleting the old one
   """
   def publish_terms(config_dir) do
     table_contents =
@@ -60,7 +61,7 @@ defmodule Stampede.CfgTable do
            %MapSet{}
   def servers_configured(service_name) do
     :persistent_term.get(__MODULE__)
-    |> Map.fetch!(service_name)
+    |> Map.get(service_name, %{})
     |> Map.keys()
     |> MapSet.new()
   end
@@ -70,8 +71,12 @@ defmodule Stampede.CfgTable do
   @spec! vips_configured(service_name :: S.service_name()) :: vips()
   def vips_configured(service_name) do
     :persistent_term.get(__MODULE__)
-    # |> IO.inspect(pretty: true) # DEBUG
-    |> Map.fetch!(service_name)
+    |> do_vips_configured(service_name)
+  end
+
+  def do_vips_configured(cfg_table, service_name) do
+    cfg_table
+    |> Map.get(service_name, %{})
     |> Map.values()
     |> Enum.reduce(Map.new(), fn
       cfg, vips ->
@@ -80,11 +85,11 @@ defmodule Stampede.CfgTable do
             vips
 
           more_vips when is_struct(more_vips, MapSet) ->
-            Map.put(
+            Map.update(
               vips,
               cfg.server_id,
-              more_vips
-              |> MapSet.union(vips)
+              more_vips,
+              fn existing_vips -> MapSet.union(more_vips, existing_vips) end
             )
         end
     end)
@@ -106,9 +111,36 @@ defmodule Stampede.CfgTable do
     |> Map.fetch!(id)
   end
 
+  @doc """
+  Insert new server config while running. Will be lost at reboot.
+  """
+  def insert_cfg(cfg) do
+    Logger.info("adding #{cfg.service} server #{cfg.server_id}")
+
+    schema = apply(cfg.service, :site_config_schema, [])
+    SiteConfig.revalidate!(cfg, schema)
+
+    :persistent_term.get(__MODULE__)
+    |> Map.put_new(cfg.service, %{})
+    |> Map.update!(cfg.service, fn cfgs ->
+      Map.put(cfgs, cfg.server_id, cfg)
+    end)
+    |> IO.inspect(pretty: true)
+    |> :persistent_term.put(__MODULE__)
+
+    S.reload_service(cfg)
+  end
+
   @impl GenServer
   def handle_call({:reload_cfgs, new_dir}, _from, state = %{config_dir: _config_dir}) do
     :ok = publish_terms(new_dir)
+
+    :persistent_term.get(__MODULE__)
+    |> Map.values()
+    |> Map.values()
+    |> List.flatten()
+    |> Enum.each(&S.reload_service/1)
+
     {:noreply, state |> Map.put(:config_dir, new_dir)}
   end
 end

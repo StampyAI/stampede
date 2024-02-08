@@ -15,6 +15,7 @@ defmodule Plugin.Test do
         S.Response.new(
           confidence: 10,
           text: "pong!",
+          origin_msg_id: msg.id,
           why: ["They pinged so I ponged!"]
         )
 
@@ -24,8 +25,9 @@ defmodule Plugin.Test do
         S.Response.new(
           confidence: 10,
           text: nil,
+          origin_msg_id: msg.id,
           why: ["They want to test callbacks."],
-          callback: {__MODULE__, :callback_example, [num]}
+          callback: {__MODULE__, :callback_example, [num, msg.id]}
         )
 
       # test channel locks
@@ -34,6 +36,7 @@ defmodule Plugin.Test do
           confidence: 10,
           text: "locked in on #{msg.author_id} awaiting b",
           why: ["Channel lock stage 1"],
+          origin_msg_id: msg.id,
           callback: nil,
           channel_lock: {:lock, msg.channel_id, {__MODULE__, :lock_callback, [:b]}}
         )
@@ -53,9 +56,10 @@ defmodule Plugin.Test do
     end
   end
 
-  def callback_example(_cfg, num) when is_number(num) do
+  def callback_example(_cfg, num, msg_id) when is_number(num) do
     S.Response.new(
       confidence: 10,
+      origin_msg_id: msg_id,
       text: "Called back with number #{num}"
     )
   end
@@ -67,6 +71,7 @@ defmodule Plugin.Test do
           confidence: 10,
           text: "b response. awaiting c",
           why: ["Channel lock stage 1"],
+          origin_msg_id: msg.id,
           callback: nil,
           channel_lock: {:lock, msg.channel_id, {__MODULE__, :lock_callback, [:c]}}
         )
@@ -76,6 +81,7 @@ defmodule Plugin.Test do
           confidence: 10,
           text: "lock broken by #{msg.author_id}",
           why: ["Unmatched message, #{other |> S.pp()}"],
+          origin_msg_id: msg.id,
           callback: nil,
           channel_lock: {:unlock, msg.channel_id}
         )
@@ -89,6 +95,7 @@ defmodule Plugin.Test do
           confidence: 10,
           text: "c response. interaction done!",
           why: ["Channel lock test done"],
+          origin_msg_id: msg.id,
           callback: nil,
           channel_lock: {:unlock, msg.channel_id}
         )
@@ -98,6 +105,7 @@ defmodule Plugin.Test do
           confidence: 10,
           text: "lock broken by #{msg.author_id}",
           why: ["Unmatched message, #{other}"],
+          origin_msg_id: msg.id,
           callback: nil,
           channel_lock: {:unlock, msg.channel_id}
         )
