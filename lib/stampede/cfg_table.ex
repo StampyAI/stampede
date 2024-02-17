@@ -7,6 +7,10 @@ defmodule Stampede.CfgTable do
 
   defstruct!(config_dir: _ :: binary())
 
+  @type! vips :: map(server_id :: S.server_id(), author_id :: S.user_id())
+  @type! table_object :: map(S.service_name(), map(S.server_id(), SiteConfig.t()))
+
+
   @doc "verify table is laid out correctly, basically a type check"
   def valid?(persisted_term) when not is_map(persisted_term),
     do: raise("invalid config table")
@@ -51,7 +55,7 @@ defmodule Stampede.CfgTable do
   @spec! servers_configured() ::
            %MapSet{}
   def servers_configured() do
-    :persistent_term.get(__MODULE__)
+    table_dump()
     |> Map.values()
     |> Enum.map(&Map.keys/1)
     |> MapSet.new()
@@ -60,20 +64,19 @@ defmodule Stampede.CfgTable do
   @spec! servers_configured(service_name :: S.service_name()) ::
            %MapSet{}
   def servers_configured(service_name) do
-    :persistent_term.get(__MODULE__)
+    table_dump()
     |> Map.get(service_name, %{})
     |> Map.keys()
     |> MapSet.new()
   end
 
-  @type! vips :: map(server_id :: S.server_id(), author_id :: S.user_id())
-
   @spec! vips_configured(service_name :: S.service_name()) :: vips()
   def vips_configured(service_name) do
-    :persistent_term.get(__MODULE__)
+    table_dump()
     |> do_vips_configured(service_name)
   end
 
+  @spec! do_vips_configured(map(), S.server_id()) :: vips()
   def do_vips_configured(cfg_table, service_name) do
     cfg_table
     |> Map.get(service_name, %{})
@@ -87,7 +90,7 @@ defmodule Stampede.CfgTable do
           more_vips when is_struct(more_vips, MapSet) ->
             Map.update(
               vips,
-              cfg.server_id,
+              SiteConfig.fetch!(cfg, :server_id),
               more_vips,
               fn existing_vips -> MapSet.union(more_vips, existing_vips) end
             )
@@ -100,13 +103,13 @@ defmodule Stampede.CfgTable do
     GenServer.call(__MODULE__, {:reload_cfgs, dir})
   end
 
-  @spec! table_dump() :: map()
+  @spec! table_dump() :: table_object()
   def table_dump() do
     :persistent_term.get(__MODULE__)
   end
 
   def get_server(service, id) do
-    :persistent_term.get(__MODULE__)
+    table_dump()
     |> Map.fetch!(service)
     |> Map.fetch!(id)
   end
@@ -118,9 +121,9 @@ defmodule Stampede.CfgTable do
     Logger.info("adding #{cfg.service} server #{cfg.server_id}")
 
     schema = apply(cfg.service, :site_config_schema, [])
-    SiteConfig.revalidate!(cfg, schema)
+    _ = SiteConfig.revalidate!(cfg, schema)
 
-    :persistent_term.get(__MODULE__)
+    table_dump()
     |> Map.put_new(cfg.service, %{})
     |> Map.update!(cfg.service, fn cfgs ->
       Map.put(cfgs, cfg.server_id, cfg)
@@ -135,9 +138,9 @@ defmodule Stampede.CfgTable do
   def handle_call({:reload_cfgs, new_dir}, _from, state = %{config_dir: _config_dir}) do
     :ok = publish_terms(new_dir)
 
-    :persistent_term.get(__MODULE__)
+    table_dump()
     |> Map.values()
-    |> Map.values()
+    |> Enum.map(&Map.values/1)
     |> List.flatten()
     |> Enum.each(&S.reload_service/1)
 

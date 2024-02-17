@@ -176,13 +176,14 @@ defmodule StampedeStatelessTest do
         %{
           Service.Dummy => %{
             foo: %{
-              vip_ids: [:bar, :baz]
+              server_id: :foo,
+              vip_ids: MapSet.new([:bar, :baz])
             }
           }
         }
-        |> S.CfgTable.do_vips_configured(Service_Dummy)
+        |> S.CfgTable.do_vips_configured(Service.Dummy)
 
-      assert result == MapSet.new([:bar, :baz])
+      assert result == %{foo: MapSet.new([:bar, :baz])}
     end
   end
 end

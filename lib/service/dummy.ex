@@ -164,6 +164,8 @@ defmodule Service.Dummy do
     |> SiteConfig.validate!(site_config_schema())
     |> S.CfgTable.insert_cfg()
 
+    Process.sleep(100)
+
     :ok
   end
 
