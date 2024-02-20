@@ -1,35 +1,26 @@
 defmodule Stampede.CfgTable do
   use GenServer
-  use TypeCheck
-  use TypeCheck.Defstruct
   require Logger
   alias Stampede, as: S
+  use TypeCheck
+  use TypeCheck.Defstruct
 
   defstruct!(config_dir: _ :: binary())
 
   @type! vips :: map(server_id :: S.server_id(), author_id :: S.user_id())
   @type! table_object :: map(S.service_name(), map(S.server_id(), SiteConfig.t()))
 
-
   @doc "verify table is laid out correctly, basically a type check"
-  def valid?(persisted_term) when not is_map(persisted_term),
-    do: raise("invalid config table")
-
-  def valid?(persisted_term) when is_map(persisted_term) do
-    Enum.reduce(persisted_term, true, fn
-      _, false ->
-        false
-
-      {service, cfg_map}, true when is_atom(service) and is_map(cfg_map) ->
-        Enum.all?(cfg_map, fn
-          {server_id, cfg} ->
-            TypeCheck.conforms?({server_id, cfg}, {S.server_id(), SiteConfig.t()})
-        end)
-    end)
+  def valid?(persisted_term) do
+    TypeCheck.conforms?(persisted_term, Stampede.CfgTable.table_object())
   end
 
-  def start_link(args) do
-    GenServer.start_link(__MODULE__, args, name: __MODULE__)
+  def valid!(persisted_term) do
+    if valid?(persisted_term) do
+      persisted_term
+    else
+      raise "Invalid config\n" <> S.pp(persisted_term)
+    end
   end
 
   @spec! init(keyword()) :: {:ok, %__MODULE__{}}
@@ -47,7 +38,7 @@ defmodule Stampede.CfgTable do
     table_contents =
       SiteConfig.load_all(config_dir)
 
-    :ok = :persistent_term.put(__MODULE__, table_contents)
+    :ok = table_load(table_contents)
 
     :ok
   end
@@ -55,25 +46,35 @@ defmodule Stampede.CfgTable do
   @spec! servers_configured() ::
            %MapSet{}
   def servers_configured() do
-    table_dump()
-    |> Map.values()
-    |> Enum.map(&Map.keys/1)
-    |> MapSet.new()
+    try_with_table(fn table ->
+      table
+      |> Map.values()
+      |> Enum.map(&Map.keys/1)
+      |> MapSet.new()
+    end)
   end
 
   @spec! servers_configured(service_name :: S.service_name()) ::
            %MapSet{}
   def servers_configured(service_name) do
-    table_dump()
-    |> Map.get(service_name, %{})
-    |> Map.keys()
-    |> MapSet.new()
+    try_with_table(fn table ->
+      table
+      |> Map.get(service_name, %{})
+      |> tap(fn
+        %{} -> Logger.warning("No servers detected for #{Atom.to_string(service_name)}")
+        m when is_map(m) -> :ok
+      end)
+      |> Map.keys()
+      |> Enum.map(fn cfg -> cfg.server_id end)
+      |> MapSet.new()
+    end)
   end
 
   @spec! vips_configured(service_name :: S.service_name()) :: vips()
   def vips_configured(service_name) do
-    table_dump()
-    |> do_vips_configured(service_name)
+    try_with_table(fn table ->
+      do_vips_configured(table, service_name)
+    end)
   end
 
   @spec! do_vips_configured(map(), S.server_id()) :: vips()
@@ -108,7 +109,33 @@ defmodule Stampede.CfgTable do
     :persistent_term.get(__MODULE__)
   end
 
-  def get_server(service, id) do
+  @spec! table_load(table_object()) :: :ok
+  def table_load(contents) do
+    valid!(contents)
+
+    :persistent_term.put(__MODULE__, contents)
+  end
+
+  def try_with_table(f) do
+    table = table_dump()
+
+    try do
+      f.(table)
+    catch
+      _t, _e ->
+        reraise(
+          """
+          Standard action with config failed. Now dumping state for examination.
+          If the error isn't caught, it will get raised after this.
+          """ <>
+            S.pp(table),
+          __STACKTRACE__
+        )
+    end
+  end
+
+  @spec! get_cfg!(S.service_name(), S.server_id()) :: SiteConfig.t()
+  def get_cfg!(service, id) do
     table_dump()
     |> Map.fetch!(service)
     |> Map.fetch!(id)
@@ -130,6 +157,8 @@ defmodule Stampede.CfgTable do
     end)
     |> IO.inspect(pretty: true)
     |> :persistent_term.put(__MODULE__)
+
+    Process.sleep(100)
 
     S.reload_service(cfg)
   end

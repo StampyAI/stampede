@@ -207,7 +207,8 @@ defmodule SiteConfig do
         load(path)
         |> Map.put(:filename, site_name)
 
-      # IO.puts("got config #{S.pp(config)}") # DEBUG
+      # DEBUG
+      IO.puts("got config #{S.pp(config)}")
       service = Map.fetch!(config, :service)
       server_id = Map.fetch!(config, :server_id)
 

@@ -1,8 +1,42 @@
+defmodule Service.Dummy.Table do
+  use TypeCheck
+  alias Stampede.Msg
+  alias Stampede.Response
+  alias Stampede, as: S
+
+  use Memento.Table,
+    attributes: [:id, :datetime, :server, :channel, :user, :body, :referenced_msg_id],
+    type: :ordered_set,
+    access_mode: :read_write,
+    autoincrement: true,
+    index: [:datetime]
+
+  def new(record) when is_map(record) do
+    record
+    |> Map.put_new(:id, nil)
+    |> Map.put_new(:datetime, S.time())
+    |> validate!()
+  end
+
+  def validate!(record) when is_struct(record, __MODULE__) do
+    TypeCheck.conforms!(record, %__MODULE__{
+      id: nil | integer(),
+      datetime: S.timestamp(),
+      server: atom(),
+      channel: atom(),
+      user: atom(),
+      body: any(),
+      referenced_msg_id: nil | integer()
+    })
+  end
+end
+
 defmodule Service.Dummy do
   require Logger
   use GenServer
   use TypeCheck
   use TypeCheck.Defstruct
+  alias Service.Dummy
   alias Stampede, as: S
   require S
   alias S.{Msg, Response}
@@ -27,13 +61,13 @@ defmodule Service.Dummy do
   @type! msg_tuple_incoming ::
            {server_id :: dummy_server_id(), channel :: dummy_channel_id(),
             user :: dummy_user_id(), body :: msg_content(), ref :: msg_reference()}
-  @typep! channel :: {dummy_msg_index(), list(msg_tuple())}
+  @typep! channel :: list(msg_tuple())
   # multiple channels
   @typep! channel_buffers :: %{dummy_channel_id() => channel()} | %{}
   @typep! dummy_servers :: %{dummy_server_id() => {SiteConfig.t(), channel_buffers()}}
 
   defstruct!(
-    servers: _ :: dummy_servers(),
+    servers: _ :: MapSet.t(atom()),
     vip_ids: _ :: S.CfgTable.vips()
   )
 
@@ -184,33 +218,21 @@ defmodule Service.Dummy do
   defp update_state() do
     struct!(
       __MODULE__,
-      servers:
-        S.CfgTable.servers_configured(__MODULE__)
-        |> Map.new(fn server_id -> {server_id, %{}} end),
+      servers: S.CfgTable.servers_configured(__MODULE__),
       vip_ids: S.CfgTable.vips_configured(__MODULE__)
     )
   end
 
   @spec! update_state(%__MODULE__{}) :: %__MODULE__{}
-  defp update_state(state) do
-    newservers = S.CfgTable.servers_configured(__MODULE__)
-    vips = S.CfgTable.vips_configured(__MODULE__)
-
-    state
-    |> Map.put(:vip_ids, vips)
-    |> Map.put(
-      :servers,
-      for server_id <- newservers do
-        Map.get(state.servers, server_id, %{})
-      end
-      |> Map.new()
-    )
+  defp update_state(_ignored_state) do
+    update_state()
   end
 
   @impl GenServer
   @spec! init(Keyword.t()) :: {:ok, %__MODULE__{}}
   def init(_) do
     # Service.register_logger(registry, __MODULE__, self())
+    :ok = S.ensure_tables_exist([Service.Dummy.Table])
     {:ok, update_state()}
   end
 
@@ -222,7 +244,7 @@ defmodule Service.Dummy do
       ) do
     ref = opts[:ref]
 
-    if not Map.has_key?(state.servers, server_id) do
+    if server_id not in state.servers do
       # ignore unconfigured server
       {:reply, nil, state}
     else
@@ -232,7 +254,7 @@ defmodule Service.Dummy do
         new_state: new_state_1
       } = do_add_new_msg(msg_tuple |> Tuple.append(ref), state.servers)
 
-      cfg = Map.fetch!(state.servers, server_id) |> elem(0)
+      cfg = S.CfgTable.get_cfg!(__MODULE__, server_id)
       response = Plugin.get_top_response(cfg, incoming_msg)
 
       result =
@@ -261,11 +283,35 @@ defmodule Service.Dummy do
   end
 
   def handle_call({:channel_history, server_id, channel}, _from, state) do
-    {:reply, Map.fetch!(state.servers, server_id) |> elem(1) |> Map.fetch!(channel), state}
+    if server_id not in state.servers, do: raise("Server not registered")
+
+    history =
+      transaction!(fn ->
+        Memento.Query.select(
+          __MODULE__.Table,
+          [
+            {:==, :channel, channel},
+            {:==, :server, server_id}
+          ]
+        )
+      end)
+      |> IO.inspect(pretty: true)
+
+    {:reply, history, state}
   end
 
   def handle_call({:server_dump, server_id}, _from, state) do
-    {:reply, Map.fetch!(state.servers, server_id) |> elem(1), state}
+    if server_id not in state.servers, do: raise("Server not registered")
+
+    dump =
+      transaction!(fn ->
+        Memento.Query.select(
+          __MODULE__.Table,
+          {:==, :server, server_id}
+        )
+      end)
+
+    {:reply, dump, state}
   end
 
   def handle_call({:author_is_privileged, _server_id, author_id}, _from, state) do
@@ -298,26 +344,31 @@ defmodule Service.Dummy do
            new_state: %__MODULE__{}
          }
   defp do_add_new_msg({server_id, channel, user, text, ref}, state) do
-    buf_updated =
-      Map.fetch!(state.servers, server_id)
-      |> elem(1)
-      |> Map.update(channel, {0, [{user, text, ref}]}, fn {last_id, lst} ->
-        {last_id + 1, [{user, text, ref} | lst]}
-      end)
+    record =
+      Dummy.Table.new(%{
+        server_id: server_id,
+        channel: channel,
+        user: user,
+        body: text,
+        referenced_msg_id: ref
+      })
 
-    msg_id = {server_id, channel, user, buf_updated |> Map.fetch!(channel) |> elem(1)}
+    msg_id =
+      transaction!(fn ->
+        Memento.Query.write(record)
+        |> Map.fetch!(:id)
+      end)
 
     msg_object = into_msg({msg_id, text, ref})
-
-    new_state =
-      Map.update!(state.servers, server_id, fn {cfg, _} ->
-        {cfg, buf_updated}
-      end)
 
     %{
       msg_id: msg_id,
       msg_object: msg_object,
-      new_state: new_state
+      new_state: state
     }
+  end
+
+  defp transaction!(f) do
+    Memento.Transaction.execute!(f, 10)
   end
 end
