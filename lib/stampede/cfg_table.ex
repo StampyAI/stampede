@@ -164,7 +164,7 @@ defmodule Stampede.CfgTable do
   Insert new server config while running. Will be lost at reboot.
   """
   def insert_cfg(cfg) do
-    Logger.info("adding #{cfg.service} server #{cfg.server_id}")
+    Logger.info("adding #{cfg.service |> inspect()} server #{cfg.server_id |> inspect()}")
 
     schema = apply(cfg.service, :site_config_schema, [])
     _ = SiteConfig.revalidate!(cfg, schema)
