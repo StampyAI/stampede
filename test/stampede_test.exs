@@ -25,7 +25,7 @@ defmodule StampedeTest do
     plugs: MapSet.new([Plugin.Test, Plugin.Sentience, Plugin.Why])
   }
   setup_all do
-    return = %{
+    %{
       app_pid:
         Stampede.Application.start(
           :normal,
@@ -36,13 +36,6 @@ defmodule StampedeTest do
           clear_state: true
         )
     }
-
-    {
-      :sys.get_state(Service.Dummy)
-    }
-    |> IO.inspect(pretty: true)
-
-    return
   end
 
   setup context do
@@ -51,11 +44,6 @@ defmodule StampedeTest do
     if Map.get(context, :dummy, false) do
       :ok = D.new_server(id, MapSet.new([Plugin.Test, Plugin.Sentience, Plugin.Why]))
     end
-
-    {
-      :sys.get_state(Service.Dummy)
-    }
-    |> IO.inspect(pretty: true)
 
     %{id: id}
   end

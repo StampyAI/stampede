@@ -296,7 +296,6 @@ defmodule Service.Dummy do
             {item.id, {item.user, item.body, item.referenced_msg_id}}
         end)
       end)
-      |> IO.inspect(pretty: true)
 
     {:reply, history, state}
   end
