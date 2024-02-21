@@ -32,6 +32,7 @@ defmodule Plugin.Why do
                 confidence: valid_confidence,
                 text:
                   "It looks like you're asking about one of my messages, but you didn't reference which one.",
+                origin_msg_id: msg.id,
                 why: ["User didn't reference any message."]
               )
 
@@ -42,6 +43,7 @@ defmodule Plugin.Why do
                   Response.new(
                     confidence: valid_confidence,
                     text: traceback,
+                    origin_msg_id: msg.id,
                     why: ["User asked why I said something, so I told them."]
                   )
 
@@ -49,6 +51,7 @@ defmodule Plugin.Why do
                   Response.new(
                     confidence: valid_confidence,
                     text: msg_fail(),
+                    origin_msg_id: msg.id,
                     why: [
                       "We checked for an interaction from message ",
                       S.pp(ref),

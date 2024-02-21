@@ -95,7 +95,11 @@ defmodule SiteConfig do
   end
 
   @doc "take input config as keywords, transform as necessary, validate, and return as map"
-  @spec! validate!(keyword(), nil | schema(), [] | list((keyword(), schema() -> keyword()))) ::
+  @spec! validate!(
+           kwlist :: keyword(),
+           schema :: nil | schema(),
+           additional_transforms :: [] | list((keyword(), schema() -> keyword()))
+         ) ::
            SiteConfig.t()
   def validate!(kwlist, schema \\ nil, additional_transforms \\ []) do
     schema = schema || Keyword.fetch!(kwlist, :service) |> schema()
@@ -111,6 +115,17 @@ defmodule SiteConfig do
 
     Enum.reduce(transforms ++ additional_transforms, kwlist, fn f, acc ->
       f.(acc, schema)
+    end)
+    |> NimbleOptions.validate!(schema)
+    |> Map.new()
+  end
+
+  @spec! revalidate!(kwlist :: keyword() | map(), schema :: nil | schema()) :: SiteConfig.t()
+  def revalidate!(cfg, schema) do
+    cfg
+    |> then(fn
+      l when is_list(l) -> l
+      m when is_map(m) -> Map.to_list(m)
     end)
     |> NimbleOptions.validate!(schema)
     |> Map.new()
@@ -192,7 +207,6 @@ defmodule SiteConfig do
         load(path)
         |> Map.put(:filename, site_name)
 
-      # IO.puts("got config #{S.pp(config)}") # DEBUG
       service = Map.fetch!(config, :service)
       server_id = Map.fetch!(config, :server_id)
 

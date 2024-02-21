@@ -286,7 +286,7 @@ defmodule Service.Discord.Handler do
     our_msg =
       Discord.into_msg(discord_msg)
 
-    our_cfg = S.CfgTable.get_server(Discord, our_msg.server_id)
+    our_cfg = S.CfgTable.get_cfg!(Discord, our_msg.server_id)
 
     case Plugin.get_top_response(our_cfg, our_msg) do
       %Response{text: r_text} when r_text != nil ->

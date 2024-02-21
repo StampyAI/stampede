@@ -92,7 +92,6 @@ defmodule Stampede.MixProject do
         :error_handling,
         :no_improper_lists
       ],
-      ignore_warnings: "config/dialyzer.ignore",
       plt_core_path: "priv/plts",
       plt_file: {:no_warn, "priv/plts/dialyzer.plt"}
     ]

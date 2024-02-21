@@ -54,9 +54,14 @@ defmodule StampedeTest do
       assert nil == D.send_msg(s.id, :t1, :u1, "no response")
       assert "pong!" == D.send_msg(s.id, :t1, :u1, "!ping") |> Map.fetch!(:text)
 
-      assert D.channel_history(s.id, :t1) ==
-               [{0, :u1, "no response"}, {1, :u1, "!ping"}, {2, :server, "pong!"}]
-               |> Enum.reverse()
+      assert match?(
+               [
+                 {_, {:u1, "no response", nil}},
+                 {cause_id, {:u1, "!ping", nil}},
+                 {_, {:server, "pong!", cause_id}}
+               ],
+               D.channel_history(s.id, :t1)
+             )
     end
 
     test "ignores messages from other servers", s do
@@ -65,9 +70,15 @@ defmodule StampedeTest do
       assert "pong!" == D.send_msg(s.id, :t1, :u1, "!ping") |> Map.fetch!(:text)
       assert nil == D.send_msg(:shouldnt_exist, :t1, :u1, "!ping")
 
-      assert D.channel_history(s.id, :t1) ==
-               [{0, :nope, "nada"}, {1, :abc, "def"}, {2, :u1, "!ping"}, {3, :server, "pong!"}]
-               |> Enum.reverse()
+      assert match?(
+               [
+                 {_, {:nope, "nada", nil}},
+                 {_, {:abc, "def", nil}},
+                 {cause_id, {:u1, "!ping", nil}},
+                 {_, {:server, "pong!", cause_id}}
+               ],
+               D.channel_history(s.id, :t1)
+             )
     end
 
     test "plugin raising", s do
@@ -80,8 +91,10 @@ defmodule StampedeTest do
              |> String.contains?("SillyError"),
              "error not being logged"
 
-      assert D.channel_history(s.id, :t1) ==
-               [{0, :u1, "!raise"}, {1, :server, @confused_response}] |> Enum.reverse()
+      assert match?(
+               [{cause_id, {:u1, "!raise", nil}}, {_, {:server, @confused_response, cause_id}}],
+               D.channel_history(s.id, :t1)
+             )
     end
 
     test "plugin throwing", s do
@@ -94,8 +107,10 @@ defmodule StampedeTest do
              |> String.contains?("SillyThrow"),
              "error not being logged"
 
-      assert D.channel_history(s.id, :t1) ==
-               [{0, :u1, "!throw"}, {1, :server, @confused_response}] |> Enum.reverse()
+      assert match?(
+               [{cause_id, {:u1, "!throw", nil}}, {_, {:server, @confused_response, cause_id}}],
+               D.channel_history(s.id, :t1)
+             )
     end
 
     test "plugin with callback", s do
@@ -131,7 +146,11 @@ defmodule StampedeTest do
     @describetag :dummy
     test "one message", s do
       D.send_msg(s.id, :t1, :u1, "lol")
-      assert D.channel_history(s.id, :t1) == [{0, :u1, "lol"}]
+
+      assert match?(
+               [{_, {:u1, "lol", nil}}],
+               D.channel_history(s.id, :t1)
+             )
     end
 
     test "many messages", s do
@@ -140,13 +159,15 @@ defmodule StampedeTest do
         |> Enum.map(fn x ->
           {:t1, :u1, "#{x}"}
         end)
-        |> Enum.reduce({[], 0}, fn {a, u, m}, {lst, i} ->
+        |> Enum.reduce({[], 0}, fn {a, u, m}, lst ->
           D.send_msg(s.id, a, u, m)
-          {[{i, u, m} | lst], i + 1}
+          [{:_, {u, m, nil}} | lst]
         end)
-        |> elem(0)
 
-      assert D.channel_history(s.id, :t1) == dummy_messages
+      assert match?(
+               dummy_messages,
+               D.channel_history(s.id, :t1)
+             )
     end
   end
 
@@ -178,23 +199,24 @@ defmodule StampedeTest do
       %{posted_msg_id: posted_msg_id} = D.send_msg(s.id, :t1, :u1, "!ping", return_id: true)
       :timer.sleep(100)
       # check interaction was logged, without Why plugin
-      slug = S.Interact.get({s.id, :t1, :u1, 0})
+      slug = S.Interact.get(posted_msg_id)
       assert match?({:ok, %S.Interact.IntTable{}}, slug)
     end
 
     test "Why plugin returns trace", s do
       %{posted_msg_id: posted_msg_id} = D.send_msg(s.id, :t1, :u1, "!ping", return_id: true)
-      msg_num = posted_msg_id |> elem(3)
       :timer.sleep(100)
 
-      D.send_msg(s.id, :t1, :u1, "!Why did you say that, specifically? @Msg_#{msg_num}")
+      D.send_msg(s.id, :t1, :u1, "!Why did you say that, specifically?", ref: posted_msg_id)
       |> Map.fetch!(:text)
       |> Plugin.Why.Debugging.probably_a_traceback()
       |> assert("couldn't find traceback, maybe regex needs update?")
     end
 
     test "Why plugin returns error on bad ID", s do
-      D.send_msg(s.id, :t1, :u1, "!Why did you say that, specifically? @Msg_9999")
+      D.send_msg(s.id, :t1, :u1, "!Why did you say that, specifically?",
+        ref: {s.id, :t1, :system, 9999}
+      )
       |> Map.fetch!(:text)
       |> String.match?(Regex.compile!(Plugin.Why.msg_fail()))
       |> assert()

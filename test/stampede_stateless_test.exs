@@ -21,7 +21,7 @@ defmodule StampedeStatelessTest do
     error_channel_id: :error,
     prefix: "!",
     plugs: MapSet.new([Plugin.Test, Plugin.Sentience]),
-    vip_ids: MapSet.new(),
+    vip_ids: MapSet.new([:server]),
     dm_handler: true
   }
 
@@ -108,18 +108,6 @@ defmodule StampedeStatelessTest do
       assert String.starts_with?(cbr.text, "Called back with")
     end
 
-    test "dummy channel_buffers" do
-      example_history = %{
-        c1: [{1, :a1, "m1"}, {0, :a2, "m2"}],
-        c2: [{1, :a3, "m4"}, {0, :a3, "m3"}]
-      }
-
-      assert D.channel_buffers_append(example_history, {:c2, :a4, "m5"}) == %{
-               c1: [{1, :a1, "m1"}, {0, :a2, "m2"}],
-               c2: [{2, :a4, "m5"}, {1, :a3, "m4"}, {0, :a3, "m3"}]
-             }
-    end
-
     test "SiteConfig load" do
       verified = SiteConfig.load_from_string(@dummy_cfg)
       assert verified == @dummy_cfg_verified
@@ -182,9 +170,20 @@ defmodule StampedeStatelessTest do
     end
   end
 
-  test "Why reference get" do
-    assert {:server, :channel, :user, 22} ==
-             "test msg @Msg_22"
-             |> Service.Dummy.get_reference({:server, :channel, :user})
+  describe "cfg_table" do
+    test "do_vips_configured" do
+      result =
+        %{
+          Service.Dummy => %{
+            foo: %{
+              server_id: :foo,
+              vip_ids: MapSet.new([:bar, :baz])
+            }
+          }
+        }
+        |> S.CfgTable.do_vips_configured(Service.Dummy)
+
+      assert result == %{foo: MapSet.new([:bar, :baz])}
+    end
   end
 end

@@ -1,7 +1,42 @@
+defmodule Service.Dummy.Table do
+  use TypeCheck
+  alias Stampede.Msg
+  alias Stampede.Response
+  alias Stampede, as: S
+
+  use Memento.Table,
+    attributes: [:id, :datetime, :server_id, :channel, :user, :body, :referenced_msg_id],
+    type: :ordered_set,
+    access_mode: :read_write,
+    autoincrement: true,
+    index: [:datetime]
+
+  def new(record) when is_map(record) do
+    record
+    |> Map.put_new(:id, nil)
+    |> Map.put_new(:datetime, S.time())
+    |> then(&struct!(__MODULE__, &1 |> Map.to_list()))
+  end
+
+  def validate!(record) when is_struct(record, __MODULE__) do
+    TypeCheck.conforms!(record, %__MODULE__{
+      id: nil | integer(),
+      datetime: S.timestamp(),
+      server_id: atom(),
+      channel: atom(),
+      user: atom(),
+      body: any(),
+      referenced_msg_id: nil | integer()
+    })
+  end
+end
+
 defmodule Service.Dummy do
   require Logger
   use GenServer
   use TypeCheck
+  use TypeCheck.Defstruct
+  alias Service.Dummy
   alias Stampede, as: S
   require S
   alias S.{Msg, Response}
@@ -10,20 +45,30 @@ defmodule Service.Dummy do
 
   # Imaginary server types
   @opaque! dummy_user_id :: atom()
-  @opaque! dummy_channel_id :: atom()
+  @opaque! dummy_channel_id :: atom() | nil
   @opaque! dummy_server_id :: identifier() | atom()
-  @opaque! dummy_msg_index :: integer()
-  @type! dummy_msg_id ::
-           {dummy_server_id(), dummy_channel_id(), dummy_user_id(), dummy_msg_index()}
+  @type! dummy_msg_id :: integer()
   # "one channel"
   @typep! msg_content :: String.t() | nil
-  # one message, tagged with channel
-  @typep! msg_tuple :: {dummy_channel_id(), dummy_user_id(), msg_content()}
-  @typep! channel :: list({dummy_msg_index(), dummy_user_id(), msg_content()})
+  @typep! msg_reference :: nil | dummy_msg_id()
+  # internal representation of messages
+  @typep! msg_tuple ::
+            {id :: dummy_msg_id(),
+             {user :: dummy_user_id(), body :: msg_content(), ref :: msg_reference()}}
+  @typedoc """
+  Tuple format for adding new messages
+  """
+  @type! msg_tuple_incoming ::
+           {server_id :: dummy_server_id(), channel :: dummy_channel_id(),
+            user :: dummy_user_id(), body :: msg_content(), ref :: msg_reference()}
+  @typep! channel :: list(msg_tuple())
   # multiple channels
   @typep! channel_buffers :: %{dummy_channel_id() => channel()} | %{}
-  @typep! dummy_servers :: %{dummy_server_id() => {SiteConfig.t(), channel_buffers()}}
-  @typep! dummy_state :: dummy_servers() | %{}
+
+  defstruct!(
+    servers: _ :: MapSet.t(atom()),
+    vip_ids: _ :: S.CfgTable.vips()
+  )
 
   @system_user :server
 
@@ -35,7 +80,7 @@ defmodule Service.Dummy do
               ],
               server_id: [
                 required: true,
-                type: :any
+                type: :atom
               ],
               error_channel_id: [
                 default: :error,
@@ -48,6 +93,9 @@ defmodule Service.Dummy do
               plugs: [
                 default: ["Test", "Sentience"],
                 type: {:custom, SiteConfig, :real_plugins, []}
+              ],
+              vip_ids: [
+                default: MapSet.new([@system_user])
               ]
             )
           )
@@ -85,7 +133,7 @@ defmodule Service.Dummy do
          ) ::
            %{response: nil | Response.t(), posted_msg_id: dummy_msg_id()} | nil | Response.t()
   def send_msg(server_id, channel, user, text, opts \\ []) do
-    GenServer.call(__MODULE__, {:add_msg, {server_id, channel, user, text}, opts})
+    GenServer.call(__MODULE__, {:add_msg, {server_id, channel, user, text, opts[:ref]}, opts})
   end
 
   @impl Service
@@ -106,12 +154,10 @@ defmodule Service.Dummy do
   def log_serious_error(_), do: :ok
 
   @impl Service
-  def into_msg({msg_id = {server_id, channel, user, _id}, text}) do
-    ref = get_reference(text, {server_id, channel, user})
-
+  def into_msg({id, server_id, channel, user, body, ref}) do
     Msg.new(
-      id: msg_id,
-      body: text,
+      id: id,
+      body: body,
       channel_id: channel,
       author_id: user,
       server_id: server_id,
@@ -120,7 +166,9 @@ defmodule Service.Dummy do
   end
 
   @impl Service
-  def reload_configs(), do: :ok
+  def reload_configs() do
+    GenServer.call(__MODULE__, :reload_configs)
+  end
 
   @impl Service
   def author_is_privileged(server_id, author_id) do
@@ -143,58 +191,67 @@ defmodule Service.Dummy do
     GenServer.call(__MODULE__, {:server_dump, server_id})
   end
 
-  def new_server(new_server_id, plugs \\ nil) do
-    GenServer.call(__MODULE__, {:new_server, new_server_id, plugs})
+  def new_server(cfg_kwlist) when is_list(cfg_kwlist) do
+    cfg_kwlist
+    |> Keyword.put(:service, :dummy)
+    |> SiteConfig.validate!(site_config_schema())
+    |> S.CfgTable.insert_cfg()
+
+    Process.sleep(100)
+
+    :ok
+  end
+
+  def new_server(new_server_id, plugs \\ nil) when not is_list(new_server_id) do
+    args =
+      [
+        server_id: new_server_id
+      ] ++ if plugs, do: [plugs: plugs], else: []
+
+    new_server(args)
   end
 
   # PLUMBING
 
+  @spec! update_state() :: %__MODULE__{}
+  defp update_state() do
+    struct!(
+      __MODULE__,
+      servers: S.CfgTable.servers_configured(__MODULE__),
+      vip_ids: S.CfgTable.vips_configured(__MODULE__)
+    )
+  end
+
+  @spec! update_state(%__MODULE__{}) :: %__MODULE__{}
+  defp update_state(_ignored_state) do
+    update_state()
+  end
+
   @impl GenServer
-  @spec! init(Keyword.t()) :: {:ok, dummy_state()}
+  @spec! init(Keyword.t()) :: {:ok, %__MODULE__{}}
   def init(_) do
-    Logger.metadata(stampede_component: :dummy)
-
     # Service.register_logger(registry, __MODULE__, self())
-    {:ok, Map.new()}
+    :ok = S.ensure_tables_exist([Service.Dummy.Table])
+    {:ok, update_state()}
   end
 
   @impl GenServer
-  def handle_call({:new_server, id, plugs}, _from, servers) do
-    Logger.debug("new Dummy server #{id}")
-
-    if Map.get(servers, id, false) do
-      {:reply, {:error, :already_exists}}
-    else
-      new_cfg =
-        [
-          service: :dummy,
-          server_id: id
-        ]
-        |> S.keyword_put_new_if_not_falsy(:plugs, plugs)
-        |> SiteConfig.validate!(site_config_schema())
-
-      new_state = Map.put(servers, id, {new_cfg, Map.new()})
-      {:reply, :ok, new_state}
-    end
-  end
-
-  # if opts has key :return_id, returns the id of posted message along with any response msg
   def handle_call(
-        {:add_msg, msg_tuple = {server_id, channel, _user, _text}, opts},
+        {:add_msg, msg_tuple = {server_id, channel, _user, _text, _ref}, opts},
         _from,
-        servers
+        state
       ) do
-    if not Map.has_key?(servers, server_id) do
+    if server_id not in state.servers do
       # ignore unconfigured server
-      {:reply, nil, servers}
+      {:reply, nil, state}
     else
       %{
         msg_id: incoming_msg_id,
         msg_object: incoming_msg,
         new_state: new_state_1
-      } = do_add_new_msg(msg_tuple, servers)
+      } = do_add_new_msg(msg_tuple, state)
 
-      cfg = Map.fetch!(servers, server_id) |> elem(0)
+      cfg = S.CfgTable.get_cfg!(__MODULE__, server_id)
       response = Plugin.get_top_response(cfg, incoming_msg)
 
       result =
@@ -209,31 +266,57 @@ defmodule Service.Dummy do
             {:reply, %{response: nil, posted_msg_id: incoming_msg_id}, new_state_1}
         end
 
+      # if opts has key :return_id, returns the id of posted message along with any response msg
       case Keyword.get(opts, :return_id, false) do
         true ->
           result
 
         false ->
-          {_status, %{response: response}, _state} = result
+          {status, %{response: response}, state} = result
 
-          result
-          |> Tuple.delete_at(1)
-          |> Tuple.insert_at(1, response)
+          {status, response, state}
       end
     end
   end
 
-  def handle_call({:channel_history, server_id, channel}, _from, servers) do
-    {:reply, Map.fetch!(servers, server_id) |> elem(1) |> Map.fetch!(channel), servers}
+  def handle_call({:channel_history, server_id, channel}, _from, state) do
+    if server_id not in state.servers, do: raise("Server not registered")
+
+    history =
+      transaction!(fn ->
+        Memento.Query.select(
+          __MODULE__.Table,
+          [
+            {:==, :channel, channel},
+            {:==, :server_id, server_id}
+          ]
+        )
+        |> Enum.map(fn
+          item ->
+            {item.id, {item.user, item.body, item.referenced_msg_id}}
+        end)
+      end)
+
+    {:reply, history, state}
   end
 
-  def handle_call({:server_dump, server_id}, _from, servers) do
-    {:reply, Map.fetch!(servers, server_id) |> elem(1), servers}
+  def handle_call({:server_dump, server_id}, _from, state) do
+    if server_id not in state.servers, do: raise("Server not registered")
+
+    dump =
+      transaction!(fn ->
+        Memento.Query.select(
+          __MODULE__.Table,
+          {:==, :server, server_id}
+        )
+      end)
+
+    {:reply, dump, state}
   end
 
   def handle_call({:author_is_privileged, _server_id, author_id}, _from, state) do
     case author_id do
-      :admin ->
+      @system_user ->
         {:reply, true, state}
 
       _other ->
@@ -241,52 +324,51 @@ defmodule Service.Dummy do
     end
   end
 
-  @spec! channel_buffers_append(channel_buffers(), msg_tuple()) :: channel_buffers()
-  def channel_buffers_append(bufs, {channel, user, msg}) do
-    Map.update(bufs, channel, [{0, user, msg}], fn lst = [{last_id, _, _} | _] ->
-      [{last_id + 1, user, msg} | lst]
-    end)
+  def handle_call(:reload_configs, _from, state) do
+    {
+      :reply,
+      :ok,
+      update_state(state)
+    }
   end
 
-  defp do_post_response({server_id, channel}, response, servers)
+  defp do_post_response({server_id, channel}, response, state)
        when is_struct(response, Response) do
-    {server_id, channel, @system_user, response.text}
-    |> do_add_new_msg(servers)
+    {server_id, channel, @system_user, response.text, response.origin_msg_id}
+    |> do_add_new_msg(state)
   end
 
-  @spec! do_add_new_msg(tuple(), dummy_state()) :: %{
+  @spec! do_add_new_msg(tuple(), %__MODULE__{}) :: %{
            msg_id: dummy_msg_id(),
            msg_object: %Msg{},
-           new_state: dummy_state()
+           new_state: %__MODULE__{}
          }
-  defp do_add_new_msg({server_id, channel, user, text}, servers) do
-    {_cfg, buf} = Map.fetch!(servers, server_id)
+  defp do_add_new_msg(msg_tuple = {server_id, channel, user, text, ref}, state) do
+    record =
+      Dummy.Table.new(%{
+        server_id: server_id,
+        channel: channel,
+        user: user,
+        body: text,
+        referenced_msg_id: ref
+      })
 
-    buf_updated = channel_buffers_append(buf, {channel, user, text})
-
-    msg_id = {server_id, channel, user, buf_updated |> Map.fetch!(channel) |> hd() |> elem(0)}
-
-    msg_object = into_msg({msg_id, text})
-
-    new_state =
-      Map.update!(servers, server_id, fn {cfg, _} ->
-        {cfg, buf_updated}
+    msg_id =
+      transaction!(fn ->
+        Memento.Query.write(record)
+        |> Map.fetch!(:id)
       end)
+
+    msg_object = into_msg(msg_tuple |> Tuple.insert_at(0, msg_id))
 
     %{
       msg_id: msg_id,
       msg_object: msg_object,
-      new_state: new_state
+      new_state: state
     }
   end
 
-  def get_reference(text, {server_id, channel, user}) do
-    case Regex.run(~r/@Msg_(\d+)$/, text, capture: :all_but_first) do
-      [id] ->
-        {server_id, channel, user, id |> String.to_integer()}
-
-      nil ->
-        nil
-    end
+  defp transaction!(f) do
+    Memento.Transaction.execute!(f, 10)
   end
 end
