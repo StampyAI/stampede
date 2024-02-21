@@ -6,8 +6,16 @@ defmodule Plugin do
   require Interaction
   @first_response_timeout 500
 
+  @typedoc """
+  Describe uses for a plugin in a input-output manner, no prefix included.
+  - {"help sentience", "(prints the help for the Sentience plugin)"}
+  - "Usage example not fitting the tuple format"
+  """
+  @type! usage_tuples :: list(String.t() | {String.t(), String.t()})
   @callback process_msg(SiteConfig.t(), Msg.t()) :: nil | Response.t()
   @callback is_at_module(SiteConfig.t(), Msg.t()) :: boolean() | {:cleaned, text :: String.t()}
+  @callback usage() :: usage_tuples()
+  @callback description() :: String.t()
 
   defmacro __using__(_opts \\ []) do
     quote do

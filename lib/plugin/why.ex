@@ -2,21 +2,44 @@ defmodule Plugin.Why do
   use TypeCheck
   require Stampede.Response
   alias Plugin.Why.Debugging
-  alias TypeCheck.Internals.UserTypes.Stampede.Response
   alias Stampede, as: S
-  alias S.{Msg, Response, Interaction}
+  alias S.{Response, Interaction}
   require Interaction
 
   use Plugin
 
   def msg_fail(), do: "Couldn't find an interaction for that message."
 
+  def at_module_regex(),
+    do:
+      ~r/[Ww]h(?:(?:y did)|(?:at made)) you say th(?:(?:at)|(?:is))(?P<specific>,? specifically)?/
+
+  @impl Plugin
+  def usage() do
+    [
+      "Magic phrase: `(why did/what made) you say (that/this)[, specifically][?]`",
+      {"why did you say that? (tagging bot message)", "(reason for posting this message)"},
+      {"what made you say that, specifically? (tagging bot message)",
+       "(full traceback of the creation of this message)"},
+      {"why did you say this (tagging unknown message)", msg_fail()}
+    ]
+  end
+
+  @impl Plugin
+  def description() do
+    """
+    Explains the bot's reasoning for posting a particular message, if it remembers it. Summoned with "why did you say that?" for a short summary. Remember to identify the message you want; on Discord, this is the "reply" function. If you want a full traceback, ask with "specifically".
+
+    Full regex: #{at_module_regex() |> Regex.source()}
+    """
+  end
+
+  @impl Plugin
   @spec! process_msg(SiteConfig.t(), S.Msg.t()) :: nil | S.Response.t()
   def process_msg(cfg, msg) do
     valid_confidence = 10
 
-    at_module =
-      ~r/[Ww]h(?:(?:y did)|(?:at made)) you say th(?:(?:at)|(?:is))(?P<specific>,? specifically)?/
+    at_module = at_module_regex()
 
     case is_at_module(cfg, msg) do
       false ->

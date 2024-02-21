@@ -2,6 +2,22 @@ defmodule Plugin.Sentience do
   use TypeCheck
   alias Stampede, as: S
   require S.Response
+
+  use Plugin
+
+  @impl Plugin
+  def usage() do
+    [
+      {"Stampede, gibjbjgfirifjg", S.confused_response()}
+    ]
+  end
+
+  @impl Plugin
+  def description() do
+    "This plugin only responds when Stampede was specifically requested, but all other plugins failed."
+  end
+
+  @impl Plugin
   @spec! process_msg(SiteConfig.t(), S.Msg.t()) :: nil | S.Response.t()
   def process_msg(cfg, msg) do
     if S.strip_prefix(SiteConfig.fetch!(cfg, :prefix), msg.body) do

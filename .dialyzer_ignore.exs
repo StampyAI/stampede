@@ -33,5 +33,6 @@
   {"lib/stampede.ex", "Function throw_internal_error/0 has no local return."},
   {"lib/stampede.ex", "Function throw_internal_error/1 only terminates with explicit exception."},
   {"lib/stampede/interact.ex", "Function mod_state/0 has no local return."},
-  {"deps/type_check/lib/type_check/spec.ex", "The pattern can never match the type {:ok, [], _}."}
+  {"deps/type_check/lib/type_check/spec.ex", "The pattern can never match the type {:ok, [], _}."},
+  {"lib/plugin.ex", "Function usage_tuples/0 has no local return."}
 ]

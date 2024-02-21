@@ -7,6 +7,23 @@ defmodule Plugin.Test do
 
   # TODO: make all except ping only respond to admins
 
+  @impl Plugin
+  def usage() do
+    [
+      {"ping", "pong!"},
+      {"callback", "(shows callback replies work)"},
+      {"a", "(shows channel locks work)"},
+      {"timeout", "(shows that plugins which time out won't disrupt other plugins)"},
+      {"raise", "(raises an error which should be reported)"},
+      {"throw", "(causes a throw which should be reported)"}
+    ]
+  end
+
+  @impl Plugin
+  def description() do
+    "A set of functions for testing Stampede functionality."
+  end
+
   @spec! process_msg(any(), S.Msg.t()) :: nil | S.Response.t()
   @impl Plugin
   def process_msg(cfg, msg) do
