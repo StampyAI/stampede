@@ -198,15 +198,18 @@ defmodule Stampede.Interact do
         responding_plug: rec.response.origin_plug,
         response: rec.response.text,
         channel_lock:
-        if rec.channel_lock do
-          rec.channel_lock |> inspect()
-        else
-          false
-        end
+          if rec.channel_lock do
+            rec.channel_lock |> inspect()
+          else
+            false
+          end
       ]
 
       [
-        "NEW INTERACTION ", inspect(rec.id), "\n", to_print |> S.pp()
+        "NEW INTERACTION ",
+        inspect(rec.id),
+        "\n",
+        to_print |> S.pp()
       ]
     end)
   end
