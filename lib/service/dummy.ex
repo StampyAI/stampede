@@ -5,7 +5,7 @@ defmodule Service.Dummy.Table do
   alias Stampede, as: S
 
   use Memento.Table,
-    attributes: [:id, :datetime, :server, :channel, :user, :body, :referenced_msg_id],
+    attributes: [:id, :datetime, :server_id, :channel, :user, :body, :referenced_msg_id],
     type: :ordered_set,
     access_mode: :read_write,
     autoincrement: true,
@@ -15,14 +15,14 @@ defmodule Service.Dummy.Table do
     record
     |> Map.put_new(:id, nil)
     |> Map.put_new(:datetime, S.time())
-    |> validate!()
+    |> then(&struct!(__MODULE__, &1 |> Map.to_list()))
   end
 
   def validate!(record) when is_struct(record, __MODULE__) do
     TypeCheck.conforms!(record, %__MODULE__{
       id: nil | integer(),
       datetime: S.timestamp(),
-      server: atom(),
+      server_id: atom(),
       channel: atom(),
       user: atom(),
       body: any(),
@@ -47,14 +47,14 @@ defmodule Service.Dummy do
   @opaque! dummy_user_id :: atom()
   @opaque! dummy_channel_id :: atom() | nil
   @opaque! dummy_server_id :: identifier() | atom()
-  @opaque! dummy_msg_index :: integer()
-  @type! dummy_msg_id ::
-           {dummy_server_id(), dummy_channel_id(), dummy_user_id(), dummy_msg_index()}
+  @type! dummy_msg_id :: integer()
   # "one channel"
   @typep! msg_content :: String.t() | nil
   @typep! msg_reference :: nil | dummy_msg_id()
   # internal representation of messages
-  @typep! msg_tuple :: {user :: dummy_user_id(), body :: msg_content(), ref :: msg_reference()}
+  @typep! msg_tuple ::
+            {id :: dummy_msg_id(),
+             {user :: dummy_user_id(), body :: msg_content(), ref :: msg_reference()}}
   @typedoc """
   Tuple format for adding new messages
   """
@@ -64,7 +64,6 @@ defmodule Service.Dummy do
   @typep! channel :: list(msg_tuple())
   # multiple channels
   @typep! channel_buffers :: %{dummy_channel_id() => channel()} | %{}
-  @typep! dummy_servers :: %{dummy_server_id() => {SiteConfig.t(), channel_buffers()}}
 
   defstruct!(
     servers: _ :: MapSet.t(atom()),
@@ -134,7 +133,7 @@ defmodule Service.Dummy do
          ) ::
            %{response: nil | Response.t(), posted_msg_id: dummy_msg_id()} | nil | Response.t()
   def send_msg(server_id, channel, user, text, opts \\ []) do
-    GenServer.call(__MODULE__, {:add_msg, {server_id, channel, user, text}, opts})
+    GenServer.call(__MODULE__, {:add_msg, {server_id, channel, user, text, opts[:ref]}, opts})
   end
 
   @impl Service
@@ -155,10 +154,10 @@ defmodule Service.Dummy do
   def log_serious_error(_), do: :ok
 
   @impl Service
-  def into_msg({msg_id = {server_id, channel, user, _id}, text, ref}) do
+  def into_msg({id, server_id, channel, user, body, ref}) do
     Msg.new(
-      id: msg_id,
-      body: text,
+      id: id,
+      body: body,
       channel_id: channel,
       author_id: user,
       server_id: server_id,
@@ -238,12 +237,10 @@ defmodule Service.Dummy do
 
   @impl GenServer
   def handle_call(
-        {:add_msg, msg_tuple = {server_id, channel, _user, _text}, opts},
+        {:add_msg, msg_tuple = {server_id, channel, _user, _text, _ref}, opts},
         _from,
         state
       ) do
-    ref = opts[:ref]
-
     if server_id not in state.servers do
       # ignore unconfigured server
       {:reply, nil, state}
@@ -252,7 +249,7 @@ defmodule Service.Dummy do
         msg_id: incoming_msg_id,
         msg_object: incoming_msg,
         new_state: new_state_1
-      } = do_add_new_msg(msg_tuple |> Tuple.append(ref), state.servers)
+      } = do_add_new_msg(msg_tuple, state)
 
       cfg = S.CfgTable.get_cfg!(__MODULE__, server_id)
       response = Plugin.get_top_response(cfg, incoming_msg)
@@ -291,9 +288,13 @@ defmodule Service.Dummy do
           __MODULE__.Table,
           [
             {:==, :channel, channel},
-            {:==, :server, server_id}
+            {:==, :server_id, server_id}
           ]
         )
+        |> Enum.map(fn
+          item ->
+            {item.id, {item.user, item.body, item.referenced_msg_id}}
+        end)
       end)
       |> IO.inspect(pretty: true)
 
@@ -335,7 +336,7 @@ defmodule Service.Dummy do
   defp do_post_response({server_id, channel}, response, state)
        when is_struct(response, Response) do
     {server_id, channel, @system_user, response.text, response.origin_msg_id}
-    |> do_add_new_msg(state.servers)
+    |> do_add_new_msg(state)
   end
 
   @spec! do_add_new_msg(tuple(), %__MODULE__{}) :: %{
@@ -343,7 +344,7 @@ defmodule Service.Dummy do
            msg_object: %Msg{},
            new_state: %__MODULE__{}
          }
-  defp do_add_new_msg({server_id, channel, user, text, ref}, state) do
+  defp do_add_new_msg(msg_tuple = {server_id, channel, user, text, ref}, state) do
     record =
       Dummy.Table.new(%{
         server_id: server_id,
@@ -359,7 +360,7 @@ defmodule Service.Dummy do
         |> Map.fetch!(:id)
       end)
 
-    msg_object = into_msg({msg_id, text, ref})
+    msg_object = into_msg(msg_tuple |> Tuple.insert_at(0, msg_id))
 
     %{
       msg_id: msg_id,

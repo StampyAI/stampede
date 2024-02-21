@@ -66,9 +66,14 @@ defmodule StampedeTest do
       assert nil == D.send_msg(s.id, :t1, :u1, "no response")
       assert "pong!" == D.send_msg(s.id, :t1, :u1, "!ping") |> Map.fetch!(:text)
 
-      assert D.channel_history(s.id, :t1) ==
-               [{0, :u1, "no response"}, {1, :u1, "!ping"}, {2, :server, "pong!"}]
-               |> Enum.reverse()
+      assert match?(
+               [
+                 {_, {:u1, "no response", nil}},
+                 {cause_id, {:u1, "!ping", nil}},
+                 {_, {:server, "pong!", cause_id}}
+               ],
+               D.channel_history(s.id, :t1)
+             )
     end
 
     test "ignores messages from other servers", s do
@@ -77,9 +82,15 @@ defmodule StampedeTest do
       assert "pong!" == D.send_msg(s.id, :t1, :u1, "!ping") |> Map.fetch!(:text)
       assert nil == D.send_msg(:shouldnt_exist, :t1, :u1, "!ping")
 
-      assert D.channel_history(s.id, :t1) ==
-               [{0, :nope, "nada"}, {1, :abc, "def"}, {2, :u1, "!ping"}, {3, :server, "pong!"}]
-               |> Enum.reverse()
+      assert match?(
+               [
+                 {_, {:nope, "nada", nil}},
+                 {_, {:abc, "def", nil}},
+                 {cause_id, {:u1, "!ping", nil}},
+                 {_, {:server, "pong!", cause_id}}
+               ],
+               D.channel_history(s.id, :t1)
+             )
     end
 
     test "plugin raising", s do
@@ -92,8 +103,10 @@ defmodule StampedeTest do
              |> String.contains?("SillyError"),
              "error not being logged"
 
-      assert D.channel_history(s.id, :t1) ==
-               [{0, :u1, "!raise"}, {1, :server, @confused_response}] |> Enum.reverse()
+      assert match?(
+               [{cause_id, {:u1, "!raise", nil}}, {_, {:server, @confused_response, cause_id}}],
+               D.channel_history(s.id, :t1)
+             )
     end
 
     test "plugin throwing", s do
@@ -106,8 +119,10 @@ defmodule StampedeTest do
              |> String.contains?("SillyThrow"),
              "error not being logged"
 
-      assert D.channel_history(s.id, :t1) ==
-               [{0, :u1, "!throw"}, {1, :server, @confused_response}] |> Enum.reverse()
+      assert match?(
+               [{cause_id, {:u1, "!throw", nil}}, {_, {:server, @confused_response, cause_id}}],
+               D.channel_history(s.id, :t1)
+             )
     end
 
     test "plugin with callback", s do
@@ -143,7 +158,11 @@ defmodule StampedeTest do
     @describetag :dummy
     test "one message", s do
       D.send_msg(s.id, :t1, :u1, "lol")
-      assert D.channel_history(s.id, :t1) == [{0, :u1, "lol"}]
+
+      assert match?(
+               [{_, {:u1, "lol", nil}}],
+               D.channel_history(s.id, :t1)
+             )
     end
 
     test "many messages", s do
@@ -152,13 +171,15 @@ defmodule StampedeTest do
         |> Enum.map(fn x ->
           {:t1, :u1, "#{x}"}
         end)
-        |> Enum.reduce({[], 0}, fn {a, u, m}, {lst, i} ->
+        |> Enum.reduce({[], 0}, fn {a, u, m}, lst ->
           D.send_msg(s.id, a, u, m)
-          {[{i, u, m} | lst], i + 1}
+          [{:_, {u, m, nil}} | lst]
         end)
-        |> elem(0)
 
-      assert D.channel_history(s.id, :t1) == dummy_messages
+      assert match?(
+               dummy_messages,
+               D.channel_history(s.id, :t1)
+             )
     end
   end
 

@@ -5,22 +5,41 @@ defmodule Stampede.CfgTable do
   use TypeCheck
   use TypeCheck.Defstruct
 
-  defstruct!(config_dir: _ :: binary())
-
   @type! vips :: map(server_id :: S.server_id(), author_id :: S.user_id())
   @type! table_object :: map(S.service_name(), map(S.server_id(), SiteConfig.t()))
 
+  defstruct!(config_dir: _ :: binary())
+
   @doc "verify table is laid out correctly, basically a type check"
-  def valid?(persisted_term) do
-    TypeCheck.conforms?(persisted_term, Stampede.CfgTable.table_object())
+  def valid?(persisted_term) when not is_map(persisted_term),
+    do: false
+
+  def valid?(persisted_term) when is_map(persisted_term) do
+    Enum.reduce(persisted_term, true, fn
+      _, false ->
+        false
+
+      {service, cfg_map}, true when is_atom(service) and is_map(cfg_map) ->
+        Enum.all?(cfg_map, fn
+          {server_id, cfg} ->
+            TypeCheck.conforms?({server_id, cfg}, {S.server_id(), SiteConfig.t()})
+        end)
+
+      _, true ->
+        false
+    end)
   end
 
   def valid!(persisted_term) do
     if valid?(persisted_term) do
       persisted_term
     else
-      raise "Invalid config\n" <> S.pp(persisted_term)
+      raise "Invalid config follows:\n" <> S.pp(persisted_term)
     end
+  end
+
+  def start_link(args) do
+    GenServer.start_link(__MODULE__, args, name: __MODULE__)
   end
 
   @spec! init(keyword()) :: {:ok, %__MODULE__{}}
@@ -64,7 +83,7 @@ defmodule Stampede.CfgTable do
         %{} -> Logger.warning("No servers detected for #{Atom.to_string(service_name)}")
         m when is_map(m) -> :ok
       end)
-      |> Map.keys()
+      |> Map.values()
       |> Enum.map(fn cfg -> cfg.server_id end)
       |> MapSet.new()
     end)
@@ -150,13 +169,14 @@ defmodule Stampede.CfgTable do
     schema = apply(cfg.service, :site_config_schema, [])
     _ = SiteConfig.revalidate!(cfg, schema)
 
-    table_dump()
-    |> Map.put_new(cfg.service, %{})
-    |> Map.update!(cfg.service, fn cfgs ->
-      Map.put(cfgs, cfg.server_id, cfg)
+    try_with_table(fn table ->
+      table
+      |> Map.put_new(cfg.service, %{})
+      |> Map.update!(cfg.service, fn cfgs ->
+        Map.put(cfgs, cfg.server_id, cfg)
+      end)
+      |> table_load()
     end)
-    |> IO.inspect(pretty: true)
-    |> :persistent_term.put(__MODULE__)
 
     Process.sleep(100)
 
@@ -167,11 +187,13 @@ defmodule Stampede.CfgTable do
   def handle_call({:reload_cfgs, new_dir}, _from, state = %{config_dir: _config_dir}) do
     :ok = publish_terms(new_dir)
 
-    table_dump()
-    |> Map.values()
-    |> Enum.map(&Map.values/1)
-    |> List.flatten()
-    |> Enum.each(&S.reload_service/1)
+    try_with_table(fn table ->
+      table
+      |> Map.values()
+      |> Enum.map(&Map.values/1)
+      |> List.flatten()
+      |> Enum.each(&S.reload_service/1)
+    end)
 
     {:noreply, state |> Map.put(:config_dir, new_dir)}
   end
