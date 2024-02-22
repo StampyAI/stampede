@@ -186,4 +186,19 @@ defmodule StampedeStatelessTest do
       assert result == %{foo: MapSet.new([:bar, :baz])}
     end
   end
+
+  describe "text formatting" do
+    test "singles" do
+      S.TxtBlock.do_apply_block()
+    end
+
+    # [
+    #  "Section types with their markdown equivalents:\n",
+    #  {:list_dot, [
+    #    [{:source, "quote_block"}, " (greater-than signs '>')"],
+    #    [{:source, "source_block"}, " (triple backticks)"],
+    #    [{:source, "source"}, " (single backticks)"],
+    #  ]}
+    # ]
+  end
 end

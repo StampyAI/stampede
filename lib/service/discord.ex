@@ -130,7 +130,7 @@ defmodule Service.Discord do
 
   @impl Service
   def txt_source_block(txt) when is_binary(txt),
-    do: S.markdown_source(txt)
+    do: S.markdown_source_block(txt)
 
   @impl Service
   def txt_quote_block(txt) when is_binary(txt),

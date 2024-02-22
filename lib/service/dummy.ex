@@ -176,10 +176,10 @@ defmodule Service.Dummy do
   end
 
   @impl Service
-  def txt_source_block(txt) when is_binary(txt), do: S.markdown_source(txt)
+  def txt_source_block(txt), do: S.markdown_source_block(txt)
 
   @impl Service
-  def txt_quote_block(txt) when is_binary(txt), do: S.markdown_quote(txt)
+  def txt_quote_block(txt), do: S.markdown_quote(txt)
 
   @spec! channel_history(dummy_server_id(), dummy_channel_id()) :: channel()
   def channel_history(server_id, channel) do

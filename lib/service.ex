@@ -1,5 +1,6 @@
 defmodule Service do
   use TypeCheck
+  alias Stampede, as: S
 
   @callback site_config_schema() :: NimbleOptions.t()
   @callback into_msg(service_message :: term()) :: %Stampede.Msg{}
@@ -13,8 +14,8 @@ defmodule Service do
   @callback reload_configs() :: :ok | {:error, any()}
   @callback author_is_privileged(server_id :: any(), author_id :: any()) :: boolean()
 
-  @callback txt_source_block(txt :: binary()) :: binary()
-  @callback txt_quote_block(txt :: binary()) :: binary()
+  @callback txt_source_block(txt :: S.io_list()) :: S.io_list()
+  @callback txt_quote_block(txt :: S.io_list()) :: S.io_list()
 
   @callback start_link(Keyword.t()) :: :ignore | {:error, any} | {:ok, pid}
 
@@ -39,11 +40,16 @@ defmodule Service do
   end
 
   # service polymorphism basically
-  @spec! apply_service_function(SiteConfig.t(), atom(), list()) :: any()
+  @spec! apply_service_function(SiteConfig.t() | atom(), atom(), list()) :: any()
   def apply_service_function(cfg, func_name, args)
-      when is_atom(func_name) and is_list(args) do
-    SiteConfig.fetch!(cfg, :service)
-    |> apply(func_name, args)
+      when is_struct(cfg, SiteConfig) do
+    cfg
+    |> SiteConfig.fetch!(:service)
+    |> apply_service_function(func_name, args)
+  end
+
+  def apply_service_function(service_name, func_name, args) do
+    apply(service_name, func_name, args)
   end
 
   def txt_source_block(cfg, text),
