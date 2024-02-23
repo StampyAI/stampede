@@ -166,7 +166,7 @@ defmodule Stampede.CfgTable do
   def insert_cfg(cfg) do
     Logger.info("adding #{cfg.service |> inspect()} server #{cfg.server_id |> inspect()}")
 
-    schema = apply(cfg.service, :site_config_schema, [])
+    schema = Service.apply_service_function(cfg, :site_config_schema, [])
     _ = SiteConfig.revalidate!(cfg, schema)
 
     try_with_table(fn table ->

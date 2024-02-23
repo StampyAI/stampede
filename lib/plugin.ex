@@ -311,17 +311,21 @@ defmodule Plugin do
       if response.callback do
         [
           traceback,
-          "\nWe asked #{inspect(plug)}, and it responded with confidence #{inspect(response.confidence)} offering a callback.\nWhen asked why, it said: \"",
+          "\nWe asked ",
+          inspect(plug),
+          ", and it responded with confidence ",
+          inspect(response.confidence),
+          " offering a callback.\nWhen asked why, it said: \"",
           response.why,
           "\""
         ]
       else
         [
           traceback,
-          """
-          We asked #{inspect(plug)}, and it responded with confidence #{inspect(response.confidence)}:
-          #{S.markdown_quote(response.text)}
-          """,
+          "\nWe asked ",
+          inspect(plug),
+          ", and it responded with confidence #{inspect(response.confidence)}:\n",
+          S.markdown_quote_io(response.text),
           "When asked why, it said: \"",
           response.why,
           "\""

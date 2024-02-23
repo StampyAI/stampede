@@ -58,34 +58,16 @@ defmodule Stampede do
     end
   end
 
-  @spec! txt_indent(io_list(), String.t()) :: String.t()
-  def txt_indent(str, prefix) do
-    IO.iodata_to_binary(str)
-    |> txt_indent_io(prefix)
-    |> IO.iodata_to_binary()
-  end
-
   @spec! txt_indent_io(io_list(), String.t()) :: io_list()
   def txt_indent_io(str, prefix) do
     IO.iodata_to_binary(str)
     |> String.split("\n")
-    |> Enum.map(&[prefix | [&1 | "\n"]])
-  end
-
-  @spec! markdown_quote(io_list()) :: String.t()
-  def markdown_quote(str) do
-    txt_indent(str, "> ")
+    |> Enum.map(&[prefix, &1, "\n"])
   end
 
   @spec! markdown_quote_io(io_list()) :: io_list()
   def markdown_quote_io(str) do
     txt_indent_io(str, "> ")
-  end
-
-  @spec! markdown_source_block(io_list()) :: String.t()
-  def markdown_source_block(txt) do
-    markdown_source_block_io(txt)
-    |> IO.iodata_to_binary()
   end
 
   @spec! markdown_source_block_io(io_list()) :: io_list()

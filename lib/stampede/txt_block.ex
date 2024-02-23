@@ -1,6 +1,6 @@
 defmodule Stampede.TxtBlock do
   @doc """
-  Storage for text to be formatted differently according to context. iolist-friendly.
+  Storage for text to be formatted differently according to context, i.e. posting to different services. iolist-friendly.
 
   Section types with their markdown equivalents:
   - quote_block (greater-than signs '>')

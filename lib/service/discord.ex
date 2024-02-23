@@ -34,7 +34,12 @@ defmodule Service.Discord do
   end
 
   @impl Service
-  def send_msg(channel_id, msg, _opts \\ []) do
+  def send_msg(channel_id, msg, opts \\ [])
+
+  def send_msg(channel_id, msg, opts) when is_list(msg),
+    do: send_msg(channel_id, msg |> IO.iodata_to_binary(), opts)
+
+  def send_msg(channel_id, msg, _opts) when is_binary(msg) do
     r = S.text_chunk_regex(@character_limit)
 
     for chunk <-
@@ -65,7 +70,13 @@ defmodule Service.Discord do
         if try < 5 do
           IO.puts(
             :stderr,
-            "send_msg: discord message send failure ##{try}, error #{inspect(e, pretty: true)}. Trying again..."
+            [
+              "send_msg: discord message send failure ##",
+              try,
+              ", error ",
+              e |> S.pp(),
+              ". Trying again..."
+            ]
           )
 
           :ok = Process.sleep(500)
@@ -79,7 +90,10 @@ defmodule Service.Discord do
   end
 
   @impl Service
-  def log_plugin_error(cfg, log) do
+  def log_plugin_error(cfg, log) when is_list(log),
+    do: log_plugin_error(cfg, log |> IO.iodata_to_binary())
+
+  def log_plugin_error(cfg, log) when is_binary(log) do
     channel_id = SiteConfig.fetch!(cfg, :error_channel_id)
 
     _ =
@@ -95,24 +109,27 @@ defmodule Service.Discord do
   def log_serious_error(log_msg = {level, _gl, {Logger, message, _timestamp, _metadata}}) do
     try do
       # TODO: disable if Discord not connected/working
-      IO.puts("log_serious_error recieved:\n#{inspect(log_msg, pretty: true)}")
+      IO.puts(["log_serious_error recieved:\n", inspect(log_msg, pretty: true)])
       channel_id = Application.fetch_env!(:stampede, :serious_error_channel_id)
 
-      log =
-        """
-        Erlang-level error #{inspect(level)}:
-        #{message |> S.pp() |> txt_source_block()}
-        """
+      log = [
+        "Erlang-level error ",
+        inspect(level),
+        "\n",
+        message |> S.pp() |> txt_source_block()
+      ]
 
       _ = send_msg(channel_id, log)
     catch
       t, e ->
-        IO.puts("""
-        ERROR: Logging serious error to Discord failed. We have no option, and resending would probably cause an infinite loop.
+        IO.puts([
+          """
+          ERROR: Logging serious error to Discord failed. We have no option, and resending would probably cause an infinite loop.
 
-        Here's the error:
-        #{S.pp({t, e})}
-        """)
+          Here's the error:
+          """,
+          S.pp({t, e})
+        ])
     end
 
     :ok
@@ -129,12 +146,12 @@ defmodule Service.Discord do
   end
 
   @impl Service
-  def txt_source_block(txt) when is_binary(txt),
-    do: S.markdown_source_block(txt)
+  def txt_source_block(txt),
+    do: S.markdown_source_block_io(txt)
 
   @impl Service
-  def txt_quote_block(txt) when is_binary(txt),
-    do: S.markdown_quote(txt)
+  def txt_quote_block(txt),
+    do: S.markdown_quote_io(txt)
 
   def is_dm(msg), do: msg.guild_id == nil
 
@@ -264,18 +281,27 @@ defmodule Service.Discord.Handler do
             if is_vip_in_this_context(state.vip_ids, discord_msg.guild_id, discord_msg.author.id) do
               do_msg_create(discord_msg)
             else
-              Logger.warning("""
-              User wanted to DM but is not in vip_ids. \
-              Username: #{discord_msg.author |> Nostrum.Struct.User.full_name() |> inspect()} \
-              Message:
-              #{discord_msg.content |> Discord.txt_quote_block()}
-              """)
+              Logger.warning(fn ->
+                [
+                  "User wanted to DM but is not in vip_ids. \\\n",
+                  "Username: ",
+                  discord_msg.author |> Nostrum.Struct.User.full_name() |> inspect(),
+                  " \\\n",
+                  "Message:\n",
+                  discord_msg.content |> Discord.txt_quote_block()
+                ]
+              end)
             end
 
           true ->
-            Logger.error(
-              "guild #{discord_msg.guild_id |> inspect()} NOT found in #{inspect(state.guild_ids)}"
-            )
+            Logger.error(fn ->
+              [
+                "guild ",
+                discord_msg.guild_id |> inspect(),
+                " NOT found in ",
+                inspect(state.guild_ids)
+              ]
+            end)
         end
     end
 
