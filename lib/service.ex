@@ -42,13 +42,13 @@ defmodule Service do
   # service polymorphism basically
   @spec! apply_service_function(SiteConfig.t() | atom(), atom(), list()) :: any()
   def apply_service_function(cfg, func_name, args)
-      when is_struct(cfg, SiteConfig) do
+      when is_map(cfg) do
     cfg
     |> SiteConfig.fetch!(:service)
     |> apply_service_function(func_name, args)
   end
 
-  def apply_service_function(service_name, func_name, args) do
+  def apply_service_function(service_name, func_name, args) when is_atom(service_name) do
     apply(service_name, func_name, args)
   end
 
