@@ -58,8 +58,11 @@ defmodule Stampede do
     end
   end
 
-  @spec! txt_indent_io(io_list(), String.t()) :: io_list()
-  def txt_indent_io(str, prefix) do
+  @spec! txt_indent_io(io_list(), String.t() | non_neg_integer()) :: io_list()
+  def txt_indent_io(str, n) when is_integer(n),
+    do: str |> txt_indent_io(String.duplicate(" ", n))
+
+  def txt_indent_io(str, prefix) when is_binary(prefix) do
     IO.iodata_to_binary(str)
     |> String.split("\n")
     |> Enum.map(&[prefix, &1, "\n"])
@@ -73,10 +76,15 @@ defmodule Stampede do
   @spec! markdown_source_block_io(io_list()) :: io_list()
   def markdown_source_block_io(txt) do
     [
-      "\n```\n",
-      txt |> IO.iodata_to_binary(),
+      "```\n",
+      txt,
       "\n```\n"
     ]
+  end
+
+  @spec! markdown_source_io(io_list()) :: io_list()
+  def markdown_source_io(txt) do
+    ["`", txt, "`"]
   end
 
   def quick_task_via() do

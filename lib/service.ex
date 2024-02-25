@@ -15,6 +15,7 @@ defmodule Service do
   @callback author_is_privileged(server_id :: any(), author_id :: any()) :: boolean()
 
   @callback txt_source_block(txt :: S.io_list()) :: S.io_list()
+  @callback txt_source(txt :: S.io_list()) :: S.io_list()
   @callback txt_quote_block(txt :: S.io_list()) :: S.io_list()
 
   @callback start_link(Keyword.t()) :: :ignore | {:error, any} | {:ok, pid}
@@ -52,6 +53,12 @@ defmodule Service do
     apply(service_name, func_name, args)
   end
 
-  def txt_source_block(cfg, text),
-    do: apply_service_function(cfg, :txt_source_block, [text])
+  def txt_source_block(text, cfg_or_service),
+    do: apply_service_function(cfg_or_service, :txt_source_block, [text])
+
+  def txt_source(text, cfg_or_service),
+    do: apply_service_function(cfg_or_service, :txt_source, [text])
+
+  def txt_quote_block(text, cfg_or_service),
+    do: apply_service_function(cfg_or_service, :txt_quote_block, [text])
 end
