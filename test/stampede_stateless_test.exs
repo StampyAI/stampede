@@ -197,14 +197,14 @@ defmodule StampedeStatelessTest do
         """
 
       one =
-        S.TxtBlock.to_iolist(
+        TxtBlock.to_iolist(
           {:source_block, "foo"},
           Service.Dummy
         )
         |> IO.iodata_to_binary()
 
       two =
-        S.TxtBlock.to_iolist(
+        TxtBlock.to_iolist(
           {:source_block, [["f"], [], "o", [["o"]]]},
           Service.Dummy
         )
@@ -218,14 +218,14 @@ defmodule StampedeStatelessTest do
       correct = "`foo`"
 
       one =
-        S.TxtBlock.to_iolist(
+        TxtBlock.to_iolist(
           {:source, "foo"},
           Service.Dummy
         )
         |> IO.iodata_to_binary()
 
       two =
-        S.TxtBlock.to_iolist(
+        TxtBlock.to_iolist(
           {:source, [["f"], [], "o", [["o"]]]},
           Service.Dummy
         )
@@ -239,14 +239,14 @@ defmodule StampedeStatelessTest do
       correct = "> foo\n> bar\n"
 
       one =
-        S.TxtBlock.to_iolist(
+        TxtBlock.to_iolist(
           {:quote_block, "foo\nbar"},
           Service.Dummy
         )
         |> IO.iodata_to_binary()
 
       two =
-        S.TxtBlock.to_iolist(
+        TxtBlock.to_iolist(
           {:quote_block, [["f"], [], "o", [["o"]], ["\n", "bar"]]},
           Service.Dummy
         )
@@ -260,14 +260,14 @@ defmodule StampedeStatelessTest do
       correct = "  foo\n  bar\n"
 
       one =
-        S.TxtBlock.to_iolist(
+        TxtBlock.to_iolist(
           {{:indent, "  "}, "foo\nbar"},
           Service.Dummy
         )
         |> IO.iodata_to_binary()
 
       two =
-        S.TxtBlock.to_iolist(
+        TxtBlock.to_iolist(
           {{:indent, 2}, [["f"], [], "o", [["o"]], ["\n", "bar"]]},
           Service.Dummy
         )

@@ -150,7 +150,7 @@ defmodule Service.Discord do
     do: S.markdown_source_block_io(txt)
 
   @impl Service
-  def txt_source_block(txt),
+  def txt_source(txt),
     do: S.markdown_source_io(txt)
 
   @impl Service

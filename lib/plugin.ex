@@ -268,7 +268,10 @@ defmodule Plugin do
     end)
   end
 
-  @spec! resolve_responses(list(plugin_job_result())) :: map()
+  @spec! resolve_responses(list(plugin_job_result())) :: %{
+           r: S.Response.t() | nil,
+           tb: S.traceback()
+         }
   def resolve_responses(tlist) do
     do_rr(tlist, nil, [])
   end
@@ -324,8 +327,10 @@ defmodule Plugin do
           traceback,
           "\nWe asked ",
           inspect(plug),
-          ", and it responded with confidence #{inspect(response.confidence)}:\n",
-          S.markdown_quote_io(response.text),
+          ", and it responded with confidence ",
+          inspect(response.confidence),
+          ":\n",
+          {:quote_block, response.text},
           "When asked why, it said: \"",
           response.why,
           "\""
@@ -351,8 +356,12 @@ defmodule Plugin do
       rest,
       chosen_response,
       [
-        traceback
-        | "\nWe asked #{inspect(plug)}, but there was an error of type #{inspect(val)}."
+        traceback,
+        "\nWe asked ",
+        inspect(plug),
+        ", but there was an error of type ",
+        inspect(val),
+        "."
       ]
     )
   end

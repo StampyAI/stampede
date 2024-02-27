@@ -1,4 +1,4 @@
-defmodule Stampede.TxtBlock do
+defmodule TxtBlock do
   @doc """
   Storage for text to be formatted differently according to context, i.e. posting to different services. iolist-friendly.
 
@@ -9,18 +9,16 @@ defmodule Stampede.TxtBlock do
   """
 
   use TypeCheck
+  alias Stampede, as: S
 
-  @type! modes :: :quote_block | :source_block | :source | {:indent, pos_integer()}
-  @type! t :: String.t() | list(String.t() | {modes(), String.t()})
+  @type! modes :: :quote_block | :source_block | :source | {:indent, pos_integer() | String.t()}
+  @type! t :: [] | maybe_improper_list(lazy(t()), lazy(t())) | String.t() | {modes(), lazy(t())}
+  @type! t_formatted ::
+           [] | String.t() | maybe_improper_list(lazy(t_formatted()), lazy(t_formatted()))
 
+  @spec! to_iolist(t(), module()) :: t_formatted()
   def to_iolist(item, service_name) when not is_list(item) do
     case item do
-      [] ->
-        []
-
-      ls when is_list(ls) ->
-        to_iolist(ls, service_name)
-
       txt when is_binary(txt) ->
         txt
 
@@ -43,11 +41,31 @@ defmodule Stampede.TxtBlock do
   end
 
   def to_iolist(blueprint, service_name) when is_list(blueprint) do
-    blueprint
-    |> Enum.map(&to_iolist(&1, service_name))
+    List.foldr(blueprint, [], fn
+      [], acc ->
+        acc
+        |> IO.inspect(pretty: true)
+
+      item, acc ->
+        to_iolist(item, service_name)
+        |> case do
+          [] ->
+            acc
+
+          [singleton] ->
+            [singleton | acc]
+
+          other ->
+            [other | acc]
+        end
+        |> IO.inspect(pretty: true)
+    end)
     |> case do
-      [item] ->
-        item
+      [] ->
+        []
+
+      [singleton] ->
+        singleton
 
       other ->
         other

@@ -17,7 +17,7 @@ defmodule Stampede do
            | []
            | maybe_improper_list(lazy(Stampede.io_list()), lazy(Stampede.io_list()))
 
-  @type! traceback :: io_list()
+  @type! traceback :: TxtBlock.t()
   @type! enabled_plugs :: :all | [] | nonempty_list(module())
   @type! channel_lock_action ::
            false | {:lock, channel_id(), module_function_args()} | {:unlock, channel_id()}
