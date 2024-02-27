@@ -247,7 +247,7 @@ defmodule StampedeStatelessTest do
 
       two =
         TxtBlock.to_iolist(
-          {:quote_block, [["f"], [], "o", [["o"]], ["\n", "bar"]]},
+          {:quote_block, [["f"], [], "o", [["o"]], ["\n" | "bar"]]},
           Service.Dummy
         )
         |> IO.iodata_to_binary()
@@ -268,7 +268,7 @@ defmodule StampedeStatelessTest do
 
       two =
         TxtBlock.to_iolist(
-          {{:indent, 2}, [["f"], [], "o", [["o"]], ["\n", "bar"]]},
+          {{:indent, 2}, [["f"], [], "o", [["o"]], ["\n" | "bar"]]},
           Service.Dummy
         )
         |> IO.iodata_to_binary()
