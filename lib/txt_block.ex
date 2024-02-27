@@ -41,10 +41,9 @@ defmodule TxtBlock do
   end
 
   def to_iolist(blueprint, service_name) when is_list(blueprint) do
-    List.foldr(blueprint, [], fn
+    S.foldr_improper(blueprint, [], fn
       [], acc ->
         acc
-        |> IO.inspect(pretty: true)
 
       item, acc ->
         to_iolist(item, service_name)
@@ -58,7 +57,6 @@ defmodule TxtBlock do
           other ->
             [other | acc]
         end
-        |> IO.inspect(pretty: true)
     end)
     |> case do
       [] ->

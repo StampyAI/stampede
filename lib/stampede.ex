@@ -246,4 +246,19 @@ defmodule Stampede do
   def reload_service(cfg) do
     Service.apply_service_function(cfg, :reload_configs, [])
   end
+
+  @spec! foldr_improper(
+           maybe_improper_list(),
+           any(),
+           (elem :: any(), acc :: any() -> acc :: any())
+         ) :: any()
+  def foldr_improper(ls, acc, f), do: do_foldr_improper(ls, acc, f)
+  defp do_foldr_improper([], acc, _f), do: acc
+  defp do_foldr_improper([h | []], acc, f), do: f.(h, acc)
+
+  defp do_foldr_improper([h | t], acc, f),
+    do: f.(h, do_foldr_improper(t, acc, f))
+
+  defp do_foldr_improper(other, acc, f) when not is_list(other),
+    do: f.(other, acc)
 end
