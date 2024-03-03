@@ -176,13 +176,8 @@ defmodule Service.Dummy do
   end
 
   @impl Service
-  def txt_source_block(txt), do: S.markdown_source_block_io(txt)
-
-  @impl Service
-  def txt_source(txt), do: S.markdown_source_io(txt)
-
-  @impl Service
-  def txt_quote_block(txt), do: S.markdown_quote_io(txt)
+  def txt_format(blk, kind),
+    do: TxtBlock.Md.format(blk, kind)
 
   @spec! channel_history(dummy_server_id(), dummy_channel_id()) :: channel()
   def channel_history(server_id, channel) do

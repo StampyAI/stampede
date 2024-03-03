@@ -116,7 +116,7 @@ defmodule Service.Discord do
         "Erlang-level error ",
         inspect(level),
         "\n",
-        message |> S.pp() |> txt_source_block()
+        message |> S.pp() |> Service.Discord.txt_format(:source_block)
       ]
 
       _ = send_msg(channel_id, log)
@@ -146,16 +146,8 @@ defmodule Service.Discord do
   end
 
   @impl Service
-  def txt_source_block(txt),
-    do: S.markdown_source_block_io(txt)
-
-  @impl Service
-  def txt_source(txt),
-    do: S.markdown_source_io(txt)
-
-  @impl Service
-  def txt_quote_block(txt),
-    do: S.markdown_quote_io(txt)
+  def txt_format(blk, kind),
+    do: TxtBlock.Md.format(blk, kind)
 
   def is_dm(msg), do: msg.guild_id == nil
 
@@ -292,7 +284,7 @@ defmodule Service.Discord.Handler do
                   discord_msg.author |> Nostrum.Struct.User.full_name() |> inspect(),
                   " \\\n",
                   "Message:\n",
-                  discord_msg.content |> Discord.txt_quote_block()
+                  discord_msg.content |> Service.Discord.txt_format(:quote_block)
                 ]
               end)
             end

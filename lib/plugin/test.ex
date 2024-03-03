@@ -15,7 +15,8 @@ defmodule Plugin.Test do
       {"a", "(shows channel locks work)"},
       {"timeout", "(shows that plugins which time out won't disrupt other plugins)"},
       {"raise", "(raises an error which should be reported)"},
-      {"throw", "(causes a throw which should be reported)"}
+      {"throw", "(causes a throw which should be reported)"},
+      {"formatting", "(tests plugin text formatting)"}
     ]
   end
 
