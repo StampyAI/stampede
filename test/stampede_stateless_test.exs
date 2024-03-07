@@ -202,14 +202,14 @@ defmodule StampedeStatelessTest do
 
       one =
         TxtBlock.to_str_list(
-          {:source_block, "foo"},
+          {:source_block, "foo\n"},
           Service.Dummy
         )
         |> IO.iodata_to_binary()
 
       two =
         TxtBlock.to_str_list(
-          {:source_block, [["f"], [], "o", [["o"]]]},
+          {:source_block, [["f"], [], "o", [["o"], "\n"]]},
           Service.Dummy
         )
         |> IO.iodata_to_binary()

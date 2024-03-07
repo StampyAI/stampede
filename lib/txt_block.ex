@@ -24,7 +24,8 @@ defmodule TxtBlock do
 
   @spec! to_str_list(t(), module()) :: S.str_list()
   def to_str_list(txt, service_name)
-    when is_binary(txt), do: txt
+      when is_binary(txt),
+      do: txt
 
   def to_str_list({type, blk}, service_name) do
     to_str_list(blk, service_name)
@@ -65,7 +66,7 @@ defmodule TxtBlock do
 
   def plain_indent_io(str, prefix) when is_binary(prefix) do
     IO.iodata_to_binary(str)
-    |> String.split("\n")
+    |> String.split("\n", trim: true)
     |> Enum.flat_map(&[prefix, &1, "\n"])
   end
 end
@@ -78,17 +79,19 @@ defmodule TxtBlock.Debugging do
     [
       "Testing formats.\n\n",
       "Quoted\n",
-      {:quote_block, "Quoted line 1\nQuoted line 2 with newline\n"},
-      {:quote_block, "Quoted line 1\nQuoted line 2 without newline"},
-      {:source_block, "source(1)\nsource(2, \"with_newline\")\n"},
-      {:source_block, "source(1)\nsource(2, \"without_newline\")"},
-      ["Inline source quote ", {:source, "foobar"}, "\n"],
-      {{:indent, "><> "}, ["school\n", "\nof", "\nfishies"]},
+      {:quote_block, "Quoted line 1\nQuoted line 2\n"},
       "\n",
-      "Dotted list",
-      {{:list, :dotted}, ["Item 1", "Item 2 with newline\n", "Item 3"]},
-      "Numbered list",
-      {{:list, :numbered}, ["Item 1", "Item 2 with newline", "Item 3"]}
+      {:source_block, "source(1)\nsource(2)\n"},
+      "\n",
+      ["Inline source quote ", {:source, "foobar"}, "\n"],
+      "\n",
+      {{:indent, "><> "}, ["school\n", "of\n", "fishies\n"]},
+      "\n",
+      "Dotted list\n",
+      {{:list, :dotted}, ["Item 1", "Item 2", "Item 3"]},
+      "\n",
+      "Numbered list\n",
+      {{:list, :numbered}, ["Item 1", "Item 2", "Item 3"]}
     ]
   end
 end

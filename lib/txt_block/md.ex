@@ -20,7 +20,7 @@ defmodule TxtBlock.Md do
     [
       "```\n",
       txt,
-      "\n```\n"
+      "```\n"
     ]
   end
 
@@ -31,17 +31,17 @@ defmodule TxtBlock.Md do
   end
 
   def format(items, {:list, :dotted}) when is_list(items) do
-    Enum.map(items, fn blk ->
+    Enum.flat_map(items, fn blk ->
       ["- ", blk, "\n"]
     end)
   end
 
   def format(items, {:list, :numbered}) when is_list(items) do
-    Enum.reduce(items, {[], 0}, fn blk, {ls, i} ->
+    Enum.map_reduce(items, 0, fn blk, i ->
       j = i + 1
 
       {
-        [j |> Integer.to_string(), ". ", blk, "\n" | ls],
+        [j |> Integer.to_string(), ". ", blk, "\n"],
         j
       }
     end)
@@ -55,19 +55,15 @@ defmodule TxtBlock.Md do
 
       Quoted
       > Quoted line 1
-      > Quoted line 2 with newline
+      > Quoted line 2
 
-      > Quoted line 1
-      > Quoted line 2 without newline
       ```
       source(1)
-      source(2, "with_newline")
+      source(2)
       ```
-      ```
-      source(1)
-      source(2, "without_newline")
-      ```
+
       Inline source quote `foobar`
+
       ><> school
       ><> of
       ><> fishies
@@ -75,12 +71,12 @@ defmodule TxtBlock.Md do
       Dotted list
       - Item 1
       - Item 2
-      - Improper list item 3
+      - Item 3
+
       Numbered list
       1. Item 1
       2. Item 2
-      3. Improper list item 3
-      Improper end
+      3. Item 3
       """
     end
   end
