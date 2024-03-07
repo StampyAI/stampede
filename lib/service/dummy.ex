@@ -177,7 +177,7 @@ defmodule Service.Dummy do
           SiteConfig.fetch!(cfg, :error_channel_id),
           @system_user,
           formatted
-          |> TxtBlock.to_iolist(__MODULE__)
+          |> TxtBlock.to_str_list(__MODULE__)
           |> IO.iodata_to_binary()
         )
       end)

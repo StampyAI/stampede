@@ -193,14 +193,14 @@ defmodule StampedeStatelessTest do
         """
 
       one =
-        TxtBlock.to_iolist(
+        TxtBlock.to_str_list(
           {:source_block, "foo"},
           Service.Dummy
         )
         |> IO.iodata_to_binary()
 
       two =
-        TxtBlock.to_iolist(
+        TxtBlock.to_str_list(
           {:source_block, [["f"], [], "o", [["o"]]]},
           Service.Dummy
         )
@@ -214,14 +214,14 @@ defmodule StampedeStatelessTest do
       correct = "`foo`"
 
       one =
-        TxtBlock.to_iolist(
+        TxtBlock.to_str_list(
           {:source, "foo"},
           Service.Dummy
         )
         |> IO.iodata_to_binary()
 
       two =
-        TxtBlock.to_iolist(
+        TxtBlock.to_str_list(
           {:source, [["f"], [], "o", [["o"]]]},
           Service.Dummy
         )
@@ -235,15 +235,15 @@ defmodule StampedeStatelessTest do
       correct = "> foo\n> bar\n"
 
       one =
-        TxtBlock.to_iolist(
+        TxtBlock.to_str_list(
           {:quote_block, "foo\nbar"},
           Service.Dummy
         )
         |> IO.iodata_to_binary()
 
       two =
-        TxtBlock.to_iolist(
-          {:quote_block, [["f"], [], "o", [["o"]], ["\n" | "bar"]]},
+        TxtBlock.to_str_list(
+          {:quote_block, [["f"], [], "o", [["o"]], ["\n", "bar"]]},
           Service.Dummy
         )
         |> IO.iodata_to_binary()
@@ -256,15 +256,15 @@ defmodule StampedeStatelessTest do
       correct = "  foo\n  bar\n"
 
       one =
-        TxtBlock.to_iolist(
+        TxtBlock.to_str_list(
           {{:indent, "  "}, "foo\nbar"},
           Service.Dummy
         )
         |> IO.iodata_to_binary()
 
       two =
-        TxtBlock.to_iolist(
-          {{:indent, 2}, [["f"], [], "o", [["o"]], ["\n" | "bar"]]},
+        TxtBlock.to_str_list(
+          {{:indent, 2}, [["f"], [], "o", [["o"]], ["\n", "bar"]]},
           Service.Dummy
         )
         |> IO.iodata_to_binary()
@@ -276,7 +276,7 @@ defmodule StampedeStatelessTest do
     test "Markdown" do
       processed =
         TxtBlock.Debugging.all_formats_example()
-        |> TxtBlock.to_iolist(Service.Dummy)
+        |> TxtBlock.to_str_list(Service.Dummy)
         |> IO.iodata_to_binary()
 
       assert processed == TxtBlock.Md.Debugging.all_formats_processed()

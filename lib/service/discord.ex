@@ -120,17 +120,18 @@ defmodule Service.Discord do
   @impl Service
   def log_plugin_error(cfg, msg, error_info) do
     channel_id = SiteConfig.fetch!(cfg, :error_channel_id)
+    formatted = format_plugin_fail(cfg, msg, error_info)
 
     _ =
       spawn(fn ->
         _ =
           send_msg(
             channel_id,
-            format_plugin_fail(cfg, msg, error_info)
+            formatted
           )
       end)
 
-    :ok
+    {:ok, formatted}
   end
 
   @impl Service
@@ -312,7 +313,7 @@ defmodule Service.Discord.Handler do
                   discord_msg.author |> Nostrum.Struct.User.full_name() |> inspect(),
                   " \\\n",
                   "Message:\n",
-                  {:quote, discord_msg.content} |> TxtBlock.to_iolist(__MODULE__)
+                  {:quote, discord_msg.content} |> TxtBlock.to_str_list(Service.Discord)
                 ]
               end)
             end

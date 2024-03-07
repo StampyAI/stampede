@@ -12,10 +12,10 @@ defmodule Stampede do
   @type! module_function_args :: {module(), atom(), tuple() | list()}
   # BUG: type_check issue #189, iolist()
   #      this stand-in isn't type complete but it'll do
-  @type! io_list ::
+  @type! str_list ::
            String.t()
            | []
-           | maybe_improper_list(lazy(Stampede.io_list()), lazy(Stampede.io_list()))
+           | nonempty_list(lazy(Stampede.str_list()))
 
   @type! traceback :: TxtBlock.t()
   @type! enabled_plugs :: :all | [] | nonempty_list(module())

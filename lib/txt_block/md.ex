@@ -2,20 +2,20 @@ defmodule TxtBlock.Md do
   use TypeCheck
   alias Stampede, as: S
 
-  @spec! format(TxtBlock.t(), TxtBlock.type()) :: S.io_list()
+  @spec! format(TxtBlock.t(), TxtBlock.type()) :: S.str_list()
   def format(input, type)
 
   def format(txt, {:indent, n}),
     do: TxtBlock.plain_indent_io(txt, n)
 
   def format(txt, :quote_block) do
-    TypeCheck.conforms!(txt, S.io_list())
+    TypeCheck.conforms!(txt, S.str_list())
 
     TxtBlock.plain_indent_io(txt, "> ")
   end
 
   def format(txt, :source_block) do
-    TypeCheck.conforms!(txt, S.io_list())
+    TypeCheck.conforms!(txt, S.str_list())
 
     [
       "```\n",
@@ -25,7 +25,7 @@ defmodule TxtBlock.Md do
   end
 
   def format(txt, :source) do
-    TypeCheck.conforms!(txt, S.io_list())
+    TypeCheck.conforms!(txt, S.str_list())
 
     ["`", txt, "`"]
   end
@@ -45,6 +45,7 @@ defmodule TxtBlock.Md do
         j
       }
     end)
+    |> IO.inspect(pretty: true)
     |> elem(0)
   end
 

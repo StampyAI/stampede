@@ -1,6 +1,6 @@
 defmodule TxtBlock do
   @doc """
-  Storage for text to be formatted differently according to context, i.e. posting to different services. iolist-friendly.
+  Storage for text to be formatted differently according to context, i.e. posting to different services. str_list-friendly.
 
   Section types with their markdown equivalents:
   - quote_block (greater-than signs '>')
@@ -20,27 +20,27 @@ defmodule TxtBlock do
            | :source
            | {:indent, pos_integer() | String.t()}
            | {:list, :dotted | :numbered}
-  @type! t :: [] | maybe_improper_list(lazy(t()), lazy(t())) | String.t() | lazy(block)
+  @type! t :: [] | nonempty_list(lazy(t())) | String.t() | lazy(block)
 
-  @spec! to_iolist(t(), module()) :: S.io_list()
-  def to_iolist(item, service_name) when not is_list(item) do
+  @spec! to_str_list(t(), module()) :: S.str_list()
+  def to_str_list(item, service_name) when not is_list(item) do
     case item do
       txt when is_binary(txt) ->
         txt
 
       {type, blk} ->
-        to_iolist(blk, service_name)
+        to_str_list(blk, service_name)
         |> Service.txt_format(type, service_name)
     end
   end
 
-  def to_iolist(blueprint, service_name) when is_list(blueprint) do
+  def to_str_list(blueprint, service_name) when is_list(blueprint) do
     S.foldr_improper(blueprint, [], fn
       [], acc ->
         acc
 
       item, acc ->
-        to_iolist(item, service_name)
+        to_str_list(item, service_name)
         |> case do
           [] ->
             acc
@@ -64,7 +64,7 @@ defmodule TxtBlock do
     end
   end
 
-  @spec! plain_indent_io(S.io_list(), String.t() | non_neg_integer()) :: S.io_list()
+  @spec! plain_indent_io(S.str_list(), String.t() | non_neg_integer()) :: S.str_list()
   def plain_indent_io(str, n) when is_integer(n),
     do: str |> plain_indent_io(String.duplicate(" ", n))
 
@@ -91,10 +91,9 @@ defmodule TxtBlock.Debugging do
       {{:indent, "><> "}, ["school\n", "\nof", "\nfishies"]},
       "\n",
       "Dotted list",
-      {{:list, :dotted}, ["Item 1", "Item 2", ["Improper list item " | "3"]]},
+      {{:list, :dotted}, ["Item 1", "Item 2 with newline\n", "Item 3"]},
       "Numbered list",
-      {{:list, :numbered}, ["Item 1", "Item 2", ["Improper list item " | "3"]]}
-      | "Improper end"
+      {{:list, :numbered}, ["Item 1", "Item 2 with newline", "Item 3"]}
     ]
   end
 end

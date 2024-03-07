@@ -65,7 +65,7 @@ defmodule Plugin.Why do
                 {:ok, traceback} ->
                   Response.new(
                     confidence: valid_confidence,
-                    text: traceback |> TxtBlock.to_iolist(cfg.service),
+                    text: traceback |> TxtBlock.to_str_list(cfg.service),
                     origin_msg_id: msg.id,
                     why: ["User asked why I said something, so I told them."]
                   )

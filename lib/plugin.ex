@@ -114,7 +114,7 @@ defmodule Plugin do
         Logger.error(
           fn ->
             formatted
-            |> TxtBlock.to_iolist(:logger)
+            |> TxtBlock.to_str_list(:logger)
             |> IO.iodata_to_binary()
           end,
           crash_reason: {e, st},
@@ -227,7 +227,9 @@ defmodule Plugin do
 
         new_tb = [
           traceback,
-          "\nTop response was a callback, so i called it. It responded with: \n\"#{followup.text}\"",
+          "\nTop response was a callback, so i called it. It responded with: \n\"",
+          followup.text,
+          "\"",
           followup.why
         ]
 
@@ -252,7 +254,13 @@ defmodule Plugin do
 
         Map.update!(response, :why, fn tb ->
           [
-            "Channel #{msg.channel_id} was locked to module #{m}, function #{f}, so we called it.\n"
+            "Channel ",
+            msg.channel_id |> inspect(),
+            "was locked to module ",
+            m |> inspect(),
+            ", function ",
+            "f",
+            ", so we called it.\n"
             | tb
           ]
         end)
@@ -316,8 +324,10 @@ defmodule Plugin do
         traceback
       ) do
     do_rr(rest, chosen_response, [
-      traceback
-      | "\nWe asked #{inspect(plug)}, and it decided not to answer."
+      traceback,
+      "\nWe asked ",
+      plug |> inspect(),
+      ", and it decided not to answer."
     ])
   end
 
@@ -327,8 +337,10 @@ defmodule Plugin do
         traceback
       ) do
     do_rr(rest, chosen_response, [
-      traceback
-      | "\nWe asked #{inspect(plug)}, but it timed out."
+      traceback,
+      "\nWe asked ",
+      plug |> inspect(),
+      ", but it timed out."
     ])
   end
 
@@ -342,9 +354,9 @@ defmodule Plugin do
         [
           traceback,
           "\nWe asked ",
-          inspect(plug),
+          plug |> inspect(),
           ", and it responded with confidence ",
-          inspect(response.confidence),
+          response.confidence |> inspect(),
           " offering a callback.\nWhen asked why, it said: \"",
           response.why,
           "\""
@@ -353,9 +365,9 @@ defmodule Plugin do
         [
           traceback,
           "\nWe asked ",
-          inspect(plug),
+          plug |> inspect(),
           ", and it responded with confidence ",
-          inspect(response.confidence),
+          response.confidence |> inspect(),
           ":\n",
           {:quote_block, response.text},
           "When asked why, it said: \"",
@@ -366,8 +378,8 @@ defmodule Plugin do
 
     if chosen_response == nil do
       do_rr(rest, response, [
-        tb
-        | "\nWe chose this response."
+        tb,
+        "\nWe chose this response."
       ])
     else
       do_rr(rest, chosen_response, tb)
@@ -385,9 +397,9 @@ defmodule Plugin do
       [
         traceback,
         "\nWe asked ",
-        inspect(plug),
+        plug |> inspect(),
         ", but there was an error of type ",
-        inspect(val),
+        val |> inspect(),
         "."
       ]
     )

@@ -10,7 +10,7 @@ defmodule Service do
               cfg :: SiteConfig.t(),
               message :: S.Msg.t(),
               error_info :: PluginCrashInfo.t()
-            ) :: {:ok, formatted :: S.io_list()}
+            ) :: {:ok, formatted :: TxtBlock.t()}
   @callback log_serious_error(
               log_msg ::
                 {level :: Stampede.log_level(), _gl :: term(),
@@ -19,7 +19,7 @@ defmodule Service do
   @callback reload_configs() :: :ok | {:error, any()}
   @callback author_is_privileged(server_id :: any(), author_id :: any()) :: boolean()
 
-  @callback txt_format(blk :: TxtBlock.t(), type :: TxtBlock.type()) :: S.io_list()
+  @callback txt_format(blk :: TxtBlock.t(), type :: TxtBlock.type()) :: S.str_list()
   @callback format_plugin_fail(
               cfg :: SiteConfig.t(),
               msg :: S.Msg.t(),
