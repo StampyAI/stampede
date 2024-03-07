@@ -23,20 +23,17 @@ defmodule TxtBlock do
   @type! t :: [] | nonempty_list(lazy(t())) | String.t() | lazy(block)
 
   @spec! to_str_list(t(), module()) :: S.str_list()
-  def to_str_list(item, service_name) when not is_list(item) do
-    case item do
-      txt when is_binary(txt) ->
-        txt
+  def to_str_list(txt, service_name)
+    when is_binary(txt), do: txt
 
-      {type, blk} ->
-        to_str_list(blk, service_name)
-        |> Service.txt_format(type, service_name)
-    end
+  def to_str_list({type, blk}, service_name) do
+    to_str_list(blk, service_name)
+    |> Service.txt_format(type, service_name)
   end
 
-  def to_str_list(blueprint, service_name) when is_list(blueprint) do
+  def to_str_list(blk, service_name) when is_list(blk) do
     # TODO: check performance of flattened vs non-flattened lists
-    List.foldl(blueprint, [], fn
+    List.foldl(blk, [], fn
       [], acc ->
         acc
 
