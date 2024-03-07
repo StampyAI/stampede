@@ -35,7 +35,8 @@ defmodule TxtBlock do
   end
 
   def to_str_list(blueprint, service_name) when is_list(blueprint) do
-    S.foldr_improper(blueprint, [], fn
+    # TODO: check performance of flattened vs non-flattened lists
+    List.foldl(blueprint, [], fn
       [], acc ->
         acc
 
@@ -45,11 +46,8 @@ defmodule TxtBlock do
           [] ->
             acc
 
-          [singleton] ->
-            [singleton | acc]
-
           other ->
-            [other | acc]
+            acc ++ List.wrap(other)
         end
     end)
     |> case do

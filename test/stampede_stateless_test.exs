@@ -184,6 +184,14 @@ defmodule StampedeStatelessTest do
   end
 
   describe "text formatting" do
+    test "flattens lists" do
+      input = [[[], []], [["f"], ["o", "o"]], ["b", ["a"], "r"]]
+      wanted = ["f", "o", "o", "b", "a", "r"]
+
+      assert wanted == TxtBlock.to_str_list(input, Service.Dummy)
+      assert "lol" == TxtBlock.to_str_list([[[[[], [[[["lol"], []]]]]]]], Service.Dummy)
+    end
+
     test "source block" do
       correct =
         """

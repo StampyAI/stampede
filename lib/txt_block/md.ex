@@ -45,7 +45,6 @@ defmodule TxtBlock.Md do
         j
       }
     end)
-    |> IO.inspect(pretty: true)
     |> elem(0)
   end
 
