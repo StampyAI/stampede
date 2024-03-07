@@ -2,6 +2,7 @@ defmodule StampedeStatelessTest do
   use ExUnit.Case, async: true
   import ExUnit.CaptureLog
   alias Stampede, as: S
+  require S.Msg
   alias Service.Dummy, as: D
   doctest Stampede
 
@@ -70,12 +71,7 @@ defmodule StampedeStatelessTest do
           server_id: :none
         )
 
-      try do
-        Plugin.Test.process_msg(dummy_cfg, msg)
-      catch
-        _t, e ->
-          assert is_struct(e, SillyError)
-      end
+      assert_raise SillyError, fn -> Plugin.Test.process_msg(dummy_cfg, msg) end
 
       msg =
         S.Msg.new(
@@ -277,13 +273,13 @@ defmodule StampedeStatelessTest do
       assert two == correct
     end
 
-    # [
-    #  "Section types with their markdown equivalents:\n",
-    #  {:list_dot, [
-    #    [{:source, "quote_block"}, " (greater-than signs '>')"],
-    #    [{:source, "source_block"}, " (triple backticks)"],
-    #    [{:source, "source"}, " (single backticks)"],
-    #  ]}
-    # ]
+    test "Markdown" do
+      processed =
+        TxtBlock.Debugging.all_formats_example()
+        |> TxtBlock.to_iolist(Service.Dummy)
+        |> IO.iodata_to_binary()
+
+      assert processed == TxtBlock.Md.Debugging.all_formats_processed()
+    end
   end
 end

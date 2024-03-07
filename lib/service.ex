@@ -1,11 +1,16 @@
 defmodule Service do
   use TypeCheck
+  alias Stampede.Msg
   alias Stampede, as: S
 
   @callback site_config_schema() :: NimbleOptions.t()
   @callback into_msg(service_message :: term()) :: %Stampede.Msg{}
   @callback send_msg(destination :: term(), text :: binary(), opts :: keyword()) :: term()
-  @callback log_plugin_error(cfg :: struct(), log :: binary()) :: :ok
+  @callback log_plugin_error(
+              cfg :: SiteConfig.t(),
+              message :: S.Msg.t(),
+              error_info :: PluginCrashInfo.t()
+            ) :: {:ok, formatted :: S.io_list()}
   @callback log_serious_error(
               log_msg ::
                 {level :: Stampede.log_level(), _gl :: term(),
@@ -15,6 +20,11 @@ defmodule Service do
   @callback author_is_privileged(server_id :: any(), author_id :: any()) :: boolean()
 
   @callback txt_format(blk :: TxtBlock.t(), type :: TxtBlock.type()) :: S.io_list()
+  @callback format_plugin_fail(
+              cfg :: SiteConfig.t(),
+              msg :: S.Msg.t(),
+              error_info :: PluginCrashInfo.t()
+            ) :: TxtBlock.t()
 
   @callback start_link(Keyword.t()) :: :ignore | {:error, any} | {:ok, pid}
 
@@ -50,6 +60,10 @@ defmodule Service do
   def apply_service_function(service_name, func_name, args) when is_atom(service_name) do
     apply(service_name, func_name, args)
   end
+
+  # TODO: move into service-generic Stampede.Logger
+  def txt_format(blk, type, :logger),
+    do: TxtBlock.Md.format(blk, type)
 
   def txt_format(blk, type, cfg_or_service),
     do: apply_service_function(cfg_or_service, :txt_format, [blk, type])

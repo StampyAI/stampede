@@ -1,6 +1,29 @@
+defmodule PluginCrashInfo do
+  use TypeCheck
+  use TypeCheck.Defstruct
+
+  defstruct!(
+    plugin: _ :: module(),
+    type: _ :: :throw | :error,
+    error: _ :: Exception.t(),
+    stacktrace: _ :: Exception.stacktrace()
+  )
+
+  defmacro new(kwlist) do
+    quote do
+      struct!(
+        unquote(__MODULE__),
+        unquote(kwlist)
+      )
+    end
+  end
+end
+
 defmodule Plugin do
   use TypeCheck
   require Logger
+  require PluginCrashInfo
+  alias PluginCrashInfo, as: CrashInfo
   alias Stampede, as: S
   alias S.{Msg, Response, Interaction}
   require Interaction
@@ -76,25 +99,29 @@ defmodule Plugin do
       }
     catch
       t, e ->
-        error_type =
-          case t do
-            :error ->
-              "an error"
+        st = __STACKTRACE__
 
-            :throw ->
-              "a throw"
-          end
+        error_info =
+          CrashInfo.new(plugin: m, type: t, error: e, stacktrace: st)
 
-        st = Exception.format(t, e, __STACKTRACE__)
+        {:ok, formatted} =
+          Service.apply_service_function(
+            cfg,
+            :log_plugin_error,
+            [cfg, msg, error_info]
+          )
 
-        log = """
-        Message from #{inspect(msg.author_id)} lead to #{error_type} in plugin #{m}:
-        #{st}
-        """
-
-        Logger.error(log)
-
-        _ = spawn(SiteConfig.fetch!(cfg, :service), :log_plugin_error, [cfg, log])
+        Logger.error(
+          fn ->
+            formatted
+            |> TxtBlock.to_iolist(:logger)
+            |> IO.iodata_to_binary()
+          end,
+          crash_reason: {e, st},
+          stampede_service: SiteConfig.fetch!(cfg, :service),
+          stampede_msg_id: msg.id,
+          stampede_plugin: m
+        )
 
         {:job_error, {e, st}}
     end

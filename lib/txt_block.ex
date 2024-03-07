@@ -71,7 +71,7 @@ defmodule TxtBlock do
   def plain_indent_io(str, prefix) when is_binary(prefix) do
     IO.iodata_to_binary(str)
     |> String.split("\n")
-    |> Enum.map(&[prefix, &1, "\n"])
+    |> Enum.flat_map(&[prefix, &1, "\n"])
   end
 end
 
@@ -81,10 +81,12 @@ defmodule TxtBlock.Debugging do
   @spec! all_formats_example() :: TxtBlock.t()
   def all_formats_example() do
     [
-      "Testing formats.\n",
+      "Testing formats.\n\n",
       "Quoted\n",
-      {:quote_block, "Quoted line 1\nQuoted line 2\nQuoted line 3\n"},
-      {:source_block, "source(1)\nsource(2)\nsource(3)\n"},
+      {:quote_block, "Quoted line 1\nQuoted line 2 with newline\n"},
+      {:quote_block, "Quoted line 1\nQuoted line 2 without newline"},
+      {:source_block, "source(1)\nsource(2, \"with_newline\")\n"},
+      {:source_block, "source(1)\nsource(2, \"without_newline\")"},
       ["Inline source quote ", {:source, "foobar"}, "\n"],
       {{:indent, "><> "}, ["school\n", "\nof", "\nfishies"]},
       "\n",

@@ -47,4 +47,41 @@ defmodule TxtBlock.Md do
     end)
     |> elem(0)
   end
+
+  defmodule Debugging do
+    def all_formats_processed() do
+      """
+      Testing formats.
+
+      Quoted
+      > Quoted line 1
+      > Quoted line 2 with newline
+
+      > Quoted line 1
+      > Quoted line 2 without newline
+      ```
+      source(1)
+      source(2, "with_newline")
+      ```
+      ```
+      source(1)
+      source(2, "without_newline")
+      ```
+      Inline source quote `foobar`
+      ><> school
+      ><> of
+      ><> fishies
+
+      Dotted list
+      - Item 1
+      - Item 2
+      - Improper list item 3
+      Numbered list
+      1. Item 1
+      2. Item 2
+      3. Improper list item 3
+      Improper end
+      """
+    end
+  end
 end

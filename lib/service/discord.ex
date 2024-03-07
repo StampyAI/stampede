@@ -1,6 +1,7 @@
 defmodule Service.Discord do
   alias Stampede, as: S
   alias S.{Msg}
+  require Msg
   use TypeCheck
   use Supervisor, restart: :permanent
   require Logger
@@ -90,17 +91,44 @@ defmodule Service.Discord do
   end
 
   @impl Service
-  def log_plugin_error(cfg, log) when is_list(log),
-    do: log_plugin_error(cfg, log |> IO.iodata_to_binary())
+  def format_plugin_fail(
+        _cfg,
+        msg = %{service: Service.Discord},
+        %PluginCrashInfo{plugin: p, type: t, error: e, stacktrace: st}
+      ) do
+    error_type =
+      case t do
+        :error ->
+          "an error"
 
-  def log_plugin_error(cfg, log) when is_binary(log) do
+        :throw ->
+          "a throw"
+      end
+
+    [
+      "Message from ",
+      msg.author_id |> Nostrum.Struct.User.full_name() |> inspect(),
+      " lead to ",
+      error_type,
+      " in plugin ",
+      inspect(p),
+      ":\n\n",
+      {:source_block, [S.pp(e), "\n", S.pp(st)]}
+    ]
+  end
+
+  @impl Service
+  def log_plugin_error(cfg, msg, error_info) do
     channel_id = SiteConfig.fetch!(cfg, :error_channel_id)
 
     _ =
-      Nostrum.Api.create_message(
-        channel_id,
-        content: log
-      )
+      spawn(fn ->
+        _ =
+          send_msg(
+            channel_id,
+            format_plugin_fail(cfg, msg, error_info)
+          )
+      end)
 
     :ok
   end
@@ -284,7 +312,7 @@ defmodule Service.Discord.Handler do
                   discord_msg.author |> Nostrum.Struct.User.full_name() |> inspect(),
                   " \\\n",
                   "Message:\n",
-                  discord_msg.content |> Service.Discord.txt_format(:quote_block)
+                  {:quote, discord_msg.content} |> TxtBlock.to_iolist(__MODULE__)
                 ]
               end)
             end
@@ -354,7 +382,11 @@ end
 defmodule Service.Discord.Logger do
   @doc """
   Listens for global errors raised from Erlang's logger system. If an error gets thrown in this module or children it would cause an infinite loop.
+
   """
+
+  # TODO: turn into service-generic Stampede.Logger
+
   use TypeCheck
   @behaviour :gen_event
   # alias Stampede, as: S

@@ -40,6 +40,7 @@ defmodule Service.Dummy do
   alias Stampede, as: S
   require S
   alias S.{Msg, Response}
+  require Msg
 
   use Service
 
@@ -137,16 +138,51 @@ defmodule Service.Dummy do
   end
 
   @impl Service
-  def log_plugin_error(cfg, log) do
-    _ =
-      send_msg(
-        SiteConfig.fetch!(cfg, :server_id),
-        SiteConfig.fetch!(cfg, :error_channel_id),
-        @system_user,
-        log
-      )
+  def format_plugin_fail(
+        _cfg = %{service: Service.Dummy},
+        msg = %{service: Service.Dummy},
+        %{plugin: p, type: t, error: e, stacktrace: st}
+      ) do
+    error_type =
+      case t do
+        :error ->
+          "an error"
 
-    :ok
+        :throw ->
+          "a throw"
+      end
+
+    [
+      "Message from ",
+      inspect(msg.author_id),
+      " lead to ",
+      error_type,
+      " in plugin ",
+      inspect(p),
+      ":\n\n",
+      {:source_block, [S.pp(e), "\n", S.pp(st)]}
+    ]
+  end
+
+  @impl Service
+  def log_plugin_error(cfg, msg, error_info) do
+    formatted =
+      format_plugin_fail(cfg, msg, error_info)
+
+    _ =
+      spawn(fn ->
+        # NOTE: as this function is generally being called inside a GenServer process, spawning a new thread is required.
+        send_msg(
+          SiteConfig.fetch!(cfg, :server_id),
+          SiteConfig.fetch!(cfg, :error_channel_id),
+          @system_user,
+          formatted
+          |> TxtBlock.to_iolist(__MODULE__)
+          |> IO.iodata_to_binary()
+        )
+      end)
+
+    {:ok, formatted}
   end
 
   # TODO
