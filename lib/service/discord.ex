@@ -107,7 +107,7 @@ defmodule Service.Discord do
 
     [
       "Message from ",
-      msg.author_id |> Nostrum.Struct.User.full_name() |> inspect(),
+      msg.author_id |> Nostrum.Api.get_user!() |> Nostrum.Struct.User.full_name() |> inspect(),
       " lead to ",
       error_type,
       " in plugin ",
@@ -145,7 +145,9 @@ defmodule Service.Discord do
         "Erlang-level error ",
         inspect(level),
         "\n",
-        message |> S.pp() |> Service.Discord.txt_format(:source_block)
+        message
+        |> TxtBlock.to_str_list(Service.Discord)
+        |> Service.Discord.txt_format(:source_block)
       ]
 
       _ = send_msg(channel_id, log)

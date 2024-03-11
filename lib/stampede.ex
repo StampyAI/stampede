@@ -78,11 +78,17 @@ defmodule Stampede do
   @spec! find_submodules(module()) :: MapSet.t(module())
   def find_submodules(module_name) do
     :code.all_available()
-    |> Enum.map(&(elem(&1, 0) |> to_string))
-    |> Enum.filter(&String.starts_with?(&1, to_string(module_name) <> "."))
-    |> Enum.sort()
-    |> Enum.map(&String.to_atom/1)
-    |> MapSet.new()
+    |> Enum.reduce(MapSet.new(), fn
+      {name, _location, _loaded}, acc ->
+        name
+        |> List.to_string()
+        |> String.starts_with?(to_string(module_name) <> ".")
+        |> if do
+          MapSet.put(acc, List.to_atom(name))
+        else
+          acc
+        end
+    end)
   end
 
   @doc """

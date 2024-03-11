@@ -62,8 +62,26 @@ defmodule Plugin do
     end
   end
 
+  @doc "returns loaded modules using the Plugin behavior."
+  @spec! ls() :: MapSet.t(module())
   def ls() do
-    S.find_submodules(__MODULE__)
+    S.find_submodules(Elixir)
+    |> Enum.reduce(MapSet.new(), fn
+      mod, acc ->
+        if not Kernel.function_exported?(mod, :__info__, 1) do
+          acc
+        else
+          b =
+            apply(mod, :__info__, [:attributes])
+            |> Keyword.get(:behaviour, [])
+
+          if Plugin in b do
+            MapSet.put(acc, mod)
+          else
+            acc
+          end
+        end
+    end)
   end
 
   def default_plugin_mfa(plug, [cfg, msg]) do
@@ -218,7 +236,6 @@ defmodule Plugin do
         )
         |> S.Interact.record_interaction!()
 
-        # TODO: logging interactions
         chosen_response
 
       %Response{callback: {mod, fun, args}} ->
