@@ -22,6 +22,7 @@ defmodule Stampede.MixProject do
     ]
   end
 
+  @doc "Dynamically configure app dependencies for given services"
   def configure_app(list) when is_list(list), do: configure_app(list, nil)
 
   def configure_app(mod_list, nil) when is_list(mod_list) do
@@ -60,24 +61,43 @@ defmodule Stampede.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:dialyxir, "~> 1.4", runtime: false},
-      {:credo, "~> 1.7", runtime: false},
-      {:ex_doc, "~> 0.31", only: :dev, runtime: false},
+      # Checking
+      {:ex_check, "~> 0.16.0", only: [:dev], runtime: false},
+      {:credo, ">= 0.0.0", only: [:dev], runtime: false},
+      {:dialyxir, ">= 0.0.0", only: [:dev], runtime: false},
+      {:doctor, ">= 0.0.0", only: [:dev], runtime: false},
+      {:ex_doc, ">= 0.0.0", only: [:dev], runtime: false},
+      {:gettext, ">= 0.0.0", only: [:dev], runtime: false},
+      {:sobelow, ">= 0.0.0", only: [:dev], runtime: false},
+      {:mix_audit, ">= 0.0.0", only: [:dev], runtime: false},
+
+      # RUNTIME TYPE CHECKING
+      # https://hexdocs.pm/type_check/readme.html
+      {:type_check, "~> 0.13.5"},
+      # for type checking streams
+      {:stream_data, "~> 0.5.0"},
+
+      {:benchee, "~> 1.1", runtime: false, only: :dev},
+
+      # SERVICES
       # {:nostrum, "~> 0.8.0", runtime: false},
       {:nostrum, github: "Kraigie/nostrum", runtime: false},
+
+      # For catching Erlang errors and sending to services
       {:logger_backends, "~> 1.0"},
-      {:type_check, "~> 0.13.5"},
-      # https://hexdocs.pm/type_check/readme.html
-      {:stream_data, "~> 0.5.0"},
-      # for type checking streams
+
+      # For site configs
       {:fast_yaml, "~> 1.0"},
-      {:gen_stage, "~> 1.2"},
-      # https://hexdocs.pm/gen_stage/GenStage.html
-      {:nimble_options, "~> 1.0"},
+      # NimbleOptions generates docs with its definitions. Use for site configs.
       # https://hexdocs.pm/nimble_options/NimbleOptions.html
+      {:nimble_options, "~> 1.0"},
+
+      # JSON logging
       {:logstash_logger_formatter, "~> 1.1"},
-      {:benchee, "~> 1.1", runtime: false, only: :dev},
-      {:memento, "~> 0.3.2"}
+
+      # Persistant storage, particularly interaction logging
+      {:memento, "~> 0.3.2"},
+
       ## NOTE: this would be great if it supported TOML
       # {:confispex, "~> 1.1"}, # https://hexdocs.pm/confispex/api-reference.html
     ]
