@@ -41,6 +41,6 @@ config :mnesia,
   # Notice the single quotes
   dir: ~c".mnesia/#{Mix.env()}/#{node()}"
 
-for config <- "../config/*.secret.exs" |> Path.expand(__DIR__) |> Path.wildcard() do
+for config <- "./*.secret.exs" |> Path.expand(__DIR__) |> Path.wildcard() do
   import_config config
 end
