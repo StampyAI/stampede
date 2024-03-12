@@ -65,21 +65,17 @@ defmodule Plugin do
   @doc "returns loaded modules using the Plugin behavior."
   @spec! ls() :: MapSet.t(module())
   def ls() do
-    S.find_submodules(Elixir)
+    S.find_submodules(Plugin)
     |> Enum.reduce(MapSet.new(), fn
       mod, acc ->
-        if not Kernel.function_exported?(mod, :__info__, 1) do
-          acc
-        else
-          b =
-            apply(mod, :__info__, [:attributes])
-            |> Keyword.get(:behaviour, [])
+        b =
+          mod.__info__(:attributes)
+          |> Keyword.get(:behaviour, [])
 
-          if Plugin in b do
-            MapSet.put(acc, mod)
-          else
-            acc
-          end
+        if Plugin in b do
+          MapSet.put(acc, mod)
+        else
+          acc
         end
     end)
   end
