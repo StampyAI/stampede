@@ -1,12 +1,30 @@
 import Config
 
+stampede_metadata = [
+  :stampede_component,
+  :stampede_service,
+  :stampede_msg_id,
+  :stampede_plugin,
+  :interaction_id
+]
+
+nostrum_metadata = [:shard, :guild, :channel]
+
+extra_metadata = [
+  :crash_reason,
+  :error_code,
+  :file,
+  :line
+] ++ stampede_metadata
+    ++ nostrum_metadata
+
 config :stampede,
   compile_env: Mix.env()
 
 config :logger, :console,
   level: :debug,
   # extra nostrum metadata
-  metadata: [:shard, :guild, :channel]
+  metadata: extra_metadata
 
 config :logger,
   handle_otp_reports: true,
@@ -17,7 +35,7 @@ config :stampede, :logger, [
   {:handler, :file_log, :logger_std_h,
    %{
      config: %{
-       file: ~c"logs/stampede.log",
+       file: ~c"logs/#{Mix.env()}/#{node()}.log",
        filesync_repeat_interval: 5000,
        file_check: 5000,
        max_no_bytes: 10_000_000,
@@ -29,7 +47,7 @@ config :stampede, :logger, [
          format: {LogstashLoggerFormatter, :format},
          colors: [enabled: false],
          level: :all,
-         metadata: [:shard, :guild, :channel, :stampede_component, :interaction_id]
+         metadata: extra_metadata
        )
    }}
 ]
