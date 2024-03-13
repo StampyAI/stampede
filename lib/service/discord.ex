@@ -315,7 +315,7 @@ defmodule Service.Discord.Handler do
                   discord_msg.author |> Nostrum.Struct.User.full_name() |> inspect(),
                   " \\\n",
                   "Message:\n",
-                  {:quote, discord_msg.content} |> TxtBlock.to_str_list(Service.Discord)
+                  {:quote_block, discord_msg.content} |> TxtBlock.to_str_list(Service.Discord)
                 ]
               end)
             end
