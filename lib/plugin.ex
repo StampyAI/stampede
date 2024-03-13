@@ -316,8 +316,9 @@ defmodule Plugin do
     end)
   end
 
-  @spec! resolve_responses(list(plugin_job_result())) :: %{
-           r: S.Response.t() | nil,
+  @spec! resolve_responses(nonempty_list(plugin_job_result())) :: %{
+           # NOTE: reversing order from 'nil | response' to 'response | nil' makes Dialyzer not count nil?
+           r: nil | S.Response.t(),
            tb: S.traceback()
          }
   def resolve_responses(tlist) do
