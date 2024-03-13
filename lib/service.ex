@@ -1,6 +1,5 @@
 defmodule Service do
   use TypeCheck
-  alias Stampede.Msg
   alias Stampede, as: S
 
   @callback site_config_schema() :: NimbleOptions.t()

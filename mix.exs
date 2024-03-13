@@ -77,6 +77,7 @@ defmodule Stampede.MixProject do
       # for type checking streams
       {:stream_data, "~> 0.5.0"},
 
+      # Benchmarking
       {:benchee, "~> 1.1", runtime: false, only: :dev},
 
       # SERVICES
@@ -96,7 +97,7 @@ defmodule Stampede.MixProject do
       {:logstash_logger_formatter, "~> 1.1"},
 
       # Persistant storage, particularly interaction logging
-      {:memento, "~> 0.3.2"},
+      {:memento, "~> 0.3.2"}
 
       ## NOTE: this would be great if it supported TOML
       # {:confispex, "~> 1.1"}, # https://hexdocs.pm/confispex/api-reference.html

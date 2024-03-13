@@ -23,7 +23,7 @@ defmodule TxtBlock do
   @type! t :: [] | nonempty_list(lazy(t())) | String.t() | lazy(block)
 
   @spec! to_str_list(t(), module()) :: S.str_list()
-  def to_str_list(txt, service_name)
+  def to_str_list(txt, _service_name)
       when is_binary(txt),
       do: txt
 

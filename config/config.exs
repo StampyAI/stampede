@@ -10,13 +10,15 @@ stampede_metadata = [
 
 nostrum_metadata = [:shard, :guild, :channel]
 
-extra_metadata = [
-  :crash_reason,
-  :error_code,
-  :file,
-  :line
-] ++ stampede_metadata
-    ++ nostrum_metadata
+extra_metadata =
+  [
+    :crash_reason,
+    :error_code,
+    :file,
+    :line
+  ] ++
+    stampede_metadata ++
+    nostrum_metadata
 
 config :stampede,
   compile_env: Mix.env()
