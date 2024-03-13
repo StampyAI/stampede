@@ -2,7 +2,6 @@ import Config
 
 stampede_metadata = [
   :stampede_component,
-  :stampede_service,
   :stampede_msg_id,
   :stampede_plugin,
   :interaction_id

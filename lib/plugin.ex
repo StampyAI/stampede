@@ -132,7 +132,7 @@ defmodule Plugin do
             |> IO.iodata_to_binary()
           end,
           crash_reason: {e, st},
-          stampede_service: SiteConfig.fetch!(cfg, :service),
+          stampede_component: SiteConfig.fetch!(cfg, :service),
           stampede_msg_id: msg.id,
           stampede_plugin: m
         )
