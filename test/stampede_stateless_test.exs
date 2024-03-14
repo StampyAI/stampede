@@ -2,6 +2,7 @@ defmodule StampedeStatelessTest do
   use ExUnit.Case, async: true
   import ExUnit.CaptureLog
   alias Stampede, as: S
+  require S.Msg
   alias Service.Dummy, as: D
   doctest Stampede
 
@@ -70,12 +71,7 @@ defmodule StampedeStatelessTest do
           server_id: :none
         )
 
-      try do
-        Plugin.Test.process_msg(dummy_cfg, msg)
-      catch
-        _t, e ->
-          assert is_struct(e, SillyError)
-      end
+      assert_raise SillyError, fn -> Plugin.Test.process_msg(dummy_cfg, msg) end
 
       msg =
         S.Msg.new(
@@ -133,20 +129,20 @@ defmodule StampedeStatelessTest do
     test "vip check" do
       vips = %{some_server: :admin}
 
-      assert S.is_vip_in_this_context(
+      assert S.vip_in_this_context?(
                vips,
                :some_server,
                :admin
              )
 
-      assert S.is_vip_in_this_context(
+      assert S.vip_in_this_context?(
                vips,
                nil,
                :admin
              )
 
       assert false ==
-               S.is_vip_in_this_context(
+               S.vip_in_this_context?(
                  vips,
                  :some_server,
                  :non_admin
@@ -184,6 +180,114 @@ defmodule StampedeStatelessTest do
         |> S.CfgTable.do_vips_configured(Service.Dummy)
 
       assert result == %{foo: MapSet.new([:bar, :baz])}
+    end
+  end
+
+  describe "text formatting" do
+    test "flattens lists" do
+      input = [[[], []], [["f"], ["o", "o"]], ["b", ["a"], "r"]]
+      wanted = ["f", "o", "o", "b", "a", "r"]
+
+      assert wanted == TxtBlock.to_str_list(input, Service.Dummy)
+      assert "lol" == TxtBlock.to_str_list([[[[[], [[[["lol"], []]]]]]]], Service.Dummy)
+    end
+
+    test "source block" do
+      correct =
+        """
+        ```
+        foo
+        ```
+        """
+
+      one =
+        TxtBlock.to_str_list(
+          {:source_block, "foo\n"},
+          Service.Dummy
+        )
+        |> IO.iodata_to_binary()
+
+      two =
+        TxtBlock.to_str_list(
+          {:source_block, [["f"], [], "o", [["o"], "\n"]]},
+          Service.Dummy
+        )
+        |> IO.iodata_to_binary()
+
+      assert one == correct
+      assert two == correct
+    end
+
+    test "source ticks" do
+      correct = "`foo`"
+
+      one =
+        TxtBlock.to_str_list(
+          {:source, "foo"},
+          Service.Dummy
+        )
+        |> IO.iodata_to_binary()
+
+      two =
+        TxtBlock.to_str_list(
+          {:source, [["f"], [], "o", [["o"]]]},
+          Service.Dummy
+        )
+        |> IO.iodata_to_binary()
+
+      assert one == correct
+      assert two == correct
+    end
+
+    test "quote block" do
+      correct = "> foo\n> bar\n"
+
+      one =
+        TxtBlock.to_str_list(
+          {:quote_block, "foo\nbar"},
+          Service.Dummy
+        )
+        |> IO.iodata_to_binary()
+
+      two =
+        TxtBlock.to_str_list(
+          {:quote_block, [["f"], [], "o", [["o"]], ["\n", "bar"]]},
+          Service.Dummy
+        )
+        |> IO.iodata_to_binary()
+
+      assert one == correct
+      assert two == correct
+    end
+
+    test "indent block" do
+      correct = "  foo\n  bar\n"
+
+      one =
+        TxtBlock.to_str_list(
+          {{:indent, "  "}, "foo\nbar"},
+          Service.Dummy
+        )
+        |> IO.iodata_to_binary()
+
+      two =
+        TxtBlock.to_str_list(
+          {{:indent, 2}, [["f"], [], "o", [["o"]], ["\n", "bar"]]},
+          Service.Dummy
+        )
+        |> IO.iodata_to_binary()
+
+      assert one == correct
+      assert two == correct
+    end
+
+    test "Markdown" do
+      processed =
+        TxtBlock.Debugging.all_formats_example()
+        |> TxtBlock.to_str_list(Service.Dummy)
+        |> IO.iodata_to_binary()
+
+      assert processed == TxtBlock.Md.Debugging.all_formats_processed()
     end
   end
 end

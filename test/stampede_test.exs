@@ -82,7 +82,11 @@ defmodule StampedeTest do
     end
 
     test "plugin raising", s do
-      {result, log} = with_log(fn -> D.send_msg(s.id, :t1, :u1, "!raise") end)
+      {result, log} =
+        with_log(fn ->
+          D.send_msg(s.id, :t1, :u1, "!raise")
+        end)
+
       assert match?(%{text: @confused_response}, result)
       assert String.contains?(log, "SillyError"), "SillyError not thrown"
 
@@ -154,20 +158,22 @@ defmodule StampedeTest do
     end
 
     test "many messages", s do
-      dummy_messages =
+      expected =
         0..9
         |> Enum.map(fn x ->
           {:t1, :u1, "#{x}"}
         end)
-        |> Enum.reduce({[], 0}, fn {a, u, m}, lst ->
+        |> Enum.reduce([], fn {a, u, m}, lst ->
           D.send_msg(s.id, a, u, m)
-          [{:_, {u, m, nil}} | lst]
+          [{u, m, nil} | lst]
         end)
+        |> Enum.reverse()
 
-      assert match?(
-               dummy_messages,
-               D.channel_history(s.id, :t1)
-             )
+      published =
+        D.channel_history(s.id, :t1)
+        |> Enum.map(&elem(&1, 1))
+
+      assert expected == published
     end
   end
 

@@ -41,7 +41,7 @@ defmodule Plugin.Why do
 
     at_module = at_module_regex()
 
-    case is_at_module(cfg, msg) do
+    case at_module?(cfg, msg) do
       false ->
         nil
 
@@ -65,7 +65,7 @@ defmodule Plugin.Why do
                 {:ok, traceback} ->
                   Response.new(
                     confidence: valid_confidence,
-                    text: traceback,
+                    text: traceback |> TxtBlock.to_str_list(cfg.service),
                     origin_msg_id: msg.id,
                     why: ["User asked why I said something, so I told them."]
                   )

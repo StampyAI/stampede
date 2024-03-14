@@ -8,7 +8,7 @@ defmodule Stampede.Interaction do
     plugin: _ :: any(),
     msg: _ :: Msg,
     response: _ :: Response,
-    traceback: [] :: iodata() | String.t(),
+    traceback: [] :: TxtBlock.t(),
     channel_lock: false :: S.channel_lock_action()
   )
 

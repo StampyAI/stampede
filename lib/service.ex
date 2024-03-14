@@ -1,20 +1,30 @@
 defmodule Service do
   use TypeCheck
+  alias Stampede, as: S
 
   @callback site_config_schema() :: NimbleOptions.t()
   @callback into_msg(service_message :: term()) :: %Stampede.Msg{}
+  @callback dm?(service_message :: term()) :: boolean()
   @callback send_msg(destination :: term(), text :: binary(), opts :: keyword()) :: term()
-  @callback log_plugin_error(cfg :: struct(), log :: binary()) :: :ok
+  @callback log_plugin_error(
+              cfg :: SiteConfig.t(),
+              message :: S.Msg.t(),
+              error_info :: PluginCrashInfo.t()
+            ) :: {:ok, formatted :: TxtBlock.t()}
   @callback log_serious_error(
               log_msg ::
                 {level :: Stampede.log_level(), _gl :: term(),
                  {module :: Logger, message :: term(), _timestamp :: term(), _metadata :: term()}}
             ) :: :ok
   @callback reload_configs() :: :ok | {:error, any()}
-  @callback author_is_privileged(server_id :: any(), author_id :: any()) :: boolean()
+  @callback author_privileged?(server_id :: any(), author_id :: any()) :: boolean()
 
-  @callback txt_source_block(txt :: binary()) :: binary()
-  @callback txt_quote_block(txt :: binary()) :: binary()
+  @callback txt_format(blk :: TxtBlock.t(), type :: TxtBlock.type()) :: S.str_list()
+  @callback format_plugin_fail(
+              cfg :: SiteConfig.t(),
+              msg :: S.Msg.t(),
+              error_info :: PluginCrashInfo.t()
+            ) :: TxtBlock.t()
 
   @callback start_link(Keyword.t()) :: :ignore | {:error, any} | {:ok, pid}
 
@@ -39,13 +49,22 @@ defmodule Service do
   end
 
   # service polymorphism basically
-  @spec! apply_service_function(SiteConfig.t(), atom(), list()) :: any()
+  @spec! apply_service_function(SiteConfig.t() | atom(), atom(), list()) :: any()
   def apply_service_function(cfg, func_name, args)
-      when is_atom(func_name) and is_list(args) do
-    SiteConfig.fetch!(cfg, :service)
-    |> apply(func_name, args)
+      when is_map(cfg) do
+    cfg
+    |> SiteConfig.fetch!(:service)
+    |> apply_service_function(func_name, args)
   end
 
-  def txt_source_block(cfg, text),
-    do: apply_service_function(cfg, :txt_source_block, [text])
+  def apply_service_function(service_name, func_name, args) when is_atom(service_name) do
+    apply(service_name, func_name, args)
+  end
+
+  # TODO: move into service-generic Stampede.Logger
+  def txt_format(blk, type, :logger),
+    do: TxtBlock.Md.format(blk, type)
+
+  def txt_format(blk, type, cfg_or_service),
+    do: apply_service_function(cfg_or_service, :txt_format, [blk, type])
 end

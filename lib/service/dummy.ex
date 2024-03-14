@@ -40,6 +40,7 @@ defmodule Service.Dummy do
   alias Stampede, as: S
   require S
   alias S.{Msg, Response}
+  require Msg
 
   use Service
 
@@ -137,16 +138,51 @@ defmodule Service.Dummy do
   end
 
   @impl Service
-  def log_plugin_error(cfg, log) do
-    _ =
-      send_msg(
-        SiteConfig.fetch!(cfg, :server_id),
-        SiteConfig.fetch!(cfg, :error_channel_id),
-        @system_user,
-        log
-      )
+  def format_plugin_fail(
+        _cfg = %{service: Service.Dummy},
+        msg = %{service: Service.Dummy},
+        %{plugin: p, type: t, error: e, stacktrace: st}
+      ) do
+    error_type =
+      case t do
+        :error ->
+          "an error"
 
-    :ok
+        :throw ->
+          "a throw"
+      end
+
+    [
+      "Message from ",
+      inspect(msg.author_id),
+      " lead to ",
+      error_type,
+      " in plugin ",
+      inspect(p),
+      ":\n\n",
+      {:source_block, [S.pp(e), "\n", S.pp(st)]}
+    ]
+  end
+
+  @impl Service
+  def log_plugin_error(cfg, msg, error_info) do
+    formatted =
+      format_plugin_fail(cfg, msg, error_info)
+
+    _ =
+      spawn(fn ->
+        # NOTE: as this function is generally being called inside a GenServer process, spawning a new thread is required.
+        send_msg(
+          SiteConfig.fetch!(cfg, :server_id),
+          SiteConfig.fetch!(cfg, :error_channel_id),
+          @system_user,
+          formatted
+          |> TxtBlock.to_str_list(__MODULE__)
+          |> IO.iodata_to_binary()
+        )
+      end)
+
+    {:ok, formatted}
   end
 
   # TODO
@@ -166,20 +202,19 @@ defmodule Service.Dummy do
   end
 
   @impl Service
-  def reload_configs() do
-    GenServer.call(__MODULE__, :reload_configs)
+  def dm?({_id, _server_id = {:dm, __MODULE__}, _channel, _user, _body, _ref}),
+    do: true
+
+  def dm?(_other), do: false
+
+  @impl Service
+  def author_privileged?(server_id, author_id) do
+    GenServer.call(__MODULE__, {:author_privileged?, server_id, author_id})
   end
 
   @impl Service
-  def author_is_privileged(server_id, author_id) do
-    GenServer.call(__MODULE__, {:author_is_privileged, server_id, author_id})
-  end
-
-  @impl Service
-  def txt_source_block(txt) when is_binary(txt), do: S.markdown_source(txt)
-
-  @impl Service
-  def txt_quote_block(txt) when is_binary(txt), do: S.markdown_quote(txt)
+  def txt_format(blk, kind),
+    do: TxtBlock.Md.format(blk, kind)
 
   @spec! channel_history(dummy_server_id(), dummy_channel_id()) :: channel()
   def channel_history(server_id, channel) do
@@ -209,6 +244,11 @@ defmodule Service.Dummy do
       ] ++ if plugs, do: [plugs: plugs], else: []
 
     new_server(args)
+  end
+
+  @impl Service
+  def reload_configs() do
+    GenServer.call(__MODULE__, :reload_configs)
   end
 
   # PLUMBING
@@ -314,7 +354,7 @@ defmodule Service.Dummy do
     {:reply, dump, state}
   end
 
-  def handle_call({:author_is_privileged, _server_id, author_id}, _from, state) do
+  def handle_call({:author_privileged?, _server_id, author_id}, _from, state) do
     case author_id do
       @system_user ->
         {:reply, true, state}

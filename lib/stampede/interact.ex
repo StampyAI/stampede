@@ -21,7 +21,7 @@ defmodule Stampede.Interact.IntTable do
       msg_id: S.msg_id(),
       msg: %Msg{},
       response: %Response{},
-      traceback: String.t(),
+      traceback: TxtBlock.t(),
       channel_lock: S.channel_lock_action()
     })
   end
@@ -170,7 +170,7 @@ defmodule Stampede.Interact do
         msg_id: int.msg.id,
         msg: int.msg,
         response: int.response,
-        traceback: int.traceback |> IO.iodata_to_binary(),
+        traceback: int.traceback,
         channel_lock: int.channel_lock
       )
       |> IntTable.validate!()

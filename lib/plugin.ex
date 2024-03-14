@@ -1,6 +1,29 @@
+defmodule PluginCrashInfo do
+  use TypeCheck
+  use TypeCheck.Defstruct
+
+  defstruct!(
+    plugin: _ :: module(),
+    type: _ :: :throw | :error,
+    error: _ :: Exception.t(),
+    stacktrace: _ :: Exception.stacktrace()
+  )
+
+  defmacro new(kwlist) do
+    quote do
+      struct!(
+        unquote(__MODULE__),
+        unquote(kwlist)
+      )
+    end
+  end
+end
+
 defmodule Plugin do
   use TypeCheck
   require Logger
+  require PluginCrashInfo
+  alias PluginCrashInfo, as: CrashInfo
   alias Stampede, as: S
   alias S.{Msg, Response, Interaction}
   require Interaction
@@ -13,7 +36,7 @@ defmodule Plugin do
   """
   @type! usage_tuples :: list(String.t() | {String.t(), String.t()})
   @callback process_msg(SiteConfig.t(), Msg.t()) :: nil | Response.t()
-  @callback is_at_module(SiteConfig.t(), Msg.t()) :: boolean() | {:cleaned, text :: String.t()}
+  @callback at_module?(SiteConfig.t(), Msg.t()) :: boolean() | {:cleaned, text :: String.t()}
   @callback usage() :: usage_tuples()
   @callback description() :: String.t()
 
@@ -22,7 +45,7 @@ defmodule Plugin do
       @behaviour unquote(__MODULE__)
 
       @impl Plugin
-      def is_at_module(cfg, msg) do
+      def at_module?(cfg, msg) do
         # Should we process the message?
         text =
           SiteConfig.fetch!(cfg, :prefix)
@@ -35,12 +58,26 @@ defmodule Plugin do
         end
       end
 
-      defoverridable is_at_module: 2
+      defoverridable at_module?: 2
     end
   end
 
+  @doc "returns loaded modules using the Plugin behavior."
+  @spec! ls() :: MapSet.t(module())
   def ls() do
-    S.find_submodules(__MODULE__)
+    S.find_submodules(Plugin)
+    |> Enum.reduce(MapSet.new(), fn
+      mod, acc ->
+        b =
+          mod.__info__(:attributes)
+          |> Keyword.get(:behaviour, [])
+
+        if Plugin in b do
+          MapSet.put(acc, mod)
+        else
+          acc
+        end
+    end)
   end
 
   def default_plugin_mfa(plug, [cfg, msg]) do
@@ -76,25 +113,29 @@ defmodule Plugin do
       }
     catch
       t, e ->
-        error_type =
-          case t do
-            :error ->
-              "an error"
+        st = __STACKTRACE__
 
-            :throw ->
-              "a throw"
-          end
+        error_info =
+          CrashInfo.new(plugin: m, type: t, error: e, stacktrace: st)
 
-        st = Exception.format(t, e, __STACKTRACE__)
+        {:ok, formatted} =
+          Service.apply_service_function(
+            cfg,
+            :log_plugin_error,
+            [cfg, msg, error_info]
+          )
 
-        log = """
-        Message from #{inspect(msg.author_id)} lead to #{error_type} in plugin #{m}:
-        #{st}
-        """
-
-        Logger.error(log)
-
-        _ = spawn(SiteConfig.fetch!(cfg, :service), :log_plugin_error, [cfg, log])
+        Logger.error(
+          fn ->
+            formatted
+            |> TxtBlock.to_str_list(:logger)
+            |> IO.iodata_to_binary()
+          end,
+          crash_reason: {e, st},
+          stampede_component: SiteConfig.fetch!(cfg, :service),
+          stampede_msg_id: msg.id,
+          stampede_plugin: m
+        )
 
         {:job_error, {e, st}}
     end
@@ -191,7 +232,6 @@ defmodule Plugin do
         )
         |> S.Interact.record_interaction!()
 
-        # TODO: logging interactions
         chosen_response
 
       %Response{callback: {mod, fun, args}} ->
@@ -200,7 +240,9 @@ defmodule Plugin do
 
         new_tb = [
           traceback,
-          "\nTop response was a callback, so i called it. It responded with: \n\"#{followup.text}\"",
+          "\nTop response was a callback, so i called it. It responded with: \n\"",
+          followup.text,
+          "\"",
           followup.why
         ]
 
@@ -225,7 +267,13 @@ defmodule Plugin do
 
         Map.update!(response, :why, fn tb ->
           [
-            "Channel #{msg.channel_id} was locked to module #{m}, function #{f}, so we called it.\n"
+            "Channel ",
+            msg.channel_id |> inspect(),
+            "was locked to module ",
+            m |> inspect(),
+            ", function ",
+            "f",
+            ", so we called it.\n"
             | tb
           ]
         end)
@@ -268,7 +316,11 @@ defmodule Plugin do
     end)
   end
 
-  @spec! resolve_responses(list(plugin_job_result())) :: map()
+  @spec! resolve_responses(nonempty_list(plugin_job_result())) :: %{
+           # NOTE: reversing order from 'nil | response' to 'response | nil' makes Dialyzer not count nil?
+           r: nil | S.Response.t(),
+           tb: S.traceback()
+         }
   def resolve_responses(tlist) do
     do_rr(tlist, nil, [])
   end
@@ -286,8 +338,10 @@ defmodule Plugin do
         traceback
       ) do
     do_rr(rest, chosen_response, [
-      traceback
-      | "\nWe asked #{inspect(plug)}, and it decided not to answer."
+      traceback,
+      "\nWe asked ",
+      plug |> inspect(),
+      ", and it decided not to answer."
     ])
   end
 
@@ -297,8 +351,10 @@ defmodule Plugin do
         traceback
       ) do
     do_rr(rest, chosen_response, [
-      traceback
-      | "\nWe asked #{inspect(plug)}, but it timed out."
+      traceback,
+      "\nWe asked ",
+      plug |> inspect(),
+      ", but it timed out."
     ])
   end
 
@@ -311,17 +367,23 @@ defmodule Plugin do
       if response.callback do
         [
           traceback,
-          "\nWe asked #{inspect(plug)}, and it responded with confidence #{inspect(response.confidence)} offering a callback.\nWhen asked why, it said: \"",
+          "\nWe asked ",
+          plug |> inspect(),
+          ", and it responded with confidence ",
+          response.confidence |> inspect(),
+          " offering a callback.\nWhen asked why, it said: \"",
           response.why,
           "\""
         ]
       else
         [
           traceback,
-          """
-          We asked #{inspect(plug)}, and it responded with confidence #{inspect(response.confidence)}:
-          #{S.markdown_quote(response.text)}
-          """,
+          "\nWe asked ",
+          plug |> inspect(),
+          ", and it responded with confidence ",
+          response.confidence |> inspect(),
+          ":\n",
+          {:quote_block, response.text},
           "When asked why, it said: \"",
           response.why,
           "\""
@@ -330,8 +392,8 @@ defmodule Plugin do
 
     if chosen_response == nil do
       do_rr(rest, response, [
-        tb
-        | "\nWe chose this response."
+        tb,
+        "\nWe chose this response."
       ])
     else
       do_rr(rest, chosen_response, tb)
@@ -347,8 +409,12 @@ defmodule Plugin do
       rest,
       chosen_response,
       [
-        traceback
-        | "\nWe asked #{inspect(plug)}, but there was an error of type #{inspect(val)}."
+        traceback,
+        "\nWe asked ",
+        plug |> inspect(),
+        ", but there was an error of type ",
+        val |> inspect(),
+        "."
       ]
     )
   end

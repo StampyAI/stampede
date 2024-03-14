@@ -36,6 +36,16 @@ defmodule Stampede.Response do
       struct!(
         unquote(__MODULE__),
         Keyword.put_new(unquote(keys), :origin_plug, __MODULE__)
+        |> Keyword.update!(:text, fn
+          str when is_binary(str) ->
+            str
+
+          nil ->
+            nil
+
+          iodata when is_list(iodata) ->
+            iodata |> IO.iodata_to_binary()
+        end)
       )
     end
   end

@@ -1,6 +1,7 @@
 defmodule Service.Discord do
   alias Stampede, as: S
   alias S.{Msg}
+  require Msg
   use TypeCheck
   use Supervisor, restart: :permanent
   require Logger
@@ -34,7 +35,12 @@ defmodule Service.Discord do
   end
 
   @impl Service
-  def send_msg(channel_id, msg, _opts \\ []) do
+  def send_msg(channel_id, msg, opts \\ [])
+
+  def send_msg(channel_id, msg, opts) when is_list(msg),
+    do: send_msg(channel_id, msg |> IO.iodata_to_binary(), opts)
+
+  def send_msg(channel_id, msg, _opts) when is_binary(msg) do
     r = S.text_chunk_regex(@character_limit)
 
     for chunk <-
@@ -65,7 +71,13 @@ defmodule Service.Discord do
         if try < 5 do
           IO.puts(
             :stderr,
-            "send_msg: discord message send failure ##{try}, error #{inspect(e, pretty: true)}. Trying again..."
+            [
+              "send_msg: discord message send failure ##",
+              try,
+              ", error ",
+              e |> S.pp(),
+              ". Trying again..."
+            ]
           )
 
           :ok = Process.sleep(500)
@@ -79,40 +91,76 @@ defmodule Service.Discord do
   end
 
   @impl Service
-  def log_plugin_error(cfg, log) do
+  def format_plugin_fail(
+        _cfg,
+        msg = %{service: Service.Discord},
+        %PluginCrashInfo{plugin: p, type: t, error: e, stacktrace: st}
+      ) do
+    error_type =
+      case t do
+        :error ->
+          "an error"
+
+        :throw ->
+          "a throw"
+      end
+
+    [
+      "Message from ",
+      msg.author_id |> Nostrum.Api.get_user!() |> Nostrum.Struct.User.full_name() |> inspect(),
+      " lead to ",
+      error_type,
+      " in plugin ",
+      inspect(p),
+      ":\n\n",
+      {:source_block, [S.pp(e), "\n", S.pp(st)]}
+    ]
+  end
+
+  @impl Service
+  def log_plugin_error(cfg, msg, error_info) do
     channel_id = SiteConfig.fetch!(cfg, :error_channel_id)
+    formatted = format_plugin_fail(cfg, msg, error_info)
 
     _ =
-      Nostrum.Api.create_message(
-        channel_id,
-        content: log
-      )
+      spawn(fn ->
+        _ =
+          send_msg(
+            channel_id,
+            formatted
+          )
+      end)
 
-    :ok
+    {:ok, formatted}
   end
 
   @impl Service
   def log_serious_error(log_msg = {level, _gl, {Logger, message, _timestamp, _metadata}}) do
     try do
       # TODO: disable if Discord not connected/working
-      IO.puts("log_serious_error recieved:\n#{inspect(log_msg, pretty: true)}")
+      IO.puts(["log_serious_error recieved:\n", inspect(log_msg, pretty: true)])
       channel_id = Application.fetch_env!(:stampede, :serious_error_channel_id)
 
-      log =
-        """
-        Erlang-level error #{inspect(level)}:
-        #{message |> S.pp() |> txt_source_block()}
-        """
+      log = [
+        "Erlang-level error ",
+        inspect(level),
+        "\n",
+        message
+        |> TxtBlock.to_str_list(Service.Discord)
+        |> Service.Discord.txt_format(:source_block)
+      ]
 
       _ = send_msg(channel_id, log)
     catch
       t, e ->
-        IO.puts("""
-        ERROR: Logging serious error to Discord failed. We have no option, and resending would probably cause an infinite loop.
+        IO.puts([
+          """
+          ERROR: Logging serious error to Discord failed. We have no option, and resending would probably cause an infinite loop.
 
-        Here's the error:
-        #{S.pp({t, e})}
-        """)
+          Here's the error:
+          """,
+          S.pp({t, e})
+        ])
     end
 
     :ok
@@ -124,19 +172,16 @@ defmodule Service.Discord do
   end
 
   @impl Service
-  def author_is_privileged(server_id, author_id) do
-    GenServer.call(__MODULE__.Handler, {:author_is_privileged, server_id, author_id})
+  def author_privileged?(server_id, author_id) do
+    GenServer.call(__MODULE__.Handler, {:author_privileged?, server_id, author_id})
   end
 
   @impl Service
-  def txt_source_block(txt) when is_binary(txt),
-    do: S.markdown_source(txt)
+  def txt_format(blk, kind),
+    do: TxtBlock.Md.format(blk, kind)
 
   @impl Service
-  def txt_quote_block(txt) when is_binary(txt),
-    do: S.markdown_quote(txt)
-
-  def is_dm(msg), do: msg.guild_id == nil
+  def dm?(msg), do: msg.guild_id == nil
 
   @spec! get_referenced_msg(Msg.t()) :: {:ok, Msg.t()} | {:error, any()}
   def get_referenced_msg(msg) do
@@ -194,10 +239,10 @@ defmodule Service.Discord.Handler do
     vip_ids: _ :: vips()
   )
 
-  @spec! is_vip_in_this_context(vips(), Discord.discord_guild_id(), Discord.discord_author_id()) ::
+  @spec! vip_in_this_context?(vips(), Discord.discord_guild_id(), Discord.discord_author_id()) ::
            boolean()
-  def is_vip_in_this_context(vips, server_id, author_id),
-    do: S.is_vip_in_this_context(vips, server_id, author_id)
+  def vip_in_this_context?(vips, server_id, author_id),
+    do: S.vip_in_this_context?(vips, server_id, author_id)
 
   def start_link(args) do
     GenServer.start_link(__MODULE__, args, name: __MODULE__)
@@ -234,10 +279,10 @@ defmodule Service.Discord.Handler do
     {:reply, :ok, new_state}
   end
 
-  def handle_call({:author_is_privileged, server_id, author_id}, _from, state) do
+  def handle_call({:author_privileged?, server_id, author_id}, _from, state) do
     {
       :reply,
-      is_vip_in_this_context(state.vip_ids, server_id, author_id),
+      vip_in_this_context?(state.vip_ids, server_id, author_id),
       state
     }
   end
@@ -260,22 +305,31 @@ defmodule Service.Discord.Handler do
           discord_msg.guild_id in state.guild_ids ->
             do_msg_create(discord_msg)
 
-          Discord.is_dm(discord_msg) ->
-            if is_vip_in_this_context(state.vip_ids, discord_msg.guild_id, discord_msg.author.id) do
+          Discord.dm?(discord_msg) ->
+            if vip_in_this_context?(state.vip_ids, discord_msg.guild_id, discord_msg.author.id) do
               do_msg_create(discord_msg)
             else
-              Logger.warning("""
-              User wanted to DM but is not in vip_ids. \
-              Username: #{discord_msg.author |> Nostrum.Struct.User.full_name() |> inspect()} \
-              Message:
-              #{discord_msg.content |> Discord.txt_quote_block()}
-              """)
+              Logger.warning(fn ->
+                [
+                  "User wanted to DM but is not in vip_ids. \\\n",
+                  "Username: ",
+                  discord_msg.author |> Nostrum.Struct.User.full_name() |> inspect(),
+                  " \\\n",
+                  "Message:\n",
+                  {:quote_block, discord_msg.content} |> TxtBlock.to_str_list(Service.Discord)
+                ]
+              end)
             end
 
           true ->
-            Logger.error(
-              "guild #{discord_msg.guild_id |> inspect()} NOT found in #{inspect(state.guild_ids)}"
-            )
+            Logger.error(fn ->
+              [
+                "guild ",
+                discord_msg.guild_id |> inspect(),
+                " NOT found in ",
+                inspect(state.guild_ids)
+              ]
+            end)
         end
     end
 
@@ -332,7 +386,11 @@ end
 defmodule Service.Discord.Logger do
   @doc """
   Listens for global errors raised from Erlang's logger system. If an error gets thrown in this module or children it would cause an infinite loop.
+
   """
+
+  # TODO: turn into service-generic Stampede.Logger
+
   use TypeCheck
   @behaviour :gen_event
   # alias Stampede, as: S

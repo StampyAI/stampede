@@ -14,6 +14,7 @@ erl_crash.dump
 
 ### Elixir Patch ###
 /doc
+/.elixir-tools
 
 # Nix resources
 /.nix-mix
