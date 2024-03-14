@@ -33,19 +33,19 @@ defmodule Stampede do
     raise "intentional internal error: #{msg}"
   end
 
-  @spec! author_is_privileged(
+  @spec! author_privileged?(
            %{server_id: any()},
            %{author_id: any()}
          ) :: boolean()
-  def author_is_privileged(cfg, msg) do
-    Service.apply_service_function(cfg, :author_is_privileged, [cfg.server_id, msg.author_id])
+  def author_privileged?(cfg, msg) do
+    Service.apply_service_function(cfg, :author_privileged?, [cfg.server_id, msg.author_id])
   end
 
-  @spec! is_vip_in_this_context(map(), server_id(), user_id()) :: boolean()
-  def is_vip_in_this_context(vips, nil, author_id),
+  @spec! vip_in_this_context?(map(), server_id(), user_id()) :: boolean()
+  def vip_in_this_context?(vips, nil, author_id),
     do: author_id in Map.values(vips)
 
-  def is_vip_in_this_context(vips, server_id, author_id) do
+  def vip_in_this_context?(vips, server_id, author_id) do
     Enum.any?(vips, fn {this_server, this_author} ->
       author_id == this_author and this_server == server_id
     end)

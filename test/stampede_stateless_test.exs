@@ -129,20 +129,20 @@ defmodule StampedeStatelessTest do
     test "vip check" do
       vips = %{some_server: :admin}
 
-      assert S.is_vip_in_this_context(
+      assert S.vip_in_this_context?(
                vips,
                :some_server,
                :admin
              )
 
-      assert S.is_vip_in_this_context(
+      assert S.vip_in_this_context?(
                vips,
                nil,
                :admin
              )
 
       assert false ==
-               S.is_vip_in_this_context(
+               S.vip_in_this_context?(
                  vips,
                  :some_server,
                  :non_admin

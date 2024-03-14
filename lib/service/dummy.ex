@@ -202,13 +202,14 @@ defmodule Service.Dummy do
   end
 
   @impl Service
-  def reload_configs() do
-    GenServer.call(__MODULE__, :reload_configs)
-  end
+  def dm?({_id, _server_id = {:dm, __MODULE__}, _channel, _user, _body, _ref}),
+    do: true
+
+  def dm?(_other), do: false
 
   @impl Service
-  def author_is_privileged(server_id, author_id) do
-    GenServer.call(__MODULE__, {:author_is_privileged, server_id, author_id})
+  def author_privileged?(server_id, author_id) do
+    GenServer.call(__MODULE__, {:author_privileged?, server_id, author_id})
   end
 
   @impl Service
@@ -243,6 +244,11 @@ defmodule Service.Dummy do
       ] ++ if plugs, do: [plugs: plugs], else: []
 
     new_server(args)
+  end
+
+  @impl Service
+  def reload_configs() do
+    GenServer.call(__MODULE__, :reload_configs)
   end
 
   # PLUMBING
@@ -348,7 +354,7 @@ defmodule Service.Dummy do
     {:reply, dump, state}
   end
 
-  def handle_call({:author_is_privileged, _server_id, author_id}, _from, state) do
+  def handle_call({:author_privileged?, _server_id, author_id}, _from, state) do
     case author_id do
       @system_user ->
         {:reply, true, state}

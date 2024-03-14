@@ -36,7 +36,7 @@ defmodule Plugin do
   """
   @type! usage_tuples :: list(String.t() | {String.t(), String.t()})
   @callback process_msg(SiteConfig.t(), Msg.t()) :: nil | Response.t()
-  @callback is_at_module(SiteConfig.t(), Msg.t()) :: boolean() | {:cleaned, text :: String.t()}
+  @callback at_module?(SiteConfig.t(), Msg.t()) :: boolean() | {:cleaned, text :: String.t()}
   @callback usage() :: usage_tuples()
   @callback description() :: String.t()
 
@@ -45,7 +45,7 @@ defmodule Plugin do
       @behaviour unquote(__MODULE__)
 
       @impl Plugin
-      def is_at_module(cfg, msg) do
+      def at_module?(cfg, msg) do
         # Should we process the message?
         text =
           SiteConfig.fetch!(cfg, :prefix)
@@ -58,7 +58,7 @@ defmodule Plugin do
         end
       end
 
-      defoverridable is_at_module: 2
+      defoverridable at_module?: 2
     end
   end
 

@@ -28,7 +28,7 @@ defmodule Plugin.Test do
   @spec! process_msg(any(), S.Msg.t()) :: nil | S.Response.t()
   @impl Plugin
   def process_msg(cfg, msg) do
-    case is_at_module(cfg, msg) do
+    case at_module?(cfg, msg) do
       {:cleaned, "ping"} ->
         S.Response.new(
           confidence: 10,
@@ -83,7 +83,7 @@ defmodule Plugin.Test do
   end
 
   def lock_callback(cfg, msg, :b) do
-    case is_at_module(cfg, msg) do
+    case at_module?(cfg, msg) do
       {:cleaned, "b"} ->
         S.Response.new(
           confidence: 10,
@@ -107,7 +107,7 @@ defmodule Plugin.Test do
   end
 
   def lock_callback(cfg, msg, :c) do
-    case is_at_module(cfg, msg) do
+    case at_module?(cfg, msg) do
       {:cleaned, "c"} ->
         S.Response.new(
           confidence: 10,

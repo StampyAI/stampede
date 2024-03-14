@@ -172,15 +172,16 @@ defmodule Service.Discord do
   end
 
   @impl Service
-  def author_is_privileged(server_id, author_id) do
-    GenServer.call(__MODULE__.Handler, {:author_is_privileged, server_id, author_id})
+  def author_privileged?(server_id, author_id) do
+    GenServer.call(__MODULE__.Handler, {:author_privileged?, server_id, author_id})
   end
 
   @impl Service
   def txt_format(blk, kind),
     do: TxtBlock.Md.format(blk, kind)
 
-  def is_dm(msg), do: msg.guild_id == nil
+  @impl Service
+  def dm?(msg), do: msg.guild_id == nil
 
   @spec! get_referenced_msg(Msg.t()) :: {:ok, Msg.t()} | {:error, any()}
   def get_referenced_msg(msg) do
@@ -238,10 +239,10 @@ defmodule Service.Discord.Handler do
     vip_ids: _ :: vips()
   )
 
-  @spec! is_vip_in_this_context(vips(), Discord.discord_guild_id(), Discord.discord_author_id()) ::
+  @spec! vip_in_this_context?(vips(), Discord.discord_guild_id(), Discord.discord_author_id()) ::
            boolean()
-  def is_vip_in_this_context(vips, server_id, author_id),
-    do: S.is_vip_in_this_context(vips, server_id, author_id)
+  def vip_in_this_context?(vips, server_id, author_id),
+    do: S.vip_in_this_context?(vips, server_id, author_id)
 
   def start_link(args) do
     GenServer.start_link(__MODULE__, args, name: __MODULE__)
@@ -278,10 +279,10 @@ defmodule Service.Discord.Handler do
     {:reply, :ok, new_state}
   end
 
-  def handle_call({:author_is_privileged, server_id, author_id}, _from, state) do
+  def handle_call({:author_privileged?, server_id, author_id}, _from, state) do
     {
       :reply,
-      is_vip_in_this_context(state.vip_ids, server_id, author_id),
+      vip_in_this_context?(state.vip_ids, server_id, author_id),
       state
     }
   end
@@ -304,8 +305,8 @@ defmodule Service.Discord.Handler do
           discord_msg.guild_id in state.guild_ids ->
             do_msg_create(discord_msg)
 
-          Discord.is_dm(discord_msg) ->
-            if is_vip_in_this_context(state.vip_ids, discord_msg.guild_id, discord_msg.author.id) do
+          Discord.dm?(discord_msg) ->
+            if vip_in_this_context?(state.vip_ids, discord_msg.guild_id, discord_msg.author.id) do
               do_msg_create(discord_msg)
             else
               Logger.warning(fn ->

@@ -4,6 +4,7 @@ defmodule Service do
 
   @callback site_config_schema() :: NimbleOptions.t()
   @callback into_msg(service_message :: term()) :: %Stampede.Msg{}
+  @callback dm?(service_message :: term()) :: boolean()
   @callback send_msg(destination :: term(), text :: binary(), opts :: keyword()) :: term()
   @callback log_plugin_error(
               cfg :: SiteConfig.t(),
@@ -16,7 +17,7 @@ defmodule Service do
                  {module :: Logger, message :: term(), _timestamp :: term(), _metadata :: term()}}
             ) :: :ok
   @callback reload_configs() :: :ok | {:error, any()}
-  @callback author_is_privileged(server_id :: any(), author_id :: any()) :: boolean()
+  @callback author_privileged?(server_id :: any(), author_id :: any()) :: boolean()
 
   @callback txt_format(blk :: TxtBlock.t(), type :: TxtBlock.type()) :: S.str_list()
   @callback format_plugin_fail(

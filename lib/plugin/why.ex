@@ -41,7 +41,7 @@ defmodule Plugin.Why do
 
     at_module = at_module_regex()
 
-    case is_at_module(cfg, msg) do
+    case at_module?(cfg, msg) do
       false ->
         nil
 
