@@ -1,7 +1,7 @@
 defmodule Stampede do
   use TypeCheck
   @type! channel_id :: any()
-  @type! server_id :: any()
+  @type! server_id :: integer() | atom() | {:dm, lazy(server_id())}
   @type! user_id :: any()
   @type! msg_id :: any()
   @type! log_level ::

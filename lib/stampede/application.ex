@@ -124,8 +124,8 @@ defmodule Stampede.Application do
   def make_children(startup_args) do
     default_children = [
       {PartitionSupervisor, child_spec: Task.Supervisor, name: Stampede.QuickTaskSupers},
-      {Stampede.CfgTable, config_dir: Keyword.fetch!(startup_args, :config_dir)},
       # NOTE: call with Stampede.quick_task_via()
+      {Stampede.CfgTable, config_dir: Keyword.fetch!(startup_args, :config_dir)},
       {Stampede.Interact, wipe_tables: Keyword.fetch!(startup_args, :clear_state)}
     ]
 

@@ -63,7 +63,7 @@ defmodule Stampede.CfgTable do
   end
 
   @spec! servers_configured() ::
-           %MapSet{}
+           MapSet.t(S.server_id())
   def servers_configured() do
     try_with_table(fn table ->
       table
@@ -76,17 +76,22 @@ defmodule Stampede.CfgTable do
   end
 
   @spec! servers_configured(service_name :: S.service_name()) ::
-           %MapSet{}
+           MapSet.t(S.server_id())
   def servers_configured(service_name) do
     try_with_table(fn table ->
       table
       |> Map.get(service_name, %{})
       |> tap(fn
-        %{} -> Logger.warning("No servers detected for #{Atom.to_string(service_name)}")
-        m when is_map(m) -> :ok
+        m when is_map(m) and m == %{} ->
+          Logger.warning(
+            "No servers detected for #{inspect(service_name)}\nTable: #{S.pp(table)}"
+          )
+
+        m when is_map(m) ->
+          :ok
       end)
       |> Map.values()
-      |> Enum.map(fn cfg -> cfg.server_id end)
+      |> Enum.map(&SiteConfig.fetch!(&1, :server_id))
       |> MapSet.new()
     end)
   end
@@ -134,7 +139,7 @@ defmodule Stampede.CfgTable do
   def table_load(contents) do
     valid!(contents)
 
-    :persistent_term.put(__MODULE__, contents)
+    :ok = :persistent_term.put(__MODULE__, contents)
   end
 
   def try_with_table(f) do

@@ -74,9 +74,7 @@ defmodule SiteConfig do
   def schema(atom),
     do: S.service_atom_to_name(atom) |> apply(:site_config_schema, [])
 
-  def fetch!(cfg, key) when is_map(cfg) do
-    Map.fetch!(cfg, key)
-  end
+  def fetch!(cfg, key) when is_map_key(cfg, key), do: Map.fetch!(cfg, key)
 
   def real_plugins(:all), do: {:ok, :all}
   def real_plugins(:none), do: {:ok, :none}
