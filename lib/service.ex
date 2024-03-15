@@ -3,9 +3,9 @@ defmodule Service do
   alias Stampede, as: S
 
   @callback site_config_schema() :: NimbleOptions.t()
-  @callback into_msg(service_message :: term()) :: %Stampede.Msg{}
-  @callback dm?(service_message :: term()) :: boolean()
-  @callback send_msg(destination :: term(), text :: binary(), opts :: keyword()) :: term()
+  @callback into_msg(service_message :: any()) :: %Stampede.Msg{}
+  @callback dm?(service_message :: any()) :: boolean()
+  @callback send_msg(destination :: any(), text :: binary(), opts :: keyword()) :: any()
   @callback log_plugin_error(
               cfg :: SiteConfig.t(),
               message :: S.Msg.t(),
@@ -13,8 +13,8 @@ defmodule Service do
             ) :: {:ok, formatted :: TxtBlock.t()}
   @callback log_serious_error(
               log_msg ::
-                {level :: Stampede.log_level(), _gl :: term(),
-                 {module :: Logger, message :: term(), _timestamp :: term(), _metadata :: term()}}
+                {level :: Stampede.log_level(), _gl :: any(),
+                 {module :: Logger, message :: any(), _timestamp :: any(), _metadata :: any()}}
             ) :: :ok
   @callback reload_configs() :: :ok | {:error, any()}
   @callback author_privileged?(server_id :: any(), author_id :: any()) :: boolean()
