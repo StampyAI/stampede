@@ -68,7 +68,9 @@ defmodule Stampede.CfgTable do
     try_with_table(fn table ->
       table
       |> Map.values()
-      |> Enum.map(&Map.keys/1)
+      |> Enum.flat_map(fn service ->
+        Enum.map(service, &SiteConfig.fetch!(&1, :server_id))
+      end)
       |> MapSet.new()
     end)
   end
