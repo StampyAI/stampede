@@ -72,6 +72,7 @@ defmodule Service.Dummy do
   )
 
   @system_user :server
+  @bot_user :stampede
 
   @schema NimbleOptions.new!(
             SiteConfig.merge_custom_schema(
@@ -175,7 +176,7 @@ defmodule Service.Dummy do
         send_msg(
           SiteConfig.fetch!(cfg, :server_id),
           SiteConfig.fetch!(cfg, :error_channel_id),
-          @system_user,
+          @bot_user,
           formatted
           |> TxtBlock.to_str_list(__MODULE__)
           |> IO.iodata_to_binary()
@@ -322,20 +323,7 @@ defmodule Service.Dummy do
   def handle_call({:channel_history, server_id, channel}, _from, state) do
     if server_id not in state.servers, do: raise("Server not registered")
 
-    history =
-      transaction!(fn ->
-        Memento.Query.select(
-          __MODULE__.Table,
-          [
-            {:==, :channel, channel},
-            {:==, :server_id, server_id}
-          ]
-        )
-        |> Enum.map(fn
-          item ->
-            {item.id, {item.user, item.body, item.referenced_msg_id}}
-        end)
-      end)
+    history = do_get_channel_history(server_id, channel)
 
     {:reply, history, state}
   end
@@ -354,7 +342,28 @@ defmodule Service.Dummy do
     {:reply, dump, state}
   end
 
+  @impl Service
+  def at_bot?(_cfg, msg) do
+    case msg.referenced_msg_id do
+      nil ->
+        false
+
+      ref ->
+        transaction!(fn ->
+          Memento.Query.read(__MODULE__.Table, ref)
+          |> case do
+            nil ->
+              false
+
+            found ->
+              found.user == @bot_user
+          end
+        end)
+    end
+  end
+
   def handle_call({:author_privileged?, _server_id, author_id}, _from, state) do
+    # TODO: make VIPs like Discord
     case author_id do
       @system_user ->
         {:reply, true, state}
@@ -374,7 +383,7 @@ defmodule Service.Dummy do
 
   defp do_post_response({server_id, channel}, response, state)
        when is_struct(response, Response) do
-    {server_id, channel, @system_user, response.text, response.origin_msg_id}
+    {server_id, channel, @bot_user, response.text, response.origin_msg_id}
     |> do_add_new_msg(state)
   end
 
@@ -406,6 +415,22 @@ defmodule Service.Dummy do
       msg_object: msg_object,
       new_state: state
     }
+  end
+
+  def do_get_channel_history(server_id, channel) do
+    transaction!(fn ->
+      Memento.Query.select(
+        __MODULE__.Table,
+        [
+          {:==, :channel, channel},
+          {:==, :server_id, server_id}
+        ]
+      )
+      |> Enum.map(fn
+        item ->
+          {item.id, {item.user, item.body, item.referenced_msg_id}}
+      end)
+    end)
   end
 
   defp transaction!(f) do

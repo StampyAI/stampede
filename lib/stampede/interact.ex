@@ -25,6 +25,9 @@ defmodule Stampede.Interact.IntTable do
       channel_lock: S.channel_lock_action()
     })
   end
+
+  def validate!(record) when not is_struct(record, __MODULE__),
+    do: raise("Invalid #{__MODULE__} instance.\n" <> S.pp(record))
 end
 
 defmodule Stampede.Interact.ChannelLockTable do

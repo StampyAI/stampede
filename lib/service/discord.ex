@@ -35,6 +35,29 @@ defmodule Service.Discord do
   end
 
   @impl Service
+  def at_bot?(_cfg, msg) do
+    Nostrum.Api.get_channel_message(msg.channel_id, msg.referenced_msg_id)
+    |> case do
+      {:ok, service_msg} ->
+        bot_id?(service_msg.author.id)
+
+      other ->
+        raise "Message at channel #{inspect(msg.channel_id)} id #{inspect(msg.id)} not found. Instead we got: #{S.pp(other)}"
+    end
+  end
+
+  @impl Service
+  def bot_id?(id) do
+    case Nostrum.Cache.Me.get() do
+      %{id: bot_id} ->
+        id == bot_id
+
+      nil ->
+        raise "We don't know our own identity. This should never happen"
+    end
+  end
+
+  @impl Service
   def send_msg(channel_id, msg, opts \\ [])
 
   def send_msg(channel_id, msg, opts) when is_list(msg),
@@ -291,46 +314,40 @@ defmodule Service.Discord.Handler do
   @spec! handle_cast({:MESSAGE_CREATE, %Nostrum.Struct.Message{}}, %__MODULE__{}) ::
            {:noreply, any()}
   def handle_cast({:MESSAGE_CREATE, discord_msg}, state) do
-    case Nostrum.Cache.Me.get() do
-      author when discord_msg.author.id == author.id ->
-        # This is our own message, do nothing
-        nil
+    if Discord.bot_id?(discord_msg.author.id) do
+      # ignore our own messages
+      nil
+    else
+      cond do
+        discord_msg.guild_id in state.guild_ids ->
+          do_msg_create(discord_msg)
 
-      nil ->
-        raise "We don't know our own identity. This should never happen"
-
-      _ ->
-        # Message from somebody else
-        cond do
-          discord_msg.guild_id in state.guild_ids ->
+        Discord.dm?(discord_msg) ->
+          if vip_in_this_context?(state.vip_ids, discord_msg.guild_id, discord_msg.author.id) do
             do_msg_create(discord_msg)
-
-          Discord.dm?(discord_msg) ->
-            if vip_in_this_context?(state.vip_ids, discord_msg.guild_id, discord_msg.author.id) do
-              do_msg_create(discord_msg)
-            else
-              Logger.warning(fn ->
-                [
-                  "User wanted to DM but is not in vip_ids. \\\n",
-                  "Username: ",
-                  discord_msg.author |> Nostrum.Struct.User.full_name() |> inspect(),
-                  " \\\n",
-                  "Message:\n",
-                  {:quote_block, discord_msg.content} |> TxtBlock.to_str_list(Service.Discord)
-                ]
-              end)
-            end
-
-          true ->
-            Logger.error(fn ->
+          else
+            Logger.warning(fn ->
               [
-                "guild ",
-                discord_msg.guild_id |> inspect(),
-                " NOT found in ",
-                inspect(state.guild_ids)
+                "User wanted to DM but is not in vip_ids. \\\n",
+                "Username: ",
+                discord_msg.author |> Nostrum.Struct.User.full_name() |> inspect(),
+                " \\\n",
+                "Message:\n",
+                {:quote_block, discord_msg.content} |> TxtBlock.to_str_list(Service.Discord)
               ]
             end)
-        end
+          end
+
+        true ->
+          Logger.error(fn ->
+            [
+              "guild ",
+              inspect(discord_msg.guild_id),
+              " NOT found in ",
+              inspect(state.guild_ids)
+            ]
+          end)
+      end
     end
 
     {:noreply, state}

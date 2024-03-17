@@ -49,7 +49,12 @@ defmodule Plugin do
         # Should we process the message?
         text =
           SiteConfig.fetch!(cfg, :prefix)
-          |> S.strip_prefix(msg.body)
+          |> S.strip_prefix(msg.body) ||
+            if Service.apply_service_function(cfg, :at_bot?, [cfg, msg]) do
+              msg.body
+            else
+              false
+            end
 
         if text do
           {:cleaned, text}

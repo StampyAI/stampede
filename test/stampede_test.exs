@@ -58,7 +58,7 @@ defmodule StampedeTest do
                [
                  {_, {:u1, "no response", nil}},
                  {cause_id, {:u1, "!ping", nil}},
-                 {_, {:server, "pong!", cause_id}}
+                 {_, {:stampede, "pong!", cause_id}}
                ],
                D.channel_history(s.id, :t1)
              )
@@ -75,7 +75,7 @@ defmodule StampedeTest do
                  {_, {:nope, "nada", nil}},
                  {_, {:abc, "def", nil}},
                  {cause_id, {:u1, "!ping", nil}},
-                 {_, {:server, "pong!", cause_id}}
+                 {_, {:stampede, "pong!", cause_id}}
                ],
                D.channel_history(s.id, :t1)
              )
@@ -96,7 +96,7 @@ defmodule StampedeTest do
              "error not being logged"
 
       assert match?(
-               [{cause_id, {:u1, "!raise", nil}}, {_, {:server, @confused_response, cause_id}}],
+               [{cause_id, {:u1, "!raise", nil}}, {_, {:stampede, @confused_response, cause_id}}],
                D.channel_history(s.id, :t1)
              )
     end
@@ -112,7 +112,7 @@ defmodule StampedeTest do
              "error not being logged"
 
       assert match?(
-               [{cause_id, {:u1, "!throw", nil}}, {_, {:server, @confused_response, cause_id}}],
+               [{cause_id, {:u1, "!throw", nil}}, {_, {:stampede, @confused_response, cause_id}}],
                D.channel_history(s.id, :t1)
              )
     end
@@ -143,6 +143,23 @@ defmodule StampedeTest do
 
       assert "lock broken by admin" ==
                D.send_msg(s.id, :t1, uname, "!interrupt") |> Map.fetch!(:text)
+    end
+
+    test "at_bot?", s do
+      %{response: r, posted_msg_id: non_bot_id} =
+        D.send_msg(s.id, :t1, :u1, "!ping", return_id: true)
+
+      assert r.text == "pong!"
+
+      {id, {:stampede, _, _}} =
+        D.channel_history(s.id, :t1)
+        |> Enum.at(-1)
+
+      r2 = D.send_msg(s.id, :t1, :u1, "ping", ref: id)
+      assert r2 && r2.text == "pong!", "bot not responding to being tagged"
+
+      r3 = D.send_msg(s.id, :t1, :u1, "ping", ref: non_bot_id)
+      assert r3 == nil, "bot responded to tag of someone else's message"
     end
   end
 
