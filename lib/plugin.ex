@@ -36,6 +36,9 @@ defmodule Plugin do
   """
   @type! usage_tuples :: list(String.t() | {String.t(), String.t()})
   @callback process_msg(SiteConfig.t(), Msg.t()) :: nil | Response.t()
+
+  # TODO: replace with predicate? and handle prefix cleaning seperately
+  @doc "Given a config and message, indicate if we should respond, and if so what is the relevant part of the message?"
   @callback at_module?(SiteConfig.t(), Msg.t()) :: boolean() | {:cleaned, text :: String.t()}
   @callback usage() :: usage_tuples()
   @callback description() :: String.t()
@@ -85,16 +88,16 @@ defmodule Plugin do
     end)
   end
 
-  def default_plugin_mfa(plug, [cfg, msg]) do
-    {plug, :process_msg, [cfg, msg]}
-  end
-
   @spec! ls(:all | :none | MapSet.t()) :: MapSet.t()
   def ls(:none), do: MapSet.new()
   def ls(:all), do: ls()
 
   def ls(enabled) do
     MapSet.intersection(enabled, ls())
+  end
+
+  def default_plugin_mfa(plug, [cfg, msg]) do
+    {plug, :process_msg, [cfg, msg]}
   end
 
   @type! job_result ::
@@ -104,6 +107,7 @@ defmodule Plugin do
            | {:job_ok, %Response{}}
   @type! plugin_job_result :: {atom(), job_result()}
 
+  @doc "Attempt some task, safely catch errors, and format the error report for the originating service"
   @spec! get_response(S.module_function_args() | atom(), SiteConfig.t(), S.Msg.t()) ::
            job_result()
   def get_response(plugin, cfg, msg) when is_atom(plugin),
@@ -164,7 +168,7 @@ defmodule Plugin do
              S.quick_task_via(),
              __MODULE__,
              :get_response,
-             [default_plugin_mfa(this_plug, [cfg, msg]), cfg, msg]
+             [this_plug, cfg, msg]
            )}
       end)
 
@@ -187,7 +191,6 @@ defmodule Plugin do
         }
       end)
       |> Enum.map(fn {task, result} ->
-        # they are reunited :-)
         {
           task,
           case result do
@@ -219,7 +222,6 @@ defmodule Plugin do
               {plug, {:job_error, reason}}
           end
       end)
-      |> task_sort()
 
     %{r: chosen_response, tb: traceback} = resolve_responses(task_results)
 
@@ -264,6 +266,7 @@ defmodule Plugin do
     end
   end
 
+  @doc "Poll all enabled plugins and choose the most relevant one."
   @spec! get_top_response(SiteConfig.t(), Msg.t()) :: nil | Response.t()
   def get_top_response(cfg, msg) do
     case S.Interact.channel_locked?(msg.channel_id) do
@@ -289,6 +292,7 @@ defmodule Plugin do
     end
   end
 
+  @doc "Organize plugin results by confidence"
   @spec! task_sort(list(plugin_job_result())) :: list(plugin_job_result())
   def task_sort(tlist) do
     Enum.sort(tlist, fn
@@ -321,13 +325,15 @@ defmodule Plugin do
     end)
   end
 
+  @doc "Choose best response, creating a traceback along the way."
   @spec! resolve_responses(nonempty_list(plugin_job_result())) :: %{
            # NOTE: reversing order from 'nil | response' to 'response | nil' makes Dialyzer not count nil?
            r: nil | S.Response.t(),
            tb: S.traceback()
          }
   def resolve_responses(tlist) do
-    do_rr(tlist, nil, [])
+    task_sort(tlist)
+    |> do_rr(nil, [])
   end
 
   def do_rr([], chosen_response, traceback) do

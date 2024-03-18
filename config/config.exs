@@ -1,5 +1,6 @@
 import Config
 
+# Extra metadata for the logger to keep
 stampede_metadata = [
   :stampede_component,
   :stampede_msg_id,
@@ -19,12 +20,12 @@ extra_metadata =
     stampede_metadata ++
     nostrum_metadata
 
+# Actually start configuring things
 config :stampede,
   compile_env: Mix.env()
 
 config :logger, :console,
   level: :debug,
-  # extra nostrum metadata
   metadata: extra_metadata
 
 config :logger,
@@ -36,6 +37,7 @@ config :stampede, :logger, [
   {:handler, :file_log, :logger_std_h,
    %{
      config: %{
+       # Don't mix environment logs
        file: ~c"logs/#{Mix.env()}/#{node()}.log",
        filesync_repeat_interval: 5000,
        file_check: 5000,
@@ -53,11 +55,12 @@ config :stampede, :logger, [
    }}
 ]
 
+# Discord bot needs these to work
 config :nostrum,
   gateway_intents: :all
 
+# Don't mix environment databases
 config :mnesia,
-  # Notice the single quotes
   dir: ~c".mnesia/#{Mix.env()}/#{node()}"
 
 for config <- "./*.secret.exs" |> Path.expand(__DIR__) |> Path.wildcard() do

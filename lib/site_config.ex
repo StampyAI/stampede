@@ -1,4 +1,16 @@
 defmodule SiteConfig do
+  @moduledoc """
+  This module defines how per-site configurations are validated and represented.
+
+  A configuration usually starts as a YAML file on-disk. It is then:
+  - read into an Erlang term
+  - validated with NimbleOptions (simultaneously handling defaults and type-checking)
+  - some transformations are done; for example, turning atoms referring to services and plugins into their proper names ("discord" into Elixir.Service.Discord, "why" into Elixir.Plugin.Why).
+  - turned into a SiteConfig struct (internally a map)
+  - Given to Stampede.CfgTable which handles storage of the configs and keeping services up-to-date.
+
+  schema_base() defines a basic site config schema, which is extended by Services for their needs.
+  """
   use TypeCheck
   use TypeCheck.Defstruct
   alias Stampede, as: S
@@ -11,6 +23,7 @@ defmodule SiteConfig do
   @type! channel_id :: S.channel_id()
   @type! schema :: keyword() | struct()
   @type! site_name :: atom()
+  @typedoc "A nested collection of configs, organized by service, then server_id"
   @type! cfg_list :: map(service(), map(server_id(), SiteConfig.t()))
   @type! t :: map(atom(), any())
 
@@ -76,6 +89,7 @@ defmodule SiteConfig do
 
   def fetch!(cfg, key) when is_map_key(cfg, key), do: Map.fetch!(cfg, key)
 
+  @doc "Verify that explicitly listed plugins actually exist"
   def real_plugins(:all), do: {:ok, :all}
   def real_plugins(:none), do: {:ok, :none}
 
@@ -129,6 +143,7 @@ defmodule SiteConfig do
     |> Map.new()
   end
 
+  @doc "Turn plug_name into Elixir.Plugin.PlugName"
   def concat_plugs(kwlist, _schema) do
     if is_list(Keyword.get(kwlist, :plugs)) do
       Keyword.update!(kwlist, :plugs, fn plugs ->
@@ -137,7 +152,10 @@ defmodule SiteConfig do
             :all
 
           ll when is_list(ll) ->
-            Enum.map(ll, &Module.safe_concat(Plugin, &1))
+            Enum.map(ll, fn name ->
+              camel_name = name |> to_string() |> Macro.camelize()
+              Module.safe_concat(Plugin, camel_name)
+            end)
             |> MapSet.new()
         end
       end)
@@ -146,6 +164,7 @@ defmodule SiteConfig do
     end
   end
 
+  @doc "If prefix describes a Regex, compile it"
   def make_regex(kwlist, _schema) do
     if Keyword.has_key?(kwlist, :prefix) do
       Keyword.update!(kwlist, :prefix, fn prefix ->
@@ -160,6 +179,7 @@ defmodule SiteConfig do
     end
   end
 
+  @doc "For the given keys, make a function that will replace the enumerables at those keys with MapSets"
   @spec! make_mapsets(list(atom())) :: (keyword(), any() -> keyword())
   def make_mapsets(keys) do
     fn kwlist, _schema ->
@@ -192,6 +212,7 @@ defmodule SiteConfig do
     |> load_from_string()
   end
 
+  @doc "Load all YML files in a directory and return a map of configs"
   @spec! load_all(String.t()) :: cfg_list()
   def load_all(dir) do
     target_dir = dir
@@ -225,7 +246,7 @@ defmodule SiteConfig do
 
   @spec! make_configs_for_dm_handling(cfg_list()) :: cfg_list()
   @doc """
-  Create a config with key {:dm, service} which all DMs for a service are handled under.
+  Create a config with key {:dm, service} which all DMs for a service will be handled under.
   If server_id is not "DM", it will be duplicated with one for the server and
   one for the DMs.
   Collects all VIPs for that service and puts them in the DM config.

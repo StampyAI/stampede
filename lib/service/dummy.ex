@@ -214,6 +214,29 @@ defmodule Service.Dummy do
   end
 
   @impl Service
+  def at_bot?(_cfg, msg) do
+    case msg.referenced_msg_id do
+      nil ->
+        false
+
+      ref ->
+        transaction!(fn ->
+          Memento.Query.read(__MODULE__.Table, ref)
+          |> case do
+            nil ->
+              false
+
+            found ->
+              found.user == @bot_user
+          end
+        end)
+    end
+  end
+
+  @impl Service
+  def bot_id?(id), do: id == @bot_user
+
+  @impl Service
   def txt_format(blk, kind),
     do: TxtBlock.Md.format(blk, kind)
 
@@ -340,26 +363,6 @@ defmodule Service.Dummy do
       end)
 
     {:reply, dump, state}
-  end
-
-  @impl Service
-  def at_bot?(_cfg, msg) do
-    case msg.referenced_msg_id do
-      nil ->
-        false
-
-      ref ->
-        transaction!(fn ->
-          Memento.Query.read(__MODULE__.Table, ref)
-          |> case do
-            nil ->
-              false
-
-            found ->
-              found.user == @bot_user
-          end
-        end)
-    end
   end
 
   def handle_call({:author_privileged?, _server_id, author_id}, _from, state) do
