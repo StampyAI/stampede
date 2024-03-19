@@ -5,29 +5,44 @@ defmodule Stampede.Interact.IntTable do
   alias Stampede, as: S
 
   use Memento.Table,
-    attributes: [:id, :datetime, :plugin, :msg_id, :msg, :response, :traceback, :channel_lock],
-    type: :ordered_set,
+    attributes: [
+      :id,
+      :datetime,
+      :plugin,
+      :posted_msg_id,
+      :msg,
+      :response,
+      :traceback,
+      :channel_lock
+    ],
+    type: :set,
     disc_copies: S.nodes(),
     access_mode: :read_write,
-    autoincrement: true,
-    index: [:datetime, :msg_id],
+    index: [:datetime, :posted_msg_id],
     storage_properties: [ets: [:compressed]]
 
+  # TODO: benchmarking.
+  # try write_concurrency and read_concurrency
+
+  @spec! validate!(%__MODULE__{}) :: %__MODULE__{}
   def validate!(record) when is_struct(record, __MODULE__) do
+    if S.Interact.id_exists?(record.id), do: raise("Interaction already recorded??")
+
     TypeCheck.conforms!(record, %__MODULE__{
-      id: nil | integer(),
+      id: S.interaction_id(),
       datetime: S.timestamp(),
       plugin: module(),
-      msg_id: S.msg_id(),
-      msg: %Msg{},
-      response: %Response{},
+      # This can't be set until the service has posted the message
+      posted_msg_id: nil | S.msg_id(),
+      msg: Msg.t(),
+      response: Response.t(),
       traceback: TxtBlock.t(),
       channel_lock: S.channel_lock_action()
     })
   end
 
   def validate!(record) when not is_struct(record, __MODULE__),
-    do: raise("Invalid #{__MODULE__} instance.\n" <> S.pp(record))
+    do: raise("Not a #{__MODULE__} instance.\n" <> S.pp(record))
 end
 
 defmodule Stampede.Interact.ChannelLockTable do
@@ -37,24 +52,23 @@ defmodule Stampede.Interact.ChannelLockTable do
   use Memento.Table,
     attributes: [:channel_id, :datetime, :lock_status, :callback, :interaction_id],
     type: :set,
-    autoincrement: false,
     disc_copies: S.nodes(),
     access_mode: :read_write
 
+  @spec! validate!(%__MODULE__{}) :: %__MODULE__{}
   def validate!(record) when is_struct(record, __MODULE__) do
     TypeCheck.conforms!(record, %__MODULE__{
       channel_id: S.channel_id(),
       datetime: S.timestamp(),
       lock_status: boolean(),
       callback: nil | S.module_function_args(),
-      interaction_id: integer()
+      interaction_id: S.interaction_id()
     })
   end
 end
 
 defmodule Stampede.Interact do
   require Logger
-  alias Stampede.Interaction
   alias Stampede, as: S
   alias S.Interact.{IntTable, ChannelLockTable}
   use TypeCheck
@@ -63,8 +77,10 @@ defmodule Stampede.Interact do
   use GenServer
 
   @typep! mod_state :: nil | []
+  @type! id :: non_neg_integer()
 
   @all_tables [ChannelLockTable, IntTable]
+  @msg_id_timeout 1000
 
   def start_link(args) do
     GenServer.start_link(__MODULE__, args, name: __MODULE__)
@@ -74,17 +90,13 @@ defmodule Stampede.Interact do
   @impl GenServer
   def init(args \\ []) do
     Logger.debug("Interact: starting")
-    _ = Memento.stop()
-    :ok = S.ensure_schema_exists(S.nodes())
-    :ok = Memento.start()
-    # # DEBUG
-    # Memento.info()
-    # Memento.Schema.info()
     :ok = S.ensure_tables_exist(@all_tables)
 
     if Keyword.get(args, :wipe_tables) == true do
       _ = clear_all_tables()
     end
+
+    # :ok = check_id_consistency()
 
     {:ok, nil}
   end
@@ -101,10 +113,10 @@ defmodule Stampede.Interact do
           not_tup
       end
 
-    transaction(fn ->
+    transaction!(fn ->
       Memento.Query.select(
         IntTable,
-        {:==, :msg_id, msg_id}
+        {:==, :posted_msg_id, msg_id}
       )
       |> case do
         [result] ->
@@ -114,14 +126,14 @@ defmodule Stampede.Interact do
           {:error, :not_found}
 
         results when is_list(results) ->
-          raise "multiple entries found for one msg_id"
+          raise "multiple entries found for one posted_msg_id"
       end
     end)
   end
 
   @spec! get_traceback(S.msg_id()) :: {:ok, S.traceback()} | {:error, any()}
   def get_traceback(msg_id) do
-    transaction(fn ->
+    transaction!(fn ->
       get(msg_id)
       |> case do
         {:ok, record} ->
@@ -136,7 +148,7 @@ defmodule Stampede.Interact do
   @spec! channel_locked?(S.channel_id()) :: S.channel_lock_status()
   def channel_locked?(channel_id) do
     match =
-      transaction(fn ->
+      transaction!(fn ->
         Memento.Query.read(ChannelLockTable, channel_id)
       end)
 
@@ -145,7 +157,7 @@ defmodule Stampede.Interact do
         if status do
           # get plugin
           plug =
-            transaction(fn ->
+            transaction!(fn ->
               [%{plugin: plug}] =
                 Memento.Query.match(IntTable, {iid, :_, :"$1", :_, :_, :_, :_, :_})
 
@@ -162,15 +174,18 @@ defmodule Stampede.Interact do
     end
   end
 
-  @spec! record_interaction!(%S.Interaction{}) :: :ok
-  def record_interaction!(int) when int.__struct__ == Stampede.Interaction do
+  @spec! prepare_interaction!(%S.InteractionForm{}) :: {:ok, S.interaction_id()}
+  def prepare_interaction!(int) when is_struct(int, S.InteractionForm) do
+    iid = S.TableIds.reserve_id(S.Interact.IntTable)
+
     new_row =
       struct!(
         IntTable,
-        id: nil,
+        id: iid,
         datetime: S.time(),
         plugin: int.plugin,
-        msg_id: int.msg.id,
+        # NOTE: message hasn't been posted yet, get this info back
+        posted_msg_id: nil,
         msg: int.msg,
         response: int.response,
         traceback: int.traceback,
@@ -180,16 +195,77 @@ defmodule Stampede.Interact do
 
     # IO.puts("Interact: new interaction:\n#{new_row |> S.pp()}") # DEBUG
 
-    new_record =
-      transaction(fn ->
-        result = do_write_interaction!(new_row)
-        :ok = do_channel_lock!(int, new_row.datetime, result.id)
-        result
+    :ok =
+      transaction!(fn ->
+        :ok = do_write_interaction!(new_row)
+        :ok = do_channel_lock!(int, new_row.datetime, iid)
       end)
 
-    :ok = announce_interaction(new_record)
+    :ok = announce_interaction(new_row)
 
-    :ok
+    spawn_link(__MODULE__, :check_for_orphaned_interaction, [iid, int.service])
+
+    {:ok, iid}
+  end
+
+  @spec! check_for_orphaned_interaction(S.interaction_id(), atom()) :: :ok
+  def check_for_orphaned_interaction(id, service) do
+    Process.sleep(@msg_id_timeout)
+
+    transaction!(fn ->
+      Memento.Query.read(IntTable, id)
+      |> Map.fetch!(:posted_msg_id)
+      |> case do
+        nil ->
+          Logger.error(
+            fn ->
+              [
+                "Orphaned interaction ",
+                inspect(id),
+                " from service ",
+                inspect(service),
+                " never recorded its posted_msg_id. (timeout ",
+                @msg_id_timeout |> to_string(),
+                ")"
+              ]
+            end,
+            stampede_component: service,
+            interaction_id: id
+          )
+
+          :ok
+
+        _ ->
+          :ok
+      end
+    end)
+  end
+
+  @spec! finalize_interaction(S.interaction_id(), S.msg_id()) :: :ok
+  def finalize_interaction(int_id, posted_msg_id) do
+    transaction!(fn ->
+      Memento.Query.read(
+        IntTable,
+        int_id
+      )
+      |> case do
+        nil ->
+          raise "Interaction #{inspect(int_id)} not found for message #{inspect(posted_msg_id)}"
+
+        int ->
+          _ =
+            Map.update!(int, :posted_msg_id, fn
+              nil ->
+                posted_msg_id
+
+              _already_set ->
+                raise "Interaction has posted_msg_id already set.\nNew message ID: #{posted_msg_id |> inspect()}\nInteraction: #{int |> S.pp()}"
+            end)
+            |> Memento.Query.write()
+
+          :ok
+      end
+    end)
   end
 
   @spec! announce_interaction(%IntTable{}) :: :ok
@@ -212,21 +288,18 @@ defmodule Stampede.Interact do
         "NEW INTERACTION ",
         inspect(rec.id),
         "\n",
-        to_print |> S.pp()
+        to_print |> :fast_yaml.encode()
       ]
     end)
   end
 
-  @spec! do_channel_lock!(%S.Interaction{}, String.t(), integer()) :: :ok
+  @spec! do_channel_lock!(%S.InteractionForm{}, String.t(), integer()) :: :ok
   def do_channel_lock!(int, datetime, int_id) do
-    # IO.puts( # DEBUG
-    #   "Interact: checking channel lock: #{{int, datetime, int_id} |> inspect(pretty: true)}"
-    # )
-
     result =
-      transaction(fn ->
+      transaction!(fn ->
         case int.channel_lock do
           {:lock, channel_id, mfa} ->
+            # try writing new channel lock
             case channel_locked?(channel_id) do
               false ->
                 new_row =
@@ -241,10 +314,7 @@ defmodule Stampede.Interact do
 
                 :ok = do_write_channellock!(new_row)
 
-                # IO.puts("Interact: writing new channel lock:\n  #{new_row |> inspect(pretty: true)}") # DEBUG
-
-                :ok
-
+              # try to update existing channel lock
               {_mfa, plug, _iid} when is_atom(plug) ->
                 if plug != int.response.origin_plug do
                   raise(
@@ -263,13 +333,10 @@ defmodule Stampede.Interact do
                   )
 
                 :ok = do_write_channellock!(new_row)
-
-                # IO.puts("Interact: updating channel lock:\n  #{new_row |> inspect(pretty: true)}") # DEBUG
-
-                :ok
             end
 
           {:unlock, channel_id} ->
+            # try writing channel lock
             case channel_locked?(channel_id) do
               false ->
                 Logger.error("plugin #{int.plugin} trying to unlock an already-unlocked channel")
@@ -288,23 +355,19 @@ defmodule Stampede.Interact do
 
                 :ok = do_write_channellock!(new_row)
 
-                # IO.puts("Interact: writing channel lock:\n  #{new_row |> inspect(pretty: true)}") # DEBUG
-                :ok
-
               plug when plug != int.plugin ->
                 raise "plugin #{int.plugin |> inspect()} trying to take a lock from #{plug |> inspect()}"
 
               other ->
-                raise "bad channel_locked? return #{other |> inspect(pretty: true)}"
+                raise "Interact: already existing channel_locked is malformed: #{other |> S.pp()}"
             end
 
           false ->
-            # do nothing
-            # IO.puts("Interact: channel lock noop") # DEBUG
+            # noop
             :ok
 
           other ->
-            raise "Interact: bad lock #{other |> inspect(pretty: true)}"
+            raise "Interact: bad lock: #{other |> S.pp()}"
         end
       end)
 
@@ -312,36 +375,42 @@ defmodule Stampede.Interact do
   end
 
   @impl GenServer
-  def terminate(_reason, _state) do
-    # DEBUG
-    # IO.puts("Interact exiting, reason: #{inspect(reason, pretty: true)}")
+  def terminate(reason, _state) do
+    # This never seems to get called, let me know when it happens
+    IO.puts("Interact exiting, reason: #{S.pp(reason)}")
 
     :ok = Memento.stop()
-
-    :ok
   end
 
   @spec! do_write_channellock!(%ChannelLockTable{}) :: :ok
   defp do_write_channellock!(record) do
     _ = ChannelLockTable.validate!(record)
 
-    _ =
-      transaction(fn ->
-        Memento.Query.write(record)
-      end)
+    transaction!(fn ->
+      _ = Memento.Query.write(record)
+    end)
 
     :ok
   end
 
-  @spec! do_write_interaction!(%IntTable{}) :: %IntTable{}
+  @spec! do_write_interaction!(%IntTable{}) :: :ok
   defp do_write_interaction!(record) do
-    transaction(fn ->
-      Memento.Query.write(record)
+    transaction!(fn ->
+      if id_exists?(record.id), do: raise("Interaction already recorded??")
+      _ = Memento.Query.write(record)
+
+      :ok
     end)
   end
 
-  defp transaction(f) do
+  @spec! transaction!((... -> any())) :: any()
+  defp transaction!(f) do
     Memento.Transaction.execute!(f, 10)
+  end
+
+  @spec! transaction_sync!((... -> any())) :: any()
+  defp transaction_sync!(f) do
+    Memento.Transaction.execute_sync!(f, 10)
   end
 
   def clear_all_tables() do
@@ -353,6 +422,19 @@ defmodule Stampede.Interact do
         :ok -> :ok
         e = {:error, _reason} -> raise e
       end
+    end)
+
+    transaction_sync!(fn ->
+      _ = Memento.Query.write(%S.TableIds{table_name: __MODULE__, last_id: 0})
+    end)
+
+    :ok
+  end
+
+  @spec! id_exists?(S.interaction_id()) :: boolean()
+  def id_exists?(id) do
+    transaction!(fn ->
+      Memento.Query.read(IntTable, id) != nil
     end)
   end
 end

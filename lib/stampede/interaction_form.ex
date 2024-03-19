@@ -1,13 +1,15 @@
-defmodule Stampede.Interaction do
+defmodule Stampede.InteractionForm do
   alias Stampede, as: S
   alias S.{Msg, Response}
   use TypeCheck
   use TypeCheck.Defstruct
 
   defstruct!(
+    # TODO: rename to "chosen_plugin"
     plugin: _ :: any(),
-    msg: _ :: Msg,
-    response: _ :: Response,
+    service: _ :: atom(),
+    msg: _ :: Msg.t(),
+    response: _ :: Response.t(),
     traceback: [] :: TxtBlock.t(),
     channel_lock: false :: S.channel_lock_action()
   )
@@ -16,11 +18,7 @@ defmodule Stampede.Interaction do
     quote do
       struct!(
         unquote(__MODULE__),
-        if unquote(kwargs[:plugin]) do
-          unquote(kwargs)
-        else
-          [{:plugin, __MODULE__} | unquote(kwargs)]
-        end
+        unquote(kwargs)
       )
     end
   end

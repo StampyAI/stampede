@@ -25,8 +25,8 @@ defmodule Plugin do
   require PluginCrashInfo
   alias PluginCrashInfo, as: CrashInfo
   alias Stampede, as: S
-  alias S.{Msg, Response, Interaction}
-  require Interaction
+  alias S.{Msg, Response, InteractionForm}
+  require InteractionForm
   @first_response_timeout 500
 
   @typedoc """
@@ -150,6 +150,8 @@ defmodule Plugin do
     end
   end
 
+  @spec! query_plugins(list(S.module_function_args() | module()), SiteConfig.t(), S.Msg.t()) ::
+           nil | {response :: Response.t(), interaction_id :: S.interaction_id()}
   def query_plugins(call_list, cfg, msg) do
     tasks =
       Enum.map(call_list, fn
@@ -229,17 +231,19 @@ defmodule Plugin do
       nil ->
         nil
 
-      chosen_response = %Response{callback: nil} ->
-        S.Interaction.new(
-          plugin: chosen_response.origin_plug,
-          msg: msg,
-          response: chosen_response,
-          channel_lock: chosen_response.channel_lock,
-          traceback: traceback
-        )
-        |> S.Interact.record_interaction!()
+      %Response{callback: nil} ->
+        {:ok, iid} =
+          S.InteractionForm.new(
+            service: cfg.service,
+            plugin: chosen_response.origin_plug,
+            msg: msg,
+            response: chosen_response,
+            channel_lock: chosen_response.channel_lock,
+            traceback: traceback
+          )
+          |> S.Interact.prepare_interaction!()
 
-        chosen_response
+        {chosen_response, iid}
 
       %Response{callback: {mod, fun, args}} ->
         followup =
@@ -253,41 +257,48 @@ defmodule Plugin do
           followup.why
         ]
 
-        S.Interaction.new(
-          plugin: chosen_response.origin_plug,
-          msg: msg,
-          response: followup,
-          channel_lock: followup.channel_lock,
-          traceback: new_tb
-        )
-        |> S.Interact.record_interaction!()
+        {:ok, iid} =
+          S.InteractionForm.new(
+            service: cfg.service,
+            plugin: chosen_response.origin_plug,
+            msg: msg,
+            response: followup,
+            channel_lock: followup.channel_lock,
+            traceback: new_tb
+          )
+          |> S.Interact.prepare_interaction!()
 
-        followup
+        {followup, iid}
     end
   end
 
   @doc "Poll all enabled plugins and choose the most relevant one."
-  @spec! get_top_response(SiteConfig.t(), Msg.t()) :: nil | Response.t()
+  @spec! get_top_response(SiteConfig.t(), Msg.t()) ::
+           nil | {response :: Response.t(), interaction_id :: S.interaction_id()}
   def get_top_response(cfg, msg) do
     case S.Interact.channel_locked?(msg.channel_id) do
       {{m, f, a}, _plugin, _iid} ->
-        response = query_plugins([{m, f, [cfg, msg | a]}], cfg, msg)
+        {response, iid} = query_plugins([{m, f, [cfg, msg | a]}], cfg, msg)
 
-        Map.update!(response, :why, fn tb ->
-          [
-            "Channel ",
-            msg.channel_id |> inspect(),
-            "was locked to module ",
-            m |> inspect(),
-            ", function ",
-            "f",
-            ", so we called it.\n"
-            | tb
-          ]
-        end)
+        explained_response =
+          Map.update!(response, :why, fn tb ->
+            [
+              "Channel ",
+              msg.channel_id |> inspect(),
+              "was locked to module ",
+              m |> inspect(),
+              ", function ",
+              "f",
+              ", so we called it.\n"
+              | tb
+            ]
+          end)
+
+        {explained_response, iid}
 
       false ->
         __MODULE__.ls(SiteConfig.fetch!(cfg, :plugs))
+        |> MapSet.to_list()
         |> query_plugins(cfg, msg)
     end
   end

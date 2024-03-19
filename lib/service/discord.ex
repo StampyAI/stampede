@@ -23,6 +23,7 @@ defmodule Service.Discord do
   @consecutive_msg_limit 10
 
   @impl Service
+  @spec! into_msg(service_msg :: %Nostrum.Struct.Message{}) :: S.Msg.t()
   def into_msg(msg) do
     Msg.new(
       id: msg.id,
@@ -154,6 +155,7 @@ defmodule Service.Discord do
           send_msg(
             channel_id,
             formatted
+            |> TxtBlock.to_str_list(Service.Discord)
           )
       end)
 
@@ -323,11 +325,11 @@ defmodule Service.Discord.Handler do
     else
       cond do
         discord_msg.guild_id in state.guild_ids ->
-          do_msg_create(discord_msg)
+          :ok = do_msg_create(discord_msg)
 
         Discord.dm?(discord_msg) ->
           if vip_in_this_context?(state.vip_ids, discord_msg.guild_id, discord_msg.author.id) do
-            do_msg_create(discord_msg)
+            :ok = do_msg_create(discord_msg)
           else
             Logger.warning(fn ->
               [
@@ -363,12 +365,17 @@ defmodule Service.Discord.Handler do
     our_cfg = S.CfgTable.get_cfg!(Discord, our_msg.server_id)
 
     case Plugin.get_top_response(our_cfg, our_msg) do
-      %Response{text: r_text} when r_text != nil ->
-        Api.create_message(our_msg.channel_id, r_text)
+      {%Response{text: r_text}, iid} when r_text != nil ->
+        {:ok, %{id: bot_response_msg_id}} =
+          Api.create_message(our_msg.channel_id, r_text)
+
+        S.Interact.finalize_interaction(iid, bot_response_msg_id)
 
       nil ->
         :do_nothing
     end
+
+    :ok
   end
 end
 
