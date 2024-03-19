@@ -340,24 +340,6 @@ defmodule Stampede.Interact do
     end)
   end
 
-  @spec! read_interaction!(any()) :: %Interaction{}
-  def read_interaction!(msg_id) do
-    do_read_interaction(msg_id)
-    |> case do
-      nil ->
-        raise "Interact: couldn't find Interaction for #{msg_id |> inspect()}"
-
-      other ->
-        other
-    end
-  end
-
-  defp do_read_interaction(msg_id) do
-    transaction(fn ->
-      Memento.Query.select(IntTable, {:==, :msg_id, msg_id})
-    end)
-  end
-
   defp transaction(f) do
     Memento.Transaction.execute!(f, 10)
   end
