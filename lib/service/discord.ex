@@ -30,7 +30,10 @@ defmodule Service.Discord do
       channel_id: msg.channel_id,
       author_id: msg.author.id,
       server_id: msg.guild_id || {:dm, __MODULE__},
-      referenced_msg_id: Map.get(msg, :referenced_msg, nil)
+      referenced_msg_id:
+        msg
+        |> Map.get(:message_reference)
+        |> then(&(&1 && Map.get(&1, :message_id)))
     )
   end
 
