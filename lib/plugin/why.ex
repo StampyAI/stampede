@@ -8,7 +8,7 @@ defmodule Plugin.Why do
 
   use Plugin
 
-  def msg_fail(), do: "Couldn't find an interaction for that message."
+  def msg_fail(msg), do: "Couldn't find an interaction for message #{inspect(msg)}."
 
   def at_module_regex(),
     do:
@@ -21,7 +21,7 @@ defmodule Plugin.Why do
       {"why did you say that? (tagging bot message)", "(reason for posting this message)"},
       {"what made you say that, specifically? (tagging bot message)",
        "(full traceback of the creation of this message)"},
-      {"why did you say this (tagging unknown message)", msg_fail()}
+      {"why did you say this (tagging unknown message)", msg_fail("some_msg_id")}
     ]
   end
 
@@ -73,7 +73,7 @@ defmodule Plugin.Why do
                 other ->
                   Response.new(
                     confidence: valid_confidence,
-                    text: msg_fail(),
+                    text: msg_fail(ref),
                     origin_msg_id: msg.id,
                     why: [
                       "We checked for an interaction from message ",
@@ -90,6 +90,9 @@ defmodule Plugin.Why do
 
   defmodule Debugging do
     def probably_a_traceback(str) when is_binary(str),
-      do: String.match?(str, ~r/We asked/)
+      do: String.contains?(str, "We asked")
+
+    def probably_a_missing_interaction(str) when is_binary(str),
+      do: String.contains?(str, "Couldn't find an interaction")
   end
 end

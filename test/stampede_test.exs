@@ -241,7 +241,7 @@ defmodule StampedeTest do
         ref: {s.id, :t1, :system, 9999}
       )
       |> Map.fetch!(:text)
-      |> String.match?(Regex.compile!(Plugin.Why.msg_fail()))
+      |> Plugin.Why.Debugging.probably_a_missing_interaction()
       |> assert()
     end
   end
