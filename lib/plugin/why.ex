@@ -3,8 +3,8 @@ defmodule Plugin.Why do
   require Stampede.Response
   alias Plugin.Why.Debugging
   alias Stampede, as: S
-  alias S.{Response, Interaction}
-  require Interaction
+  alias S.{Response, InteractionForm}
+  require InteractionForm
 
   use Plugin
 

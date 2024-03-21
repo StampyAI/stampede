@@ -25,6 +25,7 @@ defmodule Stampede do
            false | {module_function_args(), atom(), integer()}
   @type! timestamp :: String.t()
   @type! service_name :: atom()
+  @type! interaction_id :: non_neg_integer()
 
   def confused_response(),
     do: "*confused beeping*"

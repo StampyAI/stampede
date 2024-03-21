@@ -133,7 +133,13 @@ defmodule Service.Dummy do
            msg_content(),
            keyword()
          ) ::
-           %{response: nil | Response.t(), posted_msg_id: dummy_msg_id()} | nil | Response.t()
+           %{
+             response: nil | Response.t(),
+             posted_msg_id: dummy_msg_id(),
+             bot_response_msg_id: nil | dummy_msg_id()
+           }
+           | nil
+           | Response.t()
   def send_msg(server_id, channel, user, text, opts \\ []) do
     GenServer.call(__MODULE__, {:add_msg, {server_id, channel, user, text, opts[:ref]}, opts})
   end
@@ -310,21 +316,27 @@ defmodule Service.Dummy do
       {:reply, nil, state}
     else
       %{
-        msg_id: incoming_msg_id,
-        msg_object: incoming_msg,
+        posted_msg_id: incoming_msg_id,
+        posted_msg_object: incoming_msg,
         new_state: new_state_1
       } = do_add_new_msg(msg_tuple, state)
 
       cfg = S.CfgTable.get_cfg!(__MODULE__, server_id)
-      response = Plugin.get_top_response(cfg, incoming_msg)
 
       result =
-        case response do
-          response when is_struct(response, Response) ->
-            %{new_state: new_state_2} =
+        case Plugin.get_top_response(cfg, incoming_msg) do
+          {response, iid} when is_struct(response, Response) ->
+            %{new_state: new_state_2, posted_msg_id: bot_response_msg_id} =
               do_post_response({server_id, channel}, response, new_state_1)
 
-            {:reply, %{response: response, posted_msg_id: incoming_msg_id}, new_state_2}
+            S.Interact.finalize_interaction(iid, bot_response_msg_id)
+
+            {:reply,
+             %{
+               response: response,
+               posted_msg_id: incoming_msg_id,
+               bot_response_msg_id: bot_response_msg_id
+             }, new_state_2}
 
           nil ->
             {:reply, %{response: nil, posted_msg_id: incoming_msg_id}, new_state_1}
@@ -391,8 +403,8 @@ defmodule Service.Dummy do
   end
 
   @spec! do_add_new_msg(tuple(), %__MODULE__{}) :: %{
-           msg_id: dummy_msg_id(),
-           msg_object: %Msg{},
+           posted_msg_id: dummy_msg_id(),
+           posted_msg_object: %Msg{},
            new_state: %__MODULE__{}
          }
   defp do_add_new_msg(msg_tuple = {server_id, channel, user, text, ref}, state) do
@@ -414,8 +426,8 @@ defmodule Service.Dummy do
     msg_object = into_msg(msg_tuple |> Tuple.insert_at(0, msg_id))
 
     %{
-      msg_id: msg_id,
-      msg_object: msg_object,
+      posted_msg_id: msg_id,
+      posted_msg_object: msg_object,
       new_state: state
     }
   end

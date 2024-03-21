@@ -218,19 +218,23 @@ defmodule StampedeTest do
 
   describe "interaction logging" do
     @describetag :dummy
-    test "interaction is logged", s do
-      %{posted_msg_id: posted_msg_id} = D.send_msg(s.id, :t1, :u1, "!ping", return_id: true)
+    test "interaction is logged (direct database check)", s do
+      %{bot_response_msg_id: bot_response_msg_id} =
+        D.send_msg(s.id, :t1, :u1, "!ping", return_id: true)
+
       :timer.sleep(100)
       # check interaction was logged, without Why plugin
-      slug = S.Interact.get(posted_msg_id)
+      slug = S.Interact.get(bot_response_msg_id)
       assert match?({:ok, %S.Interact.IntTable{}}, slug)
     end
 
-    test "Why plugin returns trace", s do
-      %{posted_msg_id: posted_msg_id} = D.send_msg(s.id, :t1, :u1, "!ping", return_id: true)
+    test "Why plugin returns trace from database", s do
+      %{bot_response_msg_id: bot_response_msg_id} =
+        D.send_msg(s.id, :t1, :u1, "!ping", return_id: true)
+
       :timer.sleep(100)
 
-      D.send_msg(s.id, :t1, :u1, "!Why did you say that, specifically?", ref: posted_msg_id)
+      D.send_msg(s.id, :t1, :u1, "!Why did you say that, specifically?", ref: bot_response_msg_id)
       |> Map.fetch!(:text)
       |> Plugin.Why.Debugging.probably_a_traceback()
       |> assert("couldn't find traceback, maybe regex needs update?")
