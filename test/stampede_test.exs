@@ -225,7 +225,7 @@ defmodule StampedeTest do
       :timer.sleep(100)
       # check interaction was logged, without Why plugin
       slug = S.Interact.get(bot_response_msg_id)
-      assert match?({:ok, %S.Interact.IntTable{}}, slug)
+      assert match?({:ok, %S.Tables.Interactions{}}, slug)
     end
 
     test "Why plugin returns trace from database", s do

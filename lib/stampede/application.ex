@@ -85,7 +85,7 @@ defmodule Stampede.Application do
     # {:ok, _} = if Node.self() == :nonode@nohost,
     #  do: Node.start(startup_args[:node_name])
 
-    children = make_children(startup_args)
+    :ok = S.Tables.init(startup_args)
 
     _ =
       case startup_args[:serious_error_channel_service] do
@@ -108,6 +108,7 @@ defmodule Stampede.Application do
 
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
+    children = make_children(startup_args)
     opts = [strategy: :one_for_one, name: Stampede.Supervisor]
     Supervisor.start_link(children, opts)
   end
@@ -125,9 +126,7 @@ defmodule Stampede.Application do
     default_children = [
       {PartitionSupervisor, child_spec: Task.Supervisor, name: Stampede.QuickTaskSupers},
       # NOTE: call with Stampede.quick_task_via()
-      Stampede.TableIds,
-      {Stampede.CfgTable, config_dir: Keyword.fetch!(startup_args, :config_dir)},
-      {Stampede.Interact, wipe_tables: Keyword.fetch!(startup_args, :clear_state)}
+      {Stampede.CfgTable, config_dir: Keyword.fetch!(startup_args, :config_dir)}
     ]
 
     service_tuples =

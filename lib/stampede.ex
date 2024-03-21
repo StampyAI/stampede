@@ -180,47 +180,6 @@ defmodule Stampede do
     inspect(thing, pretty: true)
   end
 
-  def ensure_schema_exists(nodes) when is_list(nodes) and nodes != [] do
-    # NOTE: failing with multi-node list only returns the first node in error
-    n1 = hd(nodes)
-
-    case Memento.Schema.create(nodes) do
-      {:error, {^n1, {:already_exists, ^n1}}} ->
-        :ok
-
-      :ok ->
-        :ok
-
-      other ->
-        raise "Memento schema creation error: #{pp(other)}"
-    end
-  end
-
-  @spec! ensure_tables_exist(list(atom())) :: :ok
-  def ensure_tables_exist(tables) when is_list(tables) do
-    Enum.each(tables, fn t ->
-      case Memento.Table.create(t) do
-        :ok ->
-          :ok
-
-        {:error, {:already_exists, ^t}} ->
-          :ok
-
-        other ->
-          raise "Memento table creation error: #{pp(other)}"
-      end
-
-      # DEBUG
-      Memento.Table.info(t)
-    end)
-
-    :ok =
-      Memento.wait(
-        tables,
-        :timer.seconds(5)
-      )
-  end
-
   def reload_service(cfg) do
     Service.apply_service_function(cfg, :reload_configs, [])
   end

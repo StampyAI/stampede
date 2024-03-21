@@ -301,7 +301,7 @@ defmodule Service.Dummy do
   @spec! init(Keyword.t()) :: {:ok, %__MODULE__{}}
   def init(_) do
     # Service.register_logger(registry, __MODULE__, self())
-    :ok = S.ensure_tables_exist([Service.Dummy.Table])
+    :ok = S.Tables.ensure_tables_exist([Service.Dummy.Table])
     {:ok, update_state()}
   end
 
