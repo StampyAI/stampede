@@ -82,7 +82,7 @@ defmodule Stampede.CfgTable do
       table
       |> Map.get(service_name, %{})
       |> tap(fn
-        m when is_map(m) and m == %{} ->
+        m when is_map(m) and map_size(m) == 0 ->
           Logger.warning(
             "No servers detected for #{inspect(service_name)}\nTable: #{S.pp(table)}"
           )
