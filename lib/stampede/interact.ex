@@ -196,7 +196,7 @@ defmodule Stampede.Interact do
         "NEW INTERACTION ",
         inspect(rec.id),
         "\n",
-        to_print |> :fast_yaml.encode()
+        to_print |> S.pp()
       ]
     end)
   end
