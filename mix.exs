@@ -96,6 +96,9 @@ defmodule Stampede.MixProject do
       # JSON logging
       {:logstash_logger_formatter, "~> 1.1"},
 
+      # CLI monitoring
+      {:observer_cli, "~> 1.7", only: :dev},
+
       # Persistant storage, particularly interaction logging
       {:memento, "~> 0.3.2"}
 
