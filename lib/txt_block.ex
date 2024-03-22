@@ -20,7 +20,14 @@ defmodule TxtBlock do
            | :source
            | {:indent, pos_integer() | String.t()}
            | {:list, :dotted | :numbered}
+           | :italics
   @type! t :: [] | nonempty_list(lazy(t())) | String.t() | lazy(block)
+
+  @spec! to_binary(t(), module()) :: String.t()
+  def to_binary(blk, service_name) do
+    to_str_list(blk, service_name)
+    |> IO.iodata_to_binary()
+  end
 
   @spec! to_str_list(t(), module()) :: S.str_list()
   def to_str_list(txt, _service_name)
@@ -65,6 +72,7 @@ defmodule TxtBlock do
     do: str |> plain_indent_io(String.duplicate(" ", n))
 
   def plain_indent_io(str, prefix) when is_binary(prefix) do
+    # TODO: use :re so no split needed
     IO.iodata_to_binary(str)
     |> String.split("\n", trim: true)
     |> Enum.flat_map(&[prefix, &1, "\n"])

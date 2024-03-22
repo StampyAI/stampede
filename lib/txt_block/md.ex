@@ -48,6 +48,14 @@ defmodule TxtBlock.Md do
     |> elem(0)
   end
 
+  def format(txt, :italics) do
+    [
+      "*",
+      txt,
+      "*"
+    ]
+  end
+
   defmodule Debugging do
     def all_formats_processed() do
       """

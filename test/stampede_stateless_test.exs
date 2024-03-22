@@ -201,18 +201,16 @@ defmodule StampedeStatelessTest do
         """
 
       one =
-        TxtBlock.to_str_list(
+        TxtBlock.to_binary(
           {:source_block, "foo\n"},
           Service.Dummy
         )
-        |> IO.iodata_to_binary()
 
       two =
-        TxtBlock.to_str_list(
+        TxtBlock.to_binary(
           {:source_block, [["f"], [], "o", [["o"], "\n"]]},
           Service.Dummy
         )
-        |> IO.iodata_to_binary()
 
       assert one == correct
       assert two == correct
@@ -222,18 +220,16 @@ defmodule StampedeStatelessTest do
       correct = "`foo`"
 
       one =
-        TxtBlock.to_str_list(
+        TxtBlock.to_binary(
           {:source, "foo"},
           Service.Dummy
         )
-        |> IO.iodata_to_binary()
 
       two =
-        TxtBlock.to_str_list(
+        TxtBlock.to_binary(
           {:source, [["f"], [], "o", [["o"]]]},
           Service.Dummy
         )
-        |> IO.iodata_to_binary()
 
       assert one == correct
       assert two == correct
@@ -243,18 +239,16 @@ defmodule StampedeStatelessTest do
       correct = "> foo\n> bar\n"
 
       one =
-        TxtBlock.to_str_list(
+        TxtBlock.to_binary(
           {:quote_block, "foo\nbar"},
           Service.Dummy
         )
-        |> IO.iodata_to_binary()
 
       two =
-        TxtBlock.to_str_list(
+        TxtBlock.to_binary(
           {:quote_block, [["f"], [], "o", [["o"]], ["\n", "bar"]]},
           Service.Dummy
         )
-        |> IO.iodata_to_binary()
 
       assert one == correct
       assert two == correct
@@ -264,18 +258,16 @@ defmodule StampedeStatelessTest do
       correct = "  foo\n  bar\n"
 
       one =
-        TxtBlock.to_str_list(
+        TxtBlock.to_binary(
           {{:indent, "  "}, "foo\nbar"},
           Service.Dummy
         )
-        |> IO.iodata_to_binary()
 
       two =
-        TxtBlock.to_str_list(
+        TxtBlock.to_binary(
           {{:indent, 2}, [["f"], [], "o", [["o"]], ["\n", "bar"]]},
           Service.Dummy
         )
-        |> IO.iodata_to_binary()
 
       assert one == correct
       assert two == correct
@@ -284,8 +276,7 @@ defmodule StampedeStatelessTest do
     test "Markdown" do
       processed =
         TxtBlock.Debugging.all_formats_example()
-        |> TxtBlock.to_str_list(Service.Dummy)
-        |> IO.iodata_to_binary()
+        |> TxtBlock.to_binary(Service.Dummy)
 
       assert processed == TxtBlock.Md.Debugging.all_formats_processed()
     end

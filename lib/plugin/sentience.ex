@@ -8,7 +8,7 @@ defmodule Plugin.Sentience do
   @impl Plugin
   def usage() do
     [
-      {"Stampede, gibjbjgfirifjg", S.confused_response()}
+      {"gibjbjgfirifjg", S.confused_response()}
     ]
   end
 

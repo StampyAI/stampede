@@ -22,7 +22,7 @@ defmodule Stampede.Response do
 
   defstruct!(
     confidence: _ :: number(),
-    text: _ :: nil | String.t(),
+    text: _ :: nil | TxtBlock.t(),
     origin_plug: _ :: module(),
     origin_msg_id: _ :: nil | S.msg_id(),
     why: [] :: S.traceback(),
@@ -36,16 +36,6 @@ defmodule Stampede.Response do
       struct!(
         unquote(__MODULE__),
         Keyword.put_new(unquote(keys), :origin_plug, __MODULE__)
-        |> Keyword.update!(:text, fn
-          str when is_binary(str) ->
-            str
-
-          nil ->
-            nil
-
-          iodata when is_list(iodata) ->
-            iodata |> IO.iodata_to_binary()
-        end)
       )
     end
   end

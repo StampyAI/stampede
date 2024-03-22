@@ -5,7 +5,7 @@ defmodule StampedeTest do
   alias Service.Dummy, as: D
   doctest Stampede
 
-  @confused_response S.confused_response()
+  @confused_response S.confused_response() |> TxtBlock.to_binary(Service.Dummy)
 
   @dummy_cfg """
     service: dummy

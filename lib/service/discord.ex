@@ -64,8 +64,8 @@ defmodule Service.Discord do
   @impl Service
   def send_msg(channel_id, msg, opts \\ [])
 
-  def send_msg(channel_id, msg, opts) when is_list(msg),
-    do: send_msg(channel_id, msg |> IO.iodata_to_binary(), opts)
+  def send_msg(channel_id, msg, opts) when not is_binary(msg),
+    do: send_msg(channel_id, msg |> TxtBlock.to_binary(__MODULE__), opts)
 
   def send_msg(channel_id, msg, _opts) when is_binary(msg) do
     r = S.text_chunk_regex(@character_limit)
@@ -74,14 +74,15 @@ defmodule Service.Discord do
           S.text_chunk(msg, @character_limit, @consecutive_msg_limit, r) do
       do_send_msg(channel_id, chunk)
     end
-    |> Enum.reduce(:all_good, fn
-      _, s when s != :all_good ->
-        s
+    |> Enum.reduce(nil, fn
+      {:ok, id}, nil ->
+        {:ok, first_id: id}
 
-      {:ok, _}, :all_good ->
-        :all_good
+      {:ok, _new_id}, state = {:ok, _first_id} ->
+        # Only return the first ID
+        state
 
-      e = {:error, _}, :all_good ->
+      e = {:error, _}, _ ->
         e
     end)
   end
@@ -91,8 +92,8 @@ defmodule Service.Discord do
            channel_id,
            content: msg
          ) do
-      {:ok, _} ->
-        :ok
+      {:ok, %{id: id}} ->
+        {:ok, id}
 
       {:error, e} ->
         if try < 5 do
@@ -155,7 +156,6 @@ defmodule Service.Discord do
           send_msg(
             channel_id,
             formatted
-            |> TxtBlock.to_str_list(Service.Discord)
           )
       end)
 
@@ -163,32 +163,34 @@ defmodule Service.Discord do
   end
 
   @impl Service
-  def log_serious_error(log_msg = {level, _gl, {Logger, message, _timestamp, _metadata}}) do
-    try do
-      # TODO: disable if Discord not connected/working
-      IO.puts(["log_serious_error recieved:\n", inspect(log_msg, pretty: true)])
-      channel_id = Application.fetch_env!(:stampede, :serious_error_channel_id)
+  def log_serious_error({level, _gl, {Logger, message, _timestamp, metadata}}) do
+    if not metadata[:stampede_already_logged] do
+      try do
+        # TODO: disable if Discord not connected/working
+        IO.puts("log_serious_error recieved by Discord")
+        channel_id = Application.fetch_env!(:stampede, :serious_error_channel_id)
 
-      log = [
-        "Erlang-level error ",
-        inspect(level),
-        "\n",
-        message
-        |> TxtBlock.to_str_list(Service.Discord)
-        |> Service.Discord.txt_format(:source_block)
-      ]
+        log = [
+          "Erlang-level error ",
+          inspect(level),
+          "\n",
+          message
+          |> TxtBlock.to_str_list(Service.Discord)
+          |> Service.Discord.txt_format(:source_block)
+        ]
 
-      _ = send_msg(channel_id, log)
-    catch
-      t, e ->
-        IO.puts([
-          """
-          ERROR: Logging serious error to Discord failed. We have no option, and resending would probably cause an infinite loop.
+        _ = send_msg(channel_id, log)
+      catch
+        t, e ->
+          IO.puts([
+            """
+            ERROR: Logging serious error to Discord failed. We have no option, and resending would probably cause an infinite loop.
 
-          Here's the error:
-          """,
-          S.pp({t, e})
-        ])
+            Here's the error:
+            """,
+            S.pp({t, e})
+          ])
+      end
     end
 
     :ok
@@ -366,8 +368,8 @@ defmodule Service.Discord.Handler do
 
     case Plugin.get_top_response(our_cfg, our_msg) do
       {%Response{text: r_text}, iid} when r_text != nil ->
-        {:ok, %{id: bot_response_msg_id}} =
-          Api.create_message(our_msg.channel_id, r_text)
+        {:ok, first_id: bot_response_msg_id} =
+          Discord.send_msg(our_msg.channel_id, r_text)
 
         S.Interact.finalize_interaction(iid, bot_response_msg_id)
 

@@ -34,14 +34,14 @@ defmodule Plugin do
   - {"help sentience", "(prints the help for the Sentience plugin)"}
   - "Usage example not fitting the tuple format"
   """
-  @type! usage_tuples :: list(String.t() | {String.t(), String.t()})
   @callback process_msg(SiteConfig.t(), Msg.t()) :: nil | Response.t()
 
   # TODO: replace with predicate? and handle prefix cleaning seperately
   @doc "Given a config and message, indicate if we should respond, and if so what is the relevant part of the message?"
   @callback at_module?(SiteConfig.t(), Msg.t()) :: boolean() | {:cleaned, text :: String.t()}
+  @type! usage_tuples :: list(TxtBlock.t() | {TxtBlock.t(), TxtBlock.t()})
   @callback usage() :: usage_tuples()
-  @callback description() :: String.t()
+  @callback description() :: TxtBlock.t()
 
   defmacro __using__(_opts \\ []) do
     quote do
@@ -137,13 +137,13 @@ defmodule Plugin do
         Logger.error(
           fn ->
             formatted
-            |> TxtBlock.to_str_list(:logger)
-            |> IO.iodata_to_binary()
+            |> TxtBlock.to_binary(:logger)
           end,
           crash_reason: {e, st},
           stampede_component: SiteConfig.fetch!(cfg, :service),
           stampede_msg_id: msg.id,
-          stampede_plugin: m
+          stampede_plugin: m,
+          stampede_already_logged: true
         )
 
         {:job_error, {e, st}}

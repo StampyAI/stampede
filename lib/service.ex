@@ -18,7 +18,7 @@ defmodule Service do
               message :: S.Msg.t()
             ) :: boolean()
   @doc "Send a message on this service"
-  @callback send_msg(destination :: any(), text :: binary(), opts :: keyword()) :: any()
+  @callback send_msg(destination :: any(), text :: TxtBlock.t(), opts :: keyword()) :: any()
   @doc "Log a safely caught plugin error. Often called from Plugin.get_top_response()"
   @callback log_plugin_error(
               cfg :: SiteConfig.t(),

@@ -28,7 +28,7 @@ defmodule Stampede do
   @type! interaction_id :: non_neg_integer()
 
   def confused_response(),
-    do: "*confused beeping*"
+    do: {:italics, "confused beeping"}
 
   def throw_internal_error(msg \\ "*screaming*") do
     raise "intentional internal error: #{msg}"

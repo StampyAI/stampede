@@ -5,6 +5,7 @@ stampede_metadata = [
   :stampede_component,
   :stampede_msg_id,
   :stampede_plugin,
+  :stampede_already_logged,
   :interaction_id
 ]
 

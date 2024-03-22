@@ -130,7 +130,7 @@ defmodule Service.Dummy do
            dummy_server_id(),
            dummy_channel_id(),
            dummy_user_id(),
-           msg_content(),
+           msg_content() | TxtBlock.t(),
            keyword()
          ) ::
            %{
@@ -141,7 +141,13 @@ defmodule Service.Dummy do
            | nil
            | Response.t()
   def send_msg(server_id, channel, user, text, opts \\ []) do
-    GenServer.call(__MODULE__, {:add_msg, {server_id, channel, user, text, opts[:ref]}, opts})
+    formatted_text =
+      TxtBlock.to_binary(text, __MODULE__)
+
+    GenServer.call(
+      __MODULE__,
+      {:add_msg, {server_id, channel, user, formatted_text, opts[:ref]}, opts}
+    )
   end
 
   @impl Service
@@ -184,8 +190,7 @@ defmodule Service.Dummy do
           SiteConfig.fetch!(cfg, :error_channel_id),
           @bot_user,
           formatted
-          |> TxtBlock.to_str_list(__MODULE__)
-          |> IO.iodata_to_binary()
+          |> TxtBlock.to_binary(__MODULE__)
         )
       end)
 
@@ -326,14 +331,20 @@ defmodule Service.Dummy do
       result =
         case Plugin.get_top_response(cfg, incoming_msg) do
           {response, iid} when is_struct(response, Response) ->
+            binary_response =
+              response
+              |> Map.update!(:text, fn blk ->
+                TxtBlock.to_binary(blk, Service.Dummy)
+              end)
+
             %{new_state: new_state_2, posted_msg_id: bot_response_msg_id} =
-              do_post_response({server_id, channel}, response, new_state_1)
+              do_post_response({server_id, channel}, binary_response, new_state_1)
 
             S.Interact.finalize_interaction(iid, bot_response_msg_id)
 
             {:reply,
              %{
-               response: response,
+               response: binary_response,
                posted_msg_id: incoming_msg_id,
                bot_response_msg_id: bot_response_msg_id
              }, new_state_2}

@@ -304,12 +304,12 @@ defmodule Stampede.Interact do
   end
 
   @spec! transaction!((... -> any())) :: any()
-  defp transaction!(f) do
+  def transaction!(f) do
     Memento.Transaction.execute!(f, 10)
   end
 
   @spec! transaction_sync!((... -> any())) :: any()
-  defp transaction_sync!(f) do
+  def transaction_sync!(f) do
     Memento.Transaction.execute_sync!(f, 10)
   end
 
