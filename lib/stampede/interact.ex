@@ -2,6 +2,7 @@ defmodule Stampede.Interact do
   require Logger
   alias Stampede, as: S
   alias S.Tables.{Ids, Interactions, ChannelLocks}
+  import S.Tables, only: [transaction!: 1]
   use TypeCheck
   use TypeCheck.Defstruct
 
@@ -301,16 +302,6 @@ defmodule Stampede.Interact do
 
       :ok
     end)
-  end
-
-  @spec! transaction!((... -> any())) :: any()
-  def transaction!(f) do
-    Memento.Transaction.execute!(f, 10)
-  end
-
-  @spec! transaction_sync!((... -> any())) :: any()
-  def transaction_sync!(f) do
-    Memento.Transaction.execute_sync!(f, 10)
   end
 
   @spec! id_exists?(S.interaction_id()) :: boolean()

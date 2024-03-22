@@ -1,4 +1,7 @@
 defmodule Stampede.Tables do
+  @moduledoc """
+  Manage various Mnesia tables.
+  """
   require Logger
   use TypeCheck
   alias Stampede, as: S
@@ -22,6 +25,16 @@ defmodule Stampede.Tables do
     end
 
     :ok
+  end
+
+  @spec! transaction!((... -> any())) :: any()
+  def transaction!(f) do
+    Memento.Transaction.execute!(f, 10)
+  end
+
+  @spec! transaction_sync!((... -> any())) :: any()
+  def transaction_sync!(f) do
+    Memento.Transaction.execute_sync!(f, 10)
   end
 
   def clear_all_tables() do
