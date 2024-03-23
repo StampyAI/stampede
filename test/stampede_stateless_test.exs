@@ -3,7 +3,6 @@ defmodule StampedeStatelessTest do
   import ExUnit.CaptureLog
   alias Stampede, as: S
   require S.Msg
-  alias Service.Dummy, as: D
   doctest Stampede
 
   @dummy_cfg """

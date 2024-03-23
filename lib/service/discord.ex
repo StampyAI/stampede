@@ -1,6 +1,7 @@
 defmodule Service.Discord do
   alias Stampede, as: S
   alias S.{Msg}
+  alias Nostrum.Api
   require Msg
   use TypeCheck
   use Supervisor, restart: :permanent
@@ -40,7 +41,7 @@ defmodule Service.Discord do
 
   @impl Service
   def at_bot?(_cfg, msg) do
-    Nostrum.Api.get_channel_message(msg.channel_id, msg.referenced_msg_id)
+    Api.get_channel_message(msg.channel_id, msg.referenced_msg_id)
     |> case do
       {:ok, service_msg} ->
         bot_id?(service_msg.author.id)
@@ -88,7 +89,7 @@ defmodule Service.Discord do
   end
 
   def do_send_msg(channel_id, msg, try \\ 0) do
-    case Nostrum.Api.create_message(
+    case Api.create_message(
            channel_id,
            content: msg
          ) do
@@ -135,7 +136,7 @@ defmodule Service.Discord do
 
     [
       "Message from ",
-      msg.author_id |> Nostrum.Api.get_user!() |> Nostrum.Struct.User.full_name() |> inspect(),
+      msg.author_id |> Api.get_user!() |> Nostrum.Struct.User.full_name() |> inspect(),
       " lead to ",
       error_type,
       " in plugin ",
@@ -223,7 +224,7 @@ defmodule Service.Discord do
 
   @spec! get_msg({discord_channel_id(), discord_msg_id()}) :: {:ok, Msg.t()} | {:error, any()}
   def get_msg({channel_id, msg_id}) do
-    case Nostrum.Api.get_channel_message(channel_id, msg_id) do
+    case Api.get_channel_message(channel_id, msg_id) do
       {:ok, discord_msg} ->
         {:ok, into_msg(discord_msg)}
 
@@ -259,7 +260,6 @@ defmodule Service.Discord.Handler do
   alias Stampede, as: S
   alias S.{Response, Msg}
   require Msg
-  alias Nostrum.Api
   alias Service.Discord
 
   @typep! vips :: S.CfgTable.vips()

@@ -22,7 +22,10 @@ defmodule StampedeTest do
     server_id: :testing,
     error_channel_id: :error,
     prefix: "!",
-    plugs: MapSet.new([Plugin.Test, Plugin.Sentience, Plugin.Why])
+    plugs: MapSet.new([Plugin.Test, Plugin.Sentience, Plugin.Why]),
+    dm_handler: false,
+    filename: :"test SiteConfig load_all",
+    vip_ids: MapSet.new([:server])
   }
   setup_all do
     %{
@@ -199,20 +202,15 @@ defmodule StampedeTest do
     test "load_all", s do
       ids = Atom.to_string(s.id)
 
-      this_cfg =
-        @dummy_cfg
-        |> String.replace("server_id: testing", "server_id: foobar")
-
       Path.join([s.tmp_dir, ids <> ".yml"])
-      |> File.write!(this_cfg)
+      |> File.write!(@dummy_cfg)
 
       newtable =
         SiteConfig.load_all(s.tmp_dir)
         |> Map.fetch!(Service.Dummy)
-        |> Map.fetch!(:foobar)
+        |> Map.fetch!(:testing)
 
-      assert "!" == newtable.prefix
-      assert :foobar == newtable.server_id
+      assert newtable == @dummy_cfg_verified
     end
   end
 
