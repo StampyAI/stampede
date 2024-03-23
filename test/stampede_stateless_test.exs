@@ -56,6 +56,7 @@ defmodule StampedeStatelessTest do
 
       dummy_cfg = %{
         __struct__: SiteConfig,
+        service: Service.Dummy,
         prefix: "!"
       }
 
@@ -118,16 +119,16 @@ defmodule StampedeStatelessTest do
 
       #  |> IO.inspect(pretty: true) # Debug
 
-      key = {:dm, cfg.service}
+      key = S.make_dm_tuple(cfg.service)
 
       assert key ==
                Map.fetch!(svmap, cfg.service)
-               |> Map.fetch!({:dm, cfg.service})
+               |> Map.fetch!(S.make_dm_tuple(cfg.service))
                |> Map.fetch!(:server_id)
     end
 
     test "vip check" do
-      vips = %{some_server: :admin}
+      vips = %{some_server: MapSet.new([:admin])}
 
       assert S.vip_in_this_context?(
                vips,
@@ -137,7 +138,7 @@ defmodule StampedeStatelessTest do
 
       assert S.vip_in_this_context?(
                vips,
-               nil,
+               :all,
                :admin
              )
 

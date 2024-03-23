@@ -25,7 +25,7 @@ defmodule Plugin.Test do
     "A set of functions for testing Stampede functionality."
   end
 
-  @spec! process_msg(any(), S.Msg.t()) :: nil | S.Response.t()
+  @spec! process_msg(SiteConfig.t(), S.Msg.t()) :: nil | S.Response.t()
   @impl Plugin
   def process_msg(cfg, msg) do
     case at_module?(cfg, msg) do

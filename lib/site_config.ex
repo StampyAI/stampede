@@ -274,7 +274,7 @@ defmodule SiteConfig do
                 raise "duplicate dm_handler for service #{orig_cfg.service |> inspect()}"
               end
 
-              dm_key = {:dm, orig_cfg.service}
+              dm_key = S.make_dm_tuple(orig_cfg.service)
               dm_cfg = Map.put(orig_cfg, :server_id, dm_key)
 
               # config is for DM handling exclusively

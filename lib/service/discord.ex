@@ -30,7 +30,7 @@ defmodule Service.Discord do
       body: msg.content,
       channel_id: msg.channel_id,
       author_id: msg.author.id,
-      server_id: msg.guild_id || {:dm, __MODULE__},
+      server_id: msg.guild_id || S.make_dm_tuple(__MODULE__),
       referenced_msg_id:
         msg
         |> Map.get(:message_reference)
@@ -269,8 +269,10 @@ defmodule Service.Discord.Handler do
     vip_ids: _ :: vips()
   )
 
-  @spec! vip_in_this_context?(vips(), Discord.discord_guild_id(), Discord.discord_author_id()) ::
+  @spec! vip_in_this_context?(vips(), Discord.discord_guild_id() | nil, Discord.discord_author_id()) ::
            boolean()
+  def vip_in_this_context?(vips, nil, author_id),
+    do: S.vip_in_this_context?(vips, S.make_dm_tuple(Service.Discord), author_id)
   def vip_in_this_context?(vips, server_id, author_id),
     do: S.vip_in_this_context?(vips, server_id, author_id)
 
@@ -335,10 +337,10 @@ defmodule Service.Discord.Handler do
           else
             Logger.warning(fn ->
               [
-                "User wanted to DM but is not in vip_ids. \\\n",
+                "User wanted to DM but is not in vip_ids.\n",
                 "Username: ",
                 discord_msg.author |> Nostrum.Struct.User.full_name() |> inspect(),
-                " \\\n",
+                "\n",
                 "Message:\n",
                 {:quote_block, discord_msg.content} |> TxtBlock.to_str_list(Service.Discord)
               ]

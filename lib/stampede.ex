@@ -1,7 +1,12 @@
 defmodule Stampede do
   use TypeCheck
+  @type! service_name :: module()
   @type! channel_id :: any()
-  @type! server_id :: integer() | atom() | {:dm, lazy(server_id())}
+  @typedoc """
+  Used in S.Msg in place of a server ID to denote DM threads
+  """
+  @type! dm_tuple :: {:dm, service_name()}
+  @type! server_id :: integer() | atom() | dm_tuple()
   @type! user_id :: any()
   @type! msg_id :: any()
   @type! log_level ::
@@ -24,7 +29,6 @@ defmodule Stampede do
   @type! channel_lock_status ::
            false | {module_function_args(), atom(), integer()}
   @type! timestamp :: String.t()
-  @type! service_name :: atom()
   @type! interaction_id :: non_neg_integer()
 
   def confused_response(),
@@ -42,14 +46,12 @@ defmodule Stampede do
     Service.apply_service_function(cfg, :author_privileged?, [cfg.server_id, msg.author_id])
   end
 
-  @spec! vip_in_this_context?(map(), server_id(), user_id()) :: boolean()
-  def vip_in_this_context?(vips, nil, author_id),
-    do: author_id in Map.values(vips)
+  @spec! vip_in_this_context?(map(), server_id() | :all, user_id()) :: boolean()
+  def vip_in_this_context?(vips, :all, author_id),
+    do: Map.values(vips) |> Enum.any?(&(author_id in &1))
 
   def vip_in_this_context?(vips, server_id, author_id) do
-    Enum.any?(vips, fn {this_server, this_author} ->
-      author_id == this_author and this_server == server_id
-    end)
+    author_id in Map.fetch!(vips, server_id)
   end
 
   @doc "use TypeCheck types in NimpleOptions, takes type expressions same as @type!"
@@ -183,4 +185,6 @@ defmodule Stampede do
   def reload_service(cfg) do
     Service.apply_service_function(cfg, :reload_configs, [])
   end
+
+  def make_dm_tuple(service_name), do: {:dm, service_name}
 end
