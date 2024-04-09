@@ -4,6 +4,7 @@ defmodule Stampede.Tables.ChannelLocks do
 
   use Memento.Table,
     attributes: [:channel_id, :datetime, :lock_status, :callback, :interaction_id],
+    index: [:interaction_id],
     type: :set,
     disc_copies: S.nodes(),
     access_mode: :read_write

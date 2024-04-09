@@ -246,5 +246,34 @@ defmodule StampedeTest do
       |> Plugin.Why.Debugging.probably_a_missing_interaction()
       |> assert()
     end
+
+    test "Interactions can be cleaned" do
+      old_int = %S.Tables.Interactions{
+        id: 1234,
+        msg: %Stampede.Msg{
+          channel_id: :chan_a
+        },
+        datetime: DateTime.from_unix!(0),
+        channel_lock: nil
+      }
+
+      new_int = %S.Tables.Interactions{
+        id: 6789,
+        msg: %Stampede.Msg{
+          channel_id: :chan_b
+        },
+        datetime: DateTime.utc_now(),
+        channel_lock: nil
+      }
+
+      S.Interact.do_write_interaction!(old_int)
+      S.Interact.do_write_interaction!(new_int)
+
+      S.Interact.clean_interactions!()
+
+      new_id = new_int.id
+      assert match?(%S.Tables.Interactions{id: ^new_id}, S.Interact.get_by_iid(new_id))
+      assert S.Interact.get_by_iid(old_int.id) == nil
+    end
   end
 end

@@ -40,6 +40,15 @@ defmodule Stampede.Interact do
     end)
   end
 
+  def get_by_iid(iid) do
+    transaction!(fn ->
+      Memento.Query.read(
+        Interactions,
+        iid
+      )
+    end)
+  end
+
   @spec! get_traceback(S.msg_id()) :: {:ok, S.traceback()} | {:error, any()}
   def get_traceback(msg_id) do
     transaction!(fn ->
@@ -202,7 +211,7 @@ defmodule Stampede.Interact do
     end)
   end
 
-  @spec! do_channel_lock!(%S.InteractionForm{}, String.t(), integer()) :: :ok
+  @spec! do_channel_lock!(%S.InteractionForm{}, S.timestamp(), integer()) :: :ok
   def do_channel_lock!(int, datetime, int_id) do
     result =
       transaction!(fn ->
@@ -284,7 +293,7 @@ defmodule Stampede.Interact do
   end
 
   @spec! do_write_channellock!(%ChannelLocks{}) :: :ok
-  defp do_write_channellock!(record) do
+  def do_write_channellock!(record) do
     _ = ChannelLocks.validate!(record)
 
     transaction!(fn ->
@@ -295,7 +304,7 @@ defmodule Stampede.Interact do
   end
 
   @spec! do_write_interaction!(%Interactions{}) :: :ok
-  defp do_write_interaction!(record) do
+  def do_write_interaction!(record) do
     transaction!(fn ->
       if id_exists?(record.id), do: raise("Interaction already recorded??")
       _ = Memento.Query.write(record)
@@ -309,5 +318,92 @@ defmodule Stampede.Interact do
     transaction!(fn ->
       Memento.Query.read(Interactions, id) != nil
     end)
+  end
+
+  def clean_interactions!(time_to_keep \\ 3 * 24 * 60 * 60) do
+    transaction!(fn ->
+      now = S.time()
+
+      Memento.Query.all(Interactions)
+      |> Enum.map(fn
+        %Interactions{
+          id: iid,
+          msg: %Stampede.Msg{
+            channel_id: cid
+          },
+          datetime: saved_time,
+          channel_lock: lock
+        } ->
+          if DateTime.diff(now, saved_time) > time_to_keep do
+            Logger.debug(fn -> ["Deleting old interaction ", S.pp(iid)] end)
+            Memento.Query.delete(T.Interactions, iid)
+
+            if lock do
+              case Memento.Query.read(T.ChannelLocks, cid) do
+                nil ->
+                  Logger.debug("No channel lock found for this interaction.")
+
+                %ChannelLocks{
+                  lock_status: status,
+                  datetime: lock_time,
+                  interaction_id: lock_iid
+                } ->
+                  if lock_iid == iid and lock_time == saved_time do
+                    Logger.debug(fn -> ["Deleting old channel lock ", S.pp(cid)] end)
+                    Memento.Query.delete(ChannelLocks, cid)
+                  else
+                    Logger.debug(fn ->
+                      [
+                        if lock_iid != iid do
+                          [
+                            "Found a channel lock but it's not for this interaction.\n",
+                            "Original interaction: ",
+                            S.pp(iid),
+                            "Their interaction: ",
+                            S.pp(lock_iid),
+                            "\n"
+                          ]
+                        else
+                          [
+                            if not status do
+                              "Status was false."
+                            else
+                              ""
+                            end,
+                            if lock_time != saved_time do
+                              [
+                                "Lock times didn't match.\n",
+                                "Interaction lock: ",
+                                DateTime.to_string(saved_time),
+                                "\nLock time: ",
+                                DateTime.to_string(lock_time),
+                                "\n"
+                              ]
+                            end
+                          ]
+                        end
+                      ]
+                    end)
+                  end
+              end
+            end
+
+            iid
+          else
+            nil
+          end
+      end)
+      |> Enum.filter(fn x -> x end)
+      |> then(
+        &Logger.debug(fn ->
+          [
+            "Cleaned these interactions: "
+            | S.pp(&1)
+          ]
+        end)
+      )
+    end)
+
+    :ok
   end
 end

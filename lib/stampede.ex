@@ -28,7 +28,7 @@ defmodule Stampede do
            false | {:lock, channel_id(), module_function_args()} | {:unlock, channel_id()}
   @type! channel_lock_status ::
            false | {module_function_args(), atom(), integer()}
-  @type! timestamp :: String.t()
+  @type! timestamp :: DateTime.t()
   @type! interaction_id :: non_neg_integer()
 
   def confused_response(),
@@ -175,7 +175,7 @@ defmodule Stampede do
 
   @spec! time() :: timestamp()
   def time() do
-    DateTime.utc_now() |> DateTime.to_iso8601()
+    DateTime.utc_now()
   end
 
   def pp(thing) do
