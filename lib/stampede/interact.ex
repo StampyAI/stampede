@@ -233,7 +233,7 @@ defmodule Stampede.Interact do
                 :ok = do_write_channellock!(new_row)
 
               # try to update existing channel lock
-              {_mfa, plug, _iid} when is_atom(plug) ->
+              {_mfa, plug, _iid} ->
                 if plug != int.response.origin_plug do
                   raise(
                     "plugin #{int.plugin} trying to lock an already-locked channel owned by #{plug}"
@@ -261,19 +261,9 @@ defmodule Stampede.Interact do
                 :ok
 
               {_, plug, _} when plug == int.plugin ->
-                new_row =
-                  struct!(
-                    ChannelLocks,
-                    channel_id: channel_id,
-                    datetime: datetime,
-                    lock_status: false,
-                    callback: nil,
-                    interaction_id: int_id
-                  )
+                :ok = do_clear_channellock!(channel_id)
 
-                :ok = do_write_channellock!(new_row)
-
-              plug when plug != int.plugin ->
+              {_, plug, _} when plug != int.plugin ->
                 raise "plugin #{int.plugin |> inspect()} trying to take a lock from #{plug |> inspect()}"
 
               other ->
@@ -303,6 +293,14 @@ defmodule Stampede.Interact do
     :ok
   end
 
+  @spec! do_clear_channellock!(S.channel_id()) :: :ok
+  def do_clear_channellock!(channel_id) do
+    :ok =
+      transaction!(fn ->
+        Memento.Query.delete(ChannelLocks, channel_id)
+      end)
+  end
+
   @spec! do_write_interaction!(%Interactions{}) :: :ok
   def do_write_interaction!(record) do
     transaction!(fn ->
@@ -320,90 +318,132 @@ defmodule Stampede.Interact do
     end)
   end
 
-  def clean_interactions!(time_to_keep \\ 3 * 24 * 60 * 60) do
+  def clean_interactions!() do
     transaction!(fn ->
-      now = S.time()
-
       Memento.Query.all(Interactions)
+      |> clean_interactions_logic(&Memento.Query.read(ChannelLocks, &1))
       |> Enum.map(fn
-        %Interactions{
-          id: iid,
-          msg: %Stampede.Msg{
-            channel_id: cid
-          },
-          datetime: saved_time,
-          channel_lock: lock
-        } ->
-          if DateTime.diff(now, saved_time) > time_to_keep do
-            Logger.debug(fn -> ["Deleting old interaction ", S.pp(iid)] end)
-            Memento.Query.delete(T.Interactions, iid)
+        {{:delete, iid}, lock_decision} ->
+          Logger.debug(fn -> ["Deleting old interaction ", S.pp(iid)] end)
+          Memento.Query.delete(T.Interactions, iid)
 
-            if lock do
-              case Memento.Query.read(T.ChannelLocks, cid) do
-                nil ->
-                  Logger.debug("No channel lock found for this interaction.")
+          case lock_decision do
+            nil ->
+              Logger.debug("No channel lock found for this interaction.")
+              {:ok, iid}
 
-                %ChannelLocks{
-                  lock_status: status,
-                  datetime: lock_time,
-                  interaction_id: lock_iid
-                } ->
-                  if lock_iid == iid and lock_time == saved_time do
-                    Logger.debug(fn -> ["Deleting old channel lock ", S.pp(cid)] end)
-                    Memento.Query.delete(ChannelLocks, cid)
-                  else
-                    Logger.debug(fn ->
-                      [
-                        if lock_iid != iid do
-                          [
-                            "Found a channel lock but it's not for this interaction.\n",
-                            "Original interaction: ",
-                            S.pp(iid),
-                            "Their interaction: ",
-                            S.pp(lock_iid),
-                            "\n"
-                          ]
-                        else
-                          [
-                            if not status do
-                              "Status was false."
-                            else
-                              ""
-                            end,
-                            if lock_time != saved_time do
-                              [
-                                "Lock times didn't match.\n",
-                                "Interaction lock: ",
-                                DateTime.to_string(saved_time),
-                                "\nLock time: ",
-                                DateTime.to_string(lock_time),
-                                "\n"
-                              ]
-                            end
-                          ]
-                        end
-                      ]
-                    end)
-                  end
-              end
-            end
+            {:unset, cid} ->
+              Logger.debug(fn -> ["Deleting old channel lock ", S.pp(cid)] end)
+              Memento.Query.delete(ChannelLocks, cid)
+              {:ok, iid}
 
-            iid
-          else
-            nil
+            {:error_ignore, err_log} ->
+              Logger.warning(err_log)
+              {:ok_weird, iid}
           end
       end)
-      |> Enum.filter(fn x -> x end)
-      |> then(
-        &Logger.debug(fn ->
+      |> then(fn ls ->
+        {ok, ok_weird} =
+          Enum.split_with(ls, fn
+            {:ok, _iid} ->
+              true
+
+            {:ok_weird, _iid} ->
+              false
+          end)
+
+        Logger.debug(fn ->
           [
-            "Cleaned these interactions: "
-            | S.pp(&1)
+            "Cleaned these interactions: ",
+            S.pp(ok),
+            "\nCleaned these with errors: ",
+            S.pp(ok_weird)
           ]
         end)
-      )
+      end)
     end)
 
     :ok
+  end
+
+  def clean_interactions_logic(interaction_enum, get_lock, time_to_keep \\ 3 * 24 * 60 * 60) do
+    now = S.time()
+
+    interaction_enum
+    |> Enum.map(fn
+      %{
+        id: iid,
+        msg: %{
+          channel_id: cid
+        },
+        datetime: saved_time,
+        channel_lock: lock
+      } ->
+        if DateTime.diff(now, saved_time) > time_to_keep do
+          {
+            {:delete, iid},
+            if !lock do
+              nil
+            else
+              case get_lock.(cid) do
+                nil ->
+                  # It was dismissed normally
+                  nil
+
+                %{
+                  datetime: lock_time,
+                  interaction_id: lock_iid
+                } ->
+                  # Absurd edge case checking
+                  if lock_iid == iid and lock_time == saved_time do
+                    {:unset, cid}
+                  else
+                    {
+                      # NOTE: you can see lots of edge cases can happen here.
+                      # At time of writing we wouldn't need to abort or alert the user
+                      :error_ignore,
+                      fn ->
+                        [
+                          if lock_iid != iid do
+                            [
+                              "Found a channel lock but it's not for this interaction.\n",
+                              "Original interaction: ",
+                              S.pp(iid),
+                              "Their interaction: ",
+                              S.pp(lock_iid),
+                              "\n"
+                            ]
+                          else
+                            [
+                              if lock_time != saved_time do
+                                [
+                                  "Lock times didn't match.\n",
+                                  "Interaction lock time: ",
+                                  DateTime.to_string(saved_time),
+                                  "\nSaved lock time: ",
+                                  DateTime.to_string(lock_time),
+                                  "\n"
+                                ]
+                              else
+                                ""
+                              end
+                            ]
+                          end
+                        ]
+                      end
+                    }
+                  end
+              end
+            end
+          }
+        end
+    end)
+    |> Enum.filter(fn
+      nil ->
+        false
+
+      _other ->
+        true
+    end)
   end
 end

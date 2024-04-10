@@ -248,32 +248,53 @@ defmodule StampedeTest do
     end
 
     test "Interactions can be cleaned" do
-      old_int = %S.Tables.Interactions{
+      old_int = %{
         id: 1234,
-        msg: %Stampede.Msg{
+        msg: %{
           channel_id: :chan_a
         },
         datetime: DateTime.from_unix!(0),
         channel_lock: nil
       }
 
-      new_int = %S.Tables.Interactions{
+      new_int = %{
         id: 6789,
-        msg: %Stampede.Msg{
+        msg: %{
           channel_id: :chan_b
         },
         datetime: DateTime.utc_now(),
         channel_lock: nil
       }
 
-      S.Interact.do_write_interaction!(old_int)
-      S.Interact.do_write_interaction!(new_int)
+      decisions = S.Interact.clean_interactions_logic([old_int, new_int], :unused)
 
-      S.Interact.clean_interactions!()
+      old_id = old_int.id
+      assert [{{:delete, old_id}, nil}] == decisions
 
-      new_id = new_int.id
-      assert match?(%S.Tables.Interactions{id: ^new_id}, S.Interact.get_by_iid(new_id))
-      assert S.Interact.get_by_iid(old_int.id) == nil
+      old_locked_int = %{
+        id: 2468,
+        msg: %{
+          channel_id: :chan_c
+        },
+        datetime: DateTime.from_unix!(0),
+        channel_lock: {:lock, :chan_c, nil}
+      }
+
+      dummy_get_lock = fn cid ->
+        case cid do
+          :chan_c ->
+            %{
+              datetime: DateTime.from_unix!(0),
+              interaction_id: 2468
+            }
+
+          arg ->
+            raise "This shouldnt happen. Args: #{arg |> S.pp()}"
+        end
+      end
+
+      decisions = S.Interact.clean_interactions_logic([old_locked_int, new_int], dummy_get_lock)
+      assert decisions == [{{:delete, 2468}, {:unset, :chan_c}}]
     end
   end
 end

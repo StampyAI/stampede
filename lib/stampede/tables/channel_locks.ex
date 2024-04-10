@@ -14,7 +14,9 @@ defmodule Stampede.Tables.ChannelLocks do
     TypeCheck.conforms!(record, %__MODULE__{
       channel_id: S.channel_id(),
       datetime: S.timestamp(),
-      lock_status: boolean(),
+      # TODO: remove
+      lock_status: true,
+      # TODO: add next/break options
       callback: nil | S.module_function_args(),
       interaction_id: S.interaction_id()
     })
