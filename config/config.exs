@@ -25,6 +25,11 @@ extra_metadata =
 config :stampede,
   compile_env: Mix.env()
 
+config :stampede, Stampede.Scheduler,
+  jobs: [
+    {"@daily", {Stampede.Interact, :clean_interactions!, []}}
+  ]
+
 config :logger, :console,
   level: :debug,
   metadata: extra_metadata

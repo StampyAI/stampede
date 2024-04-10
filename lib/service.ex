@@ -10,7 +10,7 @@ defmodule Service do
   @callback dm?(service_message :: any()) :: boolean()
   @doc "Is this author considered privileged in this context?"
   @callback author_privileged?(server_id :: any(), author_id :: any()) :: boolean()
-  @doc "Is this user the bot itself?"
+  @doc "Is this user the bot's user?"
   @callback bot_id?(user_id :: any()) :: boolean()
   @doc "Is this message targeted at the bot in a service-specific way?"
   @callback at_bot?(

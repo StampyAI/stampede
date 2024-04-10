@@ -126,7 +126,8 @@ defmodule Stampede.Application do
     default_children = [
       {PartitionSupervisor, child_spec: Task.Supervisor, name: Stampede.QuickTaskSupers},
       # NOTE: call with Stampede.quick_task_via()
-      {Stampede.CfgTable, config_dir: Keyword.fetch!(startup_args, :config_dir)}
+      {Stampede.CfgTable, config_dir: Keyword.fetch!(startup_args, :config_dir)},
+      Stampede.Scheduler
     ]
 
     service_tuples =

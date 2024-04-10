@@ -41,13 +41,17 @@ defmodule Service.Discord do
 
   @impl Service
   def at_bot?(_cfg, msg) do
-    Api.get_channel_message(msg.channel_id, msg.referenced_msg_id)
-    |> case do
-      {:ok, service_msg} ->
-        bot_id?(service_msg.author.id)
+    if msg.referenced_msg_id == nil do
+      false
+    else
+      Api.get_channel_message(msg.channel_id, msg.referenced_msg_id)
+      |> case do
+        {:ok, service_msg} ->
+          bot_id?(service_msg.author.id)
 
-      other ->
-        raise "Message at channel #{inspect(msg.channel_id)} id #{inspect(msg.id)} not found. Instead we got: #{S.pp(other)}"
+        other ->
+          raise "Message at channel #{inspect(msg.channel_id)} id #{inspect(msg.id)} not found. Instead we got: #{S.pp(other)}"
+      end
     end
   end
 

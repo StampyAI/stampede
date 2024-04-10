@@ -9,6 +9,8 @@ defmodule Stampede.Interact do
   @type! id :: non_neg_integer()
 
   @msg_id_timeout 1000
+  # 3 days
+  @default_time_to_keep 3 * 24 * 60 * 60
 
   @spec! get(S.msg_id()) :: {:ok, %Interactions{}} | {:error, any()}
   def get(msg_id_unsafe) do
@@ -318,55 +320,99 @@ defmodule Stampede.Interact do
     end)
   end
 
-  def clean_interactions!() do
+  def clean_interactions!(time_to_keep \\ @default_time_to_keep) do
+    tw = time_to_keep |> DateTime.from_gregorian_seconds()
+
+    Logger.debug([
+      "Interact: cleaning interactions older than ",
+      if tw.day - 1 == 0 do
+        ""
+      else
+        "#{tw.day - 1} days, "
+      end,
+      if tw.minute == 0 do
+        ""
+      else
+        "#{tw.minute} minutes, "
+      end,
+      if tw.second == 0 do
+        ""
+      else
+        "#{tw.second} seconds"
+      end
+    ])
+
     transaction!(fn ->
-      Memento.Query.all(Interactions)
-      |> clean_interactions_logic(&Memento.Query.read(ChannelLocks, &1))
-      |> Enum.map(fn
-        {{:delete, iid}, lock_decision} ->
-          Logger.debug(fn -> ["Deleting old interaction ", S.pp(iid)] end)
-          Memento.Query.delete(T.Interactions, iid)
+      case Memento.Query.all(Interactions) do
+        [] ->
+          Logger.debug("Tried to clean interactions, but there were none.")
+          :ok
 
-          case lock_decision do
-            nil ->
-              Logger.debug("No channel lock found for this interaction.")
-              {:ok, iid}
+        ints ->
+          ints
+          |> clean_interactions_logic(&Memento.Query.read(ChannelLocks, &1), time_to_keep)
+          |> Enum.map(fn
+            {{:delete, iid}, lock_decision} ->
+              Logger.debug(fn -> ["Deleting old interaction ", S.pp(iid)] end)
+              Memento.Query.delete(Interactions, iid)
 
-            {:unset, cid} ->
-              Logger.debug(fn -> ["Deleting old channel lock ", S.pp(cid)] end)
-              Memento.Query.delete(ChannelLocks, cid)
-              {:ok, iid}
+              case lock_decision do
+                nil ->
+                  Logger.debug("No channel lock found for this interaction.")
+                  {:ok, iid}
 
-            {:error_ignore, err_log} ->
-              Logger.warning(err_log)
-              {:ok_weird, iid}
-          end
-      end)
-      |> then(fn ls ->
-        {ok, ok_weird} =
-          Enum.split_with(ls, fn
-            {:ok, _iid} ->
-              true
+                {:unset, cid} ->
+                  Logger.debug(fn -> ["Deleting old channel lock ", S.pp(cid)] end)
+                  Memento.Query.delete(ChannelLocks, cid)
+                  {:ok, iid}
 
-            {:ok_weird, _iid} ->
-              false
+                {:error_ignore, err_log} ->
+                  Logger.warning(err_log)
+                  {:ok_weird, iid}
+              end
           end)
+          |> then(fn ls ->
+            results =
+              Enum.group_by(
+                ls,
+                fn
+                  {:ok, _iid} ->
+                    :ok
 
-        Logger.debug(fn ->
-          [
-            "Cleaned these interactions: ",
-            S.pp(ok),
-            "\nCleaned these with errors: ",
-            S.pp(ok_weird)
-          ]
-        end)
-      end)
+                  {:ok_weird, _iid} ->
+                    :ok_weird
+                end,
+                fn {_status, iid} -> iid end
+              )
+
+            Logger.debug(fn ->
+              [
+                if results[:ok] do
+                  [
+                    "Cleaned these interactions: ",
+                    S.pp(results.ok)
+                  ]
+                else
+                  []
+                end,
+                if results[:ok_weird] do
+                  [
+                    "\nCleaned these with errors: ",
+                    S.pp(results.ok_weird)
+                  ]
+                else
+                  []
+                end
+              ]
+            end)
+          end)
+      end
     end)
 
     :ok
   end
 
-  def clean_interactions_logic(interaction_enum, get_lock, time_to_keep \\ 3 * 24 * 60 * 60) do
+  def clean_interactions_logic(interaction_enum, get_lock, time_to_keep \\ @default_time_to_keep) do
     now = S.time()
 
     interaction_enum
