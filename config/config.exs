@@ -53,7 +53,7 @@ config :stampede, :logger, [
      },
      formatter:
        Logger.Formatter.new(
-         format: {LogstashLoggerFormatter, :format},
+         format: {Uinta.Formatter, :format},
          colors: [enabled: false],
          level: :all,
          metadata: extra_metadata

@@ -94,7 +94,7 @@ defmodule Stampede.MixProject do
       {:nimble_options, "~> 1.0"},
 
       # JSON logging
-      {:logstash_logger_formatter, "~> 1.1"},
+      {:uinta, "~> 0.13.0"},
 
       # Cron jobs
       {:quantum, "~> 3.5"},
