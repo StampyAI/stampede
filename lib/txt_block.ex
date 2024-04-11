@@ -1,6 +1,6 @@
 defmodule TxtBlock do
-  @doc """
-  Storage for text to be formatted differently according to context, i.e. posting to different services. str_list-friendly.
+  @moduledoc """
+  Storage for text to be formatted differently according to context, i.e. posting to different services. iolist-friendly (except for improper lists).
 
   Section types with their markdown equivalents:
   - quote_block (greater-than signs '>')
