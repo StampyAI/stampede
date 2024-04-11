@@ -34,6 +34,10 @@ defmodule Stampede do
   def confused_response(),
     do: {:italics, "confused beeping"}
 
+  @stampede_compile_env Mix.env()
+  def compilation_environment,
+    do: @stampede_compile_env
+
   def throw_internal_error(msg \\ "*screaming*") do
     raise "intentional internal error: #{msg}"
   end

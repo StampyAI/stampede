@@ -38,7 +38,7 @@ defmodule Stampede.Tables do
   end
 
   def clear_all_tables() do
-    Logger.info("Tables: clearing all tables for #{Mix.env()}")
+    Logger.info("Tables: clearing all tables for #{Stampede.compilation_environment()}")
 
     @mnesia_tables
     |> Enum.each(fn t ->

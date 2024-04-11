@@ -35,11 +35,6 @@ defmodule Stampede.Application do
         default: nil,
         doc: "What service should handle serious errors?"
       ],
-      node_name: [
-        type: :atom,
-        default: "stampede_#{Mix.env()}@#{:inet.gethostname() |> elem(1)}" |> String.to_atom(),
-        doc: "erlang VM node name"
-      ],
       clear_state: [
         type: :boolean,
         default: false,
@@ -64,7 +59,7 @@ defmodule Stampede.Application do
         Application.get_env(:stampede, :config_dir, false)
       )
       |> Keyword.update!(:config_dir, fn dir ->
-        dir <> "_#{Application.fetch_env!(:stampede, :compile_env)}"
+        dir <> "_#{Stampede.compilation_environment()}"
       end)
       |> Keyword.update!(
         :serious_error_channel_service,
@@ -80,10 +75,6 @@ defmodule Stampede.Application do
       |> NimbleOptions.validate!(startup_schema())
 
     if startup_args[:log_to_file], do: :ok = Logger.add_handlers(:stampede)
-
-    ## changing node names after boot confuses Mnesia :(
-    # {:ok, _} = if Node.self() == :nonode@nohost,
-    #  do: Node.start(startup_args[:node_name])
 
     :ok = S.Tables.init(startup_args)
 
