@@ -9,14 +9,16 @@ stampede_metadata = [
   :interaction_id
 ]
 
-nostrum_metadata = [:shard, :guild, :channel]
+nostrum_metadata = [:guild, :channel]
 
 extra_metadata =
   [
     :crash_reason,
     :error_code,
     :file,
-    :line
+    :line,
+    :application,
+    :mfa
   ] ++
     stampede_metadata ++
     nostrum_metadata
@@ -32,18 +34,26 @@ config :stampede, Stampede.Scheduler,
 
 config :logger, :console,
   level: :debug,
-  metadata: extra_metadata
+  metadata: stampede_metadata ++ [:mfa]
 
 config :logger,
   handle_otp_reports: true,
-  # may god have mercy on your soul
-  handle_sasl_reports: false
+  # this will spam a lot of messages``
+  handle_sasl_reports: false,
+  compile_time_purge_matching:
+    (if Mix.env() == :prod do
+       [
+         [level_lower_than: :info]
+       ]
+     else
+       []
+     end)
 
 config :stampede, :logger, [
   {:handler, :file_log, :logger_std_h,
    %{
      config: %{
-       # Don't mix environment logs
+       # separate environment logs
        file: ~c"logs/#{Mix.env()}/#{node()}.log",
        filesync_repeat_interval: 5000,
        file_check: 5000,
@@ -56,7 +66,7 @@ config :stampede, :logger, [
          format: {Uinta.Formatter, :format},
          colors: [enabled: false],
          level: :all,
-         metadata: extra_metadata
+         metadata: :all
        )
    }}
 ]

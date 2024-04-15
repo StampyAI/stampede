@@ -93,7 +93,7 @@ defmodule Stampede.MixProject do
       # https://hexdocs.pm/nimble_options/NimbleOptions.html
       {:nimble_options, "~> 1.0"},
 
-      # JSON logging
+      # JSON logging to disk. Parse easily with `jq -s <query> ./logs/<env>/<logfile>`
       {:uinta, "~> 0.13.0"},
 
       # Cron jobs
