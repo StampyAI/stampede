@@ -191,24 +191,24 @@ defmodule Stampede.Interact do
   @spec! announce_interaction(%Interactions{}) :: :ok
   def announce_interaction(rec) do
     Logger.info(fn ->
-      to_print = [
-        server: rec.msg.server_id,
-        responding_to: rec.msg.author_id,
-        responding_plug: rec.response.origin_plug,
-        response: rec.response.text,
-        channel_lock:
-          if rec.channel_lock do
-            rec.channel_lock |> inspect()
-          else
-            false
-          end
-      ]
-
       [
         "NEW INTERACTION ",
         inspect(rec.id),
         "\n",
-        to_print |> S.pp()
+        "server: ",
+        rec.msg.server_id |> S.pp(),
+        "\n",
+        "responding_to: ",
+        rec.msg.author_id |> S.pp(),
+        "\n",
+        "responding_plug: ",
+        rec.response.origin_plug |> S.pp(),
+        "\n",
+        "channel_lock: ",
+        (rec.channel_lock || false) |> S.pp(),
+        "\n",
+        ["response: \n", {{:indent, 4}, rec.response.text}]
+        |> TxtBlock.to_binary(Service.Dummy)
       ]
     end)
   end
