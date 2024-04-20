@@ -38,8 +38,8 @@ defmodule Stampede do
   def compilation_environment,
     do: @stampede_compile_env
 
-  def throw_internal_error(msg \\ "*screaming*") do
-    raise "intentional internal error: #{msg}"
+  def throw_internal_error(text \\ "*screaming*") do
+    raise "intentional internal error: #{text}"
   end
 
   @spec! author_privileged?(
@@ -103,16 +103,16 @@ defmodule Stampede do
   regex, it will match whatever was given and return the first match group.
   """
   @spec! strip_prefix(String.t() | Regex.t(), String.t()) :: false | String.t()
-  def strip_prefix(prefix, msg)
+  def strip_prefix(prefix, text)
       ## here comes the "smart" """optimized""" solution
       when is_binary(prefix) and
-             binary_part(msg, 0, floor(bit_size(prefix) / 8)) == prefix do
-    binary_part(msg, floor(bit_size(prefix) / 8), floor((bit_size(msg) - bit_size(prefix)) / 8))
+             binary_part(text, 0, floor(bit_size(prefix) / 8)) == prefix do
+    binary_part(text, floor(bit_size(prefix) / 8), floor((bit_size(text) - bit_size(prefix)) / 8))
   end
 
-  def strip_prefix(prefix, msg)
+  def strip_prefix(prefix, text)
       when is_binary(prefix) and
-             binary_part(msg, 0, floor(bit_size(prefix) / 8)) != prefix,
+             binary_part(text, 0, floor(bit_size(prefix) / 8)) != prefix,
       do: false
 
   def strip_prefix(rex, text) when is_struct(rex, Regex) do
@@ -140,12 +140,12 @@ defmodule Stampede do
     end
   end
 
-  def text_chunk(msg, len, max_pieces, premade_regex \\ nil)
-      when is_bitstring(msg) and is_integer(len) and is_integer(max_pieces) and
+  def text_chunk(text, len, max_pieces, premade_regex \\ nil)
+      when is_bitstring(text) and is_integer(len) and is_integer(max_pieces) and
              (is_nil(premade_regex) or is_struct(premade_regex, Regex)) do
     r = premade_regex || text_chunk_regex(len)
 
-    Regex.scan(r, msg, trim: true, capture: :all_but_first)
+    Regex.scan(r, text, trim: true, capture: :all_but_first)
     |> Enum.take(max_pieces)
     |> Enum.map(&hd/1)
   end
