@@ -31,6 +31,11 @@ defmodule Stampede do
   @type! timestamp :: DateTime.t()
   @type! interaction_id :: non_neg_integer()
 
+  @type! bot_invoked_status ::
+           nil
+           | :mentioned_from_service
+           | :prefixed
+
   def confused_response(),
     do: {:italics, "confused beeping"}
 
@@ -42,6 +47,7 @@ defmodule Stampede do
     raise "intentional internal error: #{text}"
   end
 
+  @doc "Check a Msg struct against a SiteConfig whether this author is privileged"
   @spec! author_privileged?(
            %{server_id: any()},
            %{author_id: any()}
@@ -50,6 +56,7 @@ defmodule Stampede do
     Service.apply_service_function(cfg, :author_privileged?, [cfg.server_id, msg.author_id])
   end
 
+  @doc "generic function for checking one or all servers whether a user is a VIP"
   @spec! vip_in_this_context?(map(), server_id() | :all, user_id()) :: boolean()
   def vip_in_this_context?(vips, :all, author_id),
     do: Map.values(vips) |> Enum.any?(&(author_id in &1))
@@ -119,6 +126,16 @@ defmodule Stampede do
     case Regex.run(rex, text) do
       nil -> false
       [_p, body] -> body
+    end
+  end
+
+  def split_prefix(text, prefix) when is_binary(prefix) and is_binary(text) do
+    case text do
+      <<^prefix::binary-size(floor(bit_size(prefix) / 8)), rest::binary>> ->
+        {prefix, rest}
+
+      not_prefixed ->
+        {false, not_prefixed}
     end
   end
 

@@ -44,6 +44,12 @@ defmodule StampedeStatelessTest do
     end
 
     test "basic test plugin" do
+      dummy_cfg = %{
+        __struct__: SiteConfig,
+        service: Service.Dummy,
+        prefix: "!"
+      }
+
       msg =
         S.Msg.new(
           id: 0,
@@ -52,12 +58,7 @@ defmodule StampedeStatelessTest do
           author_id: :u1,
           server_id: :none
         )
-
-      dummy_cfg = %{
-        __struct__: SiteConfig,
-        service: Service.Dummy,
-        prefix: "!"
-      }
+        |> S.Msg.add_context(dummy_cfg)
 
       r = Plugin.Test.process_msg(dummy_cfg, msg)
       assert r.text == "pong!"
@@ -70,6 +71,7 @@ defmodule StampedeStatelessTest do
           author_id: :u1,
           server_id: :none
         )
+        |> S.Msg.add_context(dummy_cfg)
 
       assert_raise SillyError, fn -> Plugin.Test.process_msg(dummy_cfg, msg) end
 
@@ -81,6 +83,7 @@ defmodule StampedeStatelessTest do
           author_id: :u1,
           server_id: :none
         )
+        |> S.Msg.add_context(dummy_cfg)
 
       try do
         Plugin.Test.process_msg(dummy_cfg, msg)
@@ -97,6 +100,7 @@ defmodule StampedeStatelessTest do
           author_id: :u1,
           server_id: :none
         )
+        |> S.Msg.add_context(dummy_cfg)
 
       %{callback: {m, f, a}} = Plugin.Test.process_msg(dummy_cfg, msg)
 

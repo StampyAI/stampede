@@ -201,7 +201,6 @@ defmodule Service.Dummy do
   @impl Service
   def log_serious_error(_), do: :ok
 
-  @impl Service
   def into_msg({id, server_id, channel, user, body, ref}) do
     Msg.new(
       id: id,
@@ -225,23 +224,18 @@ defmodule Service.Dummy do
   end
 
   @impl Service
-  def at_bot?(_cfg, msg) do
-    case msg.referenced_msg_id do
-      nil ->
-        false
+  def at_bot?(_cfg, %{referenced_msg_id: ref}) do
+    (ref || false) &&
+      transaction!(fn ->
+        Memento.Query.read(__MODULE__.Table, ref)
+        |> case do
+          nil ->
+            false
 
-      ref ->
-        transaction!(fn ->
-          Memento.Query.read(__MODULE__.Table, ref)
-          |> case do
-            nil ->
-              false
-
-            found ->
-              found.user == @bot_user
-          end
-        end)
-    end
+          found ->
+            found.user |> bot_id?()
+        end
+      end)
   end
 
   @impl Service
@@ -321,15 +315,19 @@ defmodule Service.Dummy do
       {:reply, nil, state}
     else
       %{
-        posted_msg_id: incoming_msg_id,
-        posted_msg_object: incoming_msg,
+        posted_msg_id: inciting_msg_id,
+        posted_msg_object: inciting_msg,
         new_state: new_state_1
       } = do_add_new_msg(msg_tuple, state)
 
       cfg = S.CfgTable.get_cfg!(__MODULE__, server_id)
 
+      inciting_msg_with_context =
+        inciting_msg
+        |> S.Msg.add_context(cfg)
+
       result =
-        case Plugin.get_top_response(cfg, incoming_msg) do
+        case Plugin.get_top_response(cfg, inciting_msg_with_context) do
           {response, iid} when is_struct(response, Response) ->
             binary_response =
               response
@@ -345,12 +343,12 @@ defmodule Service.Dummy do
             {:reply,
              %{
                response: binary_response,
-               posted_msg_id: incoming_msg_id,
+               posted_msg_id: inciting_msg_id,
                bot_response_msg_id: bot_response_msg_id
              }, new_state_2}
 
           nil ->
-            {:reply, %{response: nil, posted_msg_id: incoming_msg_id}, new_state_1}
+            {:reply, %{response: nil, posted_msg_id: inciting_msg_id}, new_state_1}
         end
 
       # if opts has key :return_id, returns the id of posted message along with any response msg

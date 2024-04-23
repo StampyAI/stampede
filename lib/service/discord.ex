@@ -23,20 +23,26 @@ defmodule Service.Discord do
   @character_limit 1999
   @consecutive_msg_limit 10
 
-  @impl Service
-  @spec! into_msg(service_msg :: %Nostrum.Struct.Message{}) :: S.Msg.t()
-  def into_msg(msg) do
+  def into_msg(svc_msg) do
     Msg.new(
-      id: msg.id,
-      body: msg.content,
-      channel_id: msg.channel_id,
-      author_id: msg.author.id,
-      server_id: msg.guild_id || S.make_dm_tuple(__MODULE__),
+      id: svc_msg.id,
+      body: svc_msg.content,
+      channel_id: svc_msg.channel_id,
+      author_id: svc_msg.author.id,
+      server_id: get_server_id(svc_msg),
       referenced_msg_id:
-        msg
+        svc_msg
         |> Map.get(:message_reference)
         |> then(&(&1 && Map.get(&1, :message_id)))
     )
+  end
+
+  defp get_server_id(svc_msg) do
+    if dm?(svc_msg) do
+      S.make_dm_tuple(__MODULE__)
+    else
+      svc_msg.guild_id
+    end
   end
 
   @impl Service
@@ -216,26 +222,9 @@ defmodule Service.Discord do
     do: TxtBlock.Md.format(blk, kind)
 
   @impl Service
-  def dm?(msg), do: msg.guild_id == nil
-
-  @spec! get_referenced_msg(Msg.t()) :: {:ok, Msg.t()} | {:error, any()}
-  def get_referenced_msg(msg) do
-    get_msg({
-      msg.channel_id,
-      msg.referenced_msg_id
-    })
-  end
-
-  @spec! get_msg({discord_channel_id(), discord_msg_id()}) :: {:ok, Msg.t()} | {:error, any()}
-  def get_msg({channel_id, msg_id}) do
-    case Api.get_channel_message(channel_id, msg_id) do
-      {:ok, discord_msg} ->
-        {:ok, into_msg(discord_msg)}
-
-      other ->
-        {:error, other}
-    end
-  end
+  def dm?(%Nostrum.Struct.Message{guild_id: gid}), do: gid == nil
+  def dm?(%S.Msg{server_id: {:dm, __MODULE__}}), do: true
+  def dm?(%S.Msg{server_id: _}), do: false
 
   @impl Service
   def start_link(args) do
@@ -372,15 +361,18 @@ defmodule Service.Discord.Handler do
   end
 
   defp do_msg_create(discord_msg) do
-    our_msg =
-      Discord.into_msg(discord_msg)
+    our_cfg =
+      S.CfgTable.get_cfg!(Discord, discord_msg.guild_id || S.make_dm_tuple(Service.Discord))
 
-    our_cfg = S.CfgTable.get_cfg!(Discord, our_msg.server_id)
+    inciting_msg_with_context =
+      discord_msg
+      |> Discord.into_msg()
+      |> S.Msg.add_context(our_cfg)
 
-    case Plugin.get_top_response(our_cfg, our_msg) do
+    case Plugin.get_top_response(our_cfg, inciting_msg_with_context) do
       {%Response{text: r_text}, iid} when r_text != nil ->
         {:ok, first_id: bot_response_msg_id} =
-          Discord.send_msg(our_msg.channel_id, r_text)
+          Discord.send_msg(inciting_msg_with_context.channel_id, r_text)
 
         S.Interact.finalize_interaction(iid, bot_response_msg_id)
 

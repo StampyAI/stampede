@@ -50,16 +50,8 @@ defmodule Plugin do
       @impl Plugin
       def at_module?(cfg, msg) do
         # Should we process the message?
-        text =
-          if Service.apply_service_function(cfg, :at_bot?, [cfg, msg]) do
-            msg.body
-          else
-            SiteConfig.fetch!(cfg, :prefix)
-            |> S.strip_prefix(msg.body)
-          end
-
-        if text do
-          {:cleaned, text}
+        if msg.at_bot? or msg.dm? or msg.prefix do
+          {:cleaned, msg.body}
         else
           false
         end

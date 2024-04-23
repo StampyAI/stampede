@@ -4,10 +4,8 @@ defmodule Service do
 
   @doc "return description of valid site config options"
   @callback site_config_schema() :: NimbleOptions.t()
-  @doc "Put the service's internal message representation into a generic Msg"
-  @callback into_msg(service_message :: any()) :: %Stampede.Msg{}
   @doc "Is this service message a DM?"
-  @callback dm?(service_message :: any()) :: boolean()
+  @callback dm?(service_message_or_msg_struct :: any() | S.Msg.t()) :: boolean()
   @doc "Is this author considered privileged in this context?"
   @callback author_privileged?(server_id :: any(), author_id :: any()) :: boolean()
   @doc "Is this user the bot's user?"
