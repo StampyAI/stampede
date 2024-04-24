@@ -29,17 +29,19 @@ defmodule Plugin do
   require InteractionForm
   @first_response_timeout 500
 
-  @typedoc """
-  Describe uses for a plugin in a input-output manner, no prefix included.
-  - {"help sentience", "(prints the help for the Sentience plugin)"}
-  - "Usage example not fitting the tuple format"
-  """
   @callback process_msg(SiteConfig.t(), Msg.t()) :: nil | Response.t()
 
   # TODO: replace with predicate? and handle prefix cleaning seperately
   @doc "Given a config and message, indicate if we should respond, and if so what is the relevant part of the message?"
   @callback at_module?(SiteConfig.t(), Msg.t()) :: boolean() | {:cleaned, text :: String.t()}
+
+  @typedoc """
+  Describe uses for a plugin in a input-output manner, no prefix included.
+  - {"help sentience", "(prints the help for the Sentience plugin)"}
+  - "Usage example not fitting the tuple format"
+  """
   @type! usage_tuples :: list(TxtBlock.t() | {TxtBlock.t(), TxtBlock.t()})
+
   @callback usage() :: usage_tuples()
   @callback description() :: TxtBlock.t()
 
