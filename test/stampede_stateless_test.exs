@@ -1,6 +1,7 @@
 defmodule StampedeStatelessTest do
   use ExUnit.Case, async: true
   import ExUnit.CaptureLog
+  require Plugin
   alias Stampede, as: S
   require S.Msg
   doctest Stampede
@@ -22,16 +23,44 @@ defmodule StampedeStatelessTest do
     prefix: "!",
     plugs: MapSet.new([Plugin.Test, Plugin.Sentience]),
     vip_ids: MapSet.new([:server]),
-    dm_handler: true
+    dm_handler: true,
+    bot_is_loud: false
   }
 
   describe "stateless functions" do
-    test "strip_prefix text" do
-      assert "ping" == S.strip_prefix("!", "!ping")
+    test "split_prefix text" do
+      assert {"!", "ping"} == S.split_prefix("!ping", "!")
     end
 
-    test "strip_prefix regex" do
-      assert "ping" == S.strip_prefix(~r/(.*) me bro/, "ping me bro")
+    test "Plugin.is_bot_invoked?" do
+      cfg_defaults = %{bot_is_loud: false}
+
+      msg_defaults = %{
+        at_bot?: false,
+        dm?: false,
+        prefix: false
+      }
+
+      inputs =
+        [
+          [%{bot_is_loud: true}, %{}],
+          [%{}, %{at_bot?: true}],
+          [%{}, %{dm?: true}],
+          [%{}, %{prefix: "something"}]
+        ]
+        |> Enum.map(fn
+          [cfg_overrides, msg_overrides] ->
+            [
+              Map.merge(cfg_defaults, cfg_overrides),
+              Map.merge(msg_defaults, msg_overrides)
+            ]
+        end)
+
+      assert not Plugin.is_bot_invoked(cfg_defaults, msg_defaults)
+
+      for [cfg, msg] <- inputs do
+        assert Plugin.is_bot_invoked(cfg, msg)
+      end
     end
 
     test "S.keyword_put_new_if_not_falsy" do
@@ -44,11 +73,7 @@ defmodule StampedeStatelessTest do
     end
 
     test "basic test plugin" do
-      dummy_cfg = %{
-        __struct__: SiteConfig,
-        service: Service.Dummy,
-        prefix: "!"
-      }
+      dummy_cfg = @dummy_cfg_verified
 
       msg =
         S.Msg.new(
@@ -60,7 +85,8 @@ defmodule StampedeStatelessTest do
         )
         |> S.Msg.add_context(dummy_cfg)
 
-      r = Plugin.Test.process_msg(dummy_cfg, msg)
+      {:respond, arg} = Plugin.Test.query(dummy_cfg, msg)
+      r = Plugin.Test.respond(arg)
       assert r.text == "pong!"
 
       msg =
@@ -73,7 +99,10 @@ defmodule StampedeStatelessTest do
         )
         |> S.Msg.add_context(dummy_cfg)
 
-      assert_raise SillyError, fn -> Plugin.Test.process_msg(dummy_cfg, msg) end
+      assert_raise SillyError, fn ->
+        {:respond, arg} = Plugin.Test.query(dummy_cfg, msg)
+        _ = Plugin.Test.respond(arg)
+      end
 
       msg =
         S.Msg.new(
@@ -86,7 +115,8 @@ defmodule StampedeStatelessTest do
         |> S.Msg.add_context(dummy_cfg)
 
       try do
-        Plugin.Test.process_msg(dummy_cfg, msg)
+        {:respond, arg} = Plugin.Test.query(dummy_cfg, msg)
+        _ = Plugin.Test.respond(arg)
       catch
         _t, e ->
           assert e == SillyThrow
@@ -102,9 +132,10 @@ defmodule StampedeStatelessTest do
         )
         |> S.Msg.add_context(dummy_cfg)
 
-      %{callback: {m, f, a}} = Plugin.Test.process_msg(dummy_cfg, msg)
+      {:respond, arg} = Plugin.Test.query(dummy_cfg, msg)
+      %{callback: {m, f, a}} = Plugin.Test.respond(arg)
 
-      cbr = apply(m, f, [dummy_cfg | a])
+      cbr = apply(m, f, a)
       assert String.starts_with?(cbr.text, "Called back with")
     end
 

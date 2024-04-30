@@ -53,7 +53,7 @@ defmodule Stampede.Msg do
     })
     |> Map.update!(:body, fn
       current_text ->
-        cleaned || current_text
+        (prefix && cleaned) || current_text
     end)
   end
 end

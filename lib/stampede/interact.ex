@@ -207,7 +207,12 @@ defmodule Stampede.Interact do
         "channel_lock: ",
         (rec.channel_lock || false) |> S.pp(),
         "\n",
-        ["response: \n", {{:indent, 4}, rec.response.text}]
+        [
+          "response:\n",
+          {{:indent, 4}, rec.response.text},
+          "why:\n",
+          {{:indent, 4}, rec.response.why}
+        ]
         |> TxtBlock.to_binary(Service.Dummy)
       ]
     end)

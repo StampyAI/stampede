@@ -25,7 +25,8 @@ defmodule StampedeTest do
     plugs: MapSet.new([Plugin.Test, Plugin.Sentience, Plugin.Why]),
     dm_handler: false,
     filename: :"test SiteConfig load_all",
-    vip_ids: MapSet.new([:server])
+    vip_ids: MapSet.new([:server]),
+    bot_is_loud: false
   }
   setup_all do
     %{
@@ -136,16 +137,22 @@ defmodule StampedeTest do
       assert "locked in on #{uname} awaiting b" ==
                D.send_msg(s.id, :t1, uname, "!a") |> Map.fetch!(:text)
 
-      assert "b response. awaiting c" == D.send_msg(s.id, :t1, uname, "!b") |> Map.fetch!(:text)
+      assert "b response. awaiting c" == D.send_msg(s.id, :t1, uname, "b") |> Map.fetch!(:text)
 
       assert "c response. interaction done!" ==
-               D.send_msg(s.id, :t1, uname, "!c") |> Map.fetch!(:text)
+               D.send_msg(s.id, :t1, uname, "c") |> Map.fetch!(:text)
 
       assert "locked in on #{uname} awaiting b" ==
                D.send_msg(s.id, :t1, uname, "!a") |> Map.fetch!(:text)
 
       assert "lock broken by admin" ==
-               D.send_msg(s.id, :t1, uname, "!interrupt") |> Map.fetch!(:text)
+               D.send_msg(s.id, :t1, uname, "interrupt") |> Map.fetch!(:text)
+
+      assert "locked in on #{uname} awaiting b" ==
+               D.send_msg(s.id, :t1, uname, "!a") |> Map.fetch!(:text)
+
+      assert "lock broken by admin" ==
+               D.send_msg(s.id, :t1, uname, "!command_interrupt") |> Map.fetch!(:text)
     end
 
     test "at_bot?", s do

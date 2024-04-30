@@ -29,11 +29,15 @@ defmodule Plugin do
   require InteractionForm
   @first_response_timeout 500
 
-  @callback process_msg(SiteConfig.t(), Msg.t()) :: nil | Response.t()
-
-  # TODO: replace with predicate? and handle prefix cleaning seperately
-  @doc "Given a config and message, indicate if we should respond, and if so what is the relevant part of the message?"
-  @callback at_module?(SiteConfig.t(), Msg.t()) :: boolean() | {:cleaned, text :: String.t()}
+  @doc """
+  Should this module respond to the given config and message? If so, we will execute this plugin's "respond" callback with the returned value.
+  These methods on all plugins are run syncronously with every incoming message in the caller thread.
+  """
+  @callback query(SiteConfig.t(), Msg.t()) :: nil | {:respond, arg :: any()}
+  @doc """
+  Decide on a response for the given arg.
+  """
+  @callback respond(arg :: any()) :: nil | Response.t()
 
   @typedoc """
   Describe uses for a plugin in a input-output manner, no prefix included.
@@ -45,23 +49,19 @@ defmodule Plugin do
   @callback usage() :: usage_tuples()
   @callback description() :: TxtBlock.t()
 
+  defguard is_bot_invoked(cfg, msg)
+           when cfg.bot_is_loud or msg.at_bot? or msg.dm? or msg.prefix != false
+
   defmacro __using__(_opts \\ []) do
     quote do
       @behaviour unquote(__MODULE__)
-
-      @impl Plugin
-      def at_module?(cfg, msg) do
-        # Should we process the message?
-        if msg.at_bot? or msg.dm? or msg.prefix do
-          {:cleaned, msg.body}
-        else
-          false
-        end
-      end
-
-      defoverridable at_module?: 2
     end
   end
+
+  @spec default_predicate(map(), map(), success_tuple) :: success_tuple
+        when success_tuple: {:respond, arg :: any()}
+  def default_predicate(cfg, msg, success_tuple) when is_bot_invoked(cfg, msg), do: success_tuple
+  def default_predicate(cfg, msg, _) when not is_bot_invoked(cfg, msg), do: nil
 
   @doc "returns loaded modules using the Plugin behavior."
   @spec! ls() :: MapSet.t(module())
@@ -89,23 +89,15 @@ defmodule Plugin do
     MapSet.intersection(enabled, ls())
   end
 
-  def default_plugin_mfa(plug, [cfg, msg]) do
-    {plug, :process_msg, [cfg, msg]}
-  end
-
   @type! job_result ::
            {:job_error, :timeout}
            | {:job_error, tuple()}
-           | {:job_ok, nil}
-           | {:job_ok, %Response{}}
-  @type! plugin_job_result :: {atom(), job_result()}
+           | {:job_ok, any()}
+  @type! plugin_job_result :: {module(), job_result()}
 
   @doc "Attempt some task, safely catch errors, and format the error report for the originating service"
-  @spec! get_response(S.module_function_args() | atom(), SiteConfig.t(), S.Msg.t()) ::
+  @spec! get_response(S.module_function_args(), SiteConfig.t(), S.Msg.t()) ::
            job_result()
-  def get_response(plugin, cfg, msg) when is_atom(plugin),
-    do: get_response(default_plugin_mfa(plugin, [cfg, msg]), cfg, msg)
-
   def get_response({m, f, a}, cfg, msg) do
     # if an error occurs in process_msg, catch it and return as data
     try do
@@ -143,45 +135,75 @@ defmodule Plugin do
     end
   end
 
-  @spec! query_plugins(list(S.module_function_args() | module()), SiteConfig.t(), S.Msg.t()) ::
+  @spec! query_plugins(
+           nonempty_list(module() | S.module_function_args())
+           | MapSet.t(module() | S.module_function_args()),
+           SiteConfig.t(),
+           S.Msg.t()
+         ) ::
            nil | {response :: Response.t(), interaction_id :: S.interaction_id()}
   def query_plugins(call_list, cfg, msg) do
     tasks =
       Enum.map(call_list, fn
-        mfa = {this_plug, _func, _args} ->
-          {this_plug,
-           Task.Supervisor.async_nolink(
-             S.quick_task_via(),
-             __MODULE__,
-             :get_response,
-             [mfa, cfg, msg]
-           )}
+        {this_plug, func, args} ->
+          {
+            this_plug,
+            Task.Supervisor.async_nolink(
+              S.quick_task_via(),
+              __MODULE__,
+              :get_response,
+              [{this_plug, func, args}, cfg, msg]
+            )
+          }
 
         this_plug when is_atom(this_plug) ->
-          {this_plug,
-           Task.Supervisor.async_nolink(
-             S.quick_task_via(),
-             __MODULE__,
-             :get_response,
-             [this_plug, cfg, msg]
-           )}
+          {
+            this_plug,
+            case get_response({this_plug, :query, [cfg, msg]}, cfg, msg) do
+              {:job_ok, {:respond, arg}} ->
+                Task.Supervisor.async_nolink(
+                  S.quick_task_via(),
+                  __MODULE__,
+                  :get_response,
+                  [{this_plug, :respond, [arg]}, cfg, msg]
+                )
+
+              other ->
+                other
+            end
+          }
       end)
 
     # make a map of task references to the plugins they were called for
-    task_ids =
-      Enum.reduce(tasks, %{}, fn
-        {plug, %{ref: ref}}, acc ->
-          Map.put(acc, ref, plug)
+    {
+      task_id_map,
+      launched_tasks,
+      declined_queries
+    } =
+      Enum.reduce(tasks, {%{}, [], []}, fn
+        {plug, t = %Task{ref: ref}}, {task_map, launched_tasks, declined_queries} ->
+          {
+            Map.put(task_map, ref, plug),
+            [t | launched_tasks],
+            declined_queries
+          }
+
+        {plug, res}, {task_map, launched_tasks, declined_queries} ->
+          {
+            task_map,
+            launched_tasks,
+            [{plug, res} | declined_queries]
+          }
       end)
 
     # to yield with Task.yield_many(), the plugins and tasks must part
     task_results =
-      Enum.map(tasks, &Kernel.elem(&1, 1))
+      launched_tasks
       |> Task.yield_many(timeout: @first_response_timeout)
       |> Enum.map(fn {task, result} ->
         # they are reunited :-)
         {
-          task_ids[task.ref],
+          Map.fetch!(task_id_map, task.ref),
           result || Task.shutdown(task, :brutal_kill)
         }
       end)
@@ -218,12 +240,14 @@ defmodule Plugin do
           end
       end)
 
-    %{r: chosen_response, tb: traceback} = resolve_responses(task_results)
+    %{r: chosen_response, tb: traceback} = resolve_responses(task_results ++ declined_queries)
 
     case chosen_response do
+      # no plugins want to respond
       nil ->
         nil
 
+      # we have a response to immediately provide
       %Response{callback: nil} ->
         {:ok, iid} =
           S.InteractionForm.new(
@@ -238,9 +262,11 @@ defmodule Plugin do
 
         {chosen_response, iid}
 
+      # we can't get a response until we run this callback
+      # TODO: let callback decide to not respond, and fall back to the next highest priority response
       %Response{callback: {mod, fun, args}} ->
         followup =
-          apply(mod, fun, [cfg | args])
+          apply(mod, fun, args)
 
         new_tb = [
           traceback,
@@ -270,8 +296,8 @@ defmodule Plugin do
            nil | {response :: Response.t(), interaction_id :: S.interaction_id()}
   def get_top_response(cfg, msg) do
     case S.Interact.channel_locked?(msg.channel_id) do
-      {{m, f, a}, _plugin, _iid} ->
-        {response, iid} = query_plugins([{m, f, [cfg, msg | a]}], cfg, msg)
+      {{m, f, args_without_msg}, _plugin, _iid} ->
+        {response, iid} = query_plugins([{m, f, [msg | args_without_msg]}], cfg, msg)
 
         explained_response =
           Map.update!(response, :why, fn tb ->
@@ -291,7 +317,6 @@ defmodule Plugin do
 
       false ->
         __MODULE__.ls(SiteConfig.fetch!(cfg, :plugs))
-        |> MapSet.to_list()
         |> query_plugins(cfg, msg)
     end
   end
