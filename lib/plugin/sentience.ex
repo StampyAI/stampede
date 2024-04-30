@@ -18,17 +18,16 @@ defmodule Plugin.Sentience do
   end
 
   @impl Plugin
-  @spec! process_msg(SiteConfig.t(), S.Msg.t()) :: nil | S.Response.t()
-  def process_msg(cfg, msg) do
-    if at_module?(cfg, msg) do
-      S.Response.new(
-        confidence: 1,
-        text: S.confused_response(),
-        origin_msg_id: msg.id,
-        why: ["I didn't have any better ideas."]
-      )
-    else
-      nil
-    end
+  def query(cfg, msg), do: Plugin.default_predicate(cfg, msg, {:respond, msg.id})
+
+  @impl Plugin
+  @spec! respond(msg_id :: S.msg_id()) :: nil | S.Response.t()
+  def respond(msg_id) do
+    S.Response.new(
+      confidence: 1,
+      text: S.confused_response(),
+      origin_msg_id: msg_id,
+      why: ["I didn't have any better ideas."]
+    )
   end
 end

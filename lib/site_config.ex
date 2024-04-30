@@ -64,6 +64,11 @@ defmodule SiteConfig do
       default: false,
       type: :boolean,
       doc: "Use this config for DMs received on this service. Only one config per service"
+    ],
+    bot_is_loud: [
+      default: false,
+      type: :boolean,
+      doc: "Can this bot send messages when not explicitly tagged?"
     ]
   ]
   @mapset_keys [:vip_ids]

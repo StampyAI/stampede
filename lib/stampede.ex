@@ -208,4 +208,7 @@ defmodule Stampede do
   end
 
   def make_dm_tuple(service_name), do: {:dm, service_name}
+
+  @type! mapset(t) :: map(any(), t)
+  @type! mapset() :: mapset(any())
 end

@@ -27,6 +27,7 @@ defmodule Stampede.Response do
     origin_msg_id: _ :: nil | S.msg_id(),
     why: [] :: S.traceback(),
     callback: nil :: nil | S.module_function_args(),
+    # channel lock args will be prepended to with the msg triggering it
     channel_lock: false :: S.channel_lock_action()
   )
 

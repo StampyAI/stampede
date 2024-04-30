@@ -25,11 +25,13 @@ defmodule Plugin.Test do
     "A set of functions for testing Stampede functionality."
   end
 
-  @spec! process_msg(SiteConfig.t(), S.Msg.t()) :: nil | S.Response.t()
   @impl Plugin
-  def process_msg(cfg, msg) do
-    case at_module?(cfg, msg) do
-      {:cleaned, "ping"} ->
+  def query(cfg, msg), do: Plugin.default_predicate(cfg, msg, {:respond, msg})
+
+  @impl Plugin
+  def respond(msg) do
+    case msg.body do
+      "ping" ->
         S.Response.new(
           confidence: 10,
           text: "pong!",
@@ -37,7 +39,7 @@ defmodule Plugin.Test do
           why: ["They pinged so I ponged!"]
         )
 
-      {:cleaned, "callback"} ->
+      "callback" ->
         num = :rand.uniform(10)
 
         S.Response.new(
@@ -49,7 +51,7 @@ defmodule Plugin.Test do
         )
 
       # test channel locks
-      {:cleaned, "a"} ->
+      "a" ->
         S.Response.new(
           confidence: 10,
           text: "locked in on #{msg.author_id} awaiting b",
@@ -59,14 +61,14 @@ defmodule Plugin.Test do
           channel_lock: {:lock, msg.channel_id, {__MODULE__, :lock_callback, [:b]}}
         )
 
-      {:cleaned, "timeout"} ->
+      "timeout" ->
         :timer.seconds(11) |> Process.sleep()
         raise "This job should be killed before here"
 
-      {:cleaned, "raise"} ->
+      "raise" ->
         raise SillyError
 
-      {:cleaned, "throw"} ->
+      "throw" ->
         throw(SillyThrow)
 
       _ ->
@@ -74,7 +76,7 @@ defmodule Plugin.Test do
     end
   end
 
-  def callback_example(_cfg, num, msg_id) when is_number(num) do
+  def callback_example(num, msg_id) when is_number(num) do
     S.Response.new(
       confidence: 10,
       origin_msg_id: msg_id,
@@ -82,9 +84,9 @@ defmodule Plugin.Test do
     )
   end
 
-  def lock_callback(cfg, msg, :b) do
-    case at_module?(cfg, msg) do
-      {:cleaned, "b"} ->
+  def lock_callback(msg, :b) do
+    case msg.body do
+      "b" ->
         S.Response.new(
           confidence: 10,
           text: "b response. awaiting c",
@@ -106,9 +108,9 @@ defmodule Plugin.Test do
     end
   end
 
-  def lock_callback(cfg, msg, :c) do
-    case at_module?(cfg, msg) do
-      {:cleaned, "c"} ->
+  def lock_callback(msg, :c) do
+    case msg.body do
+      "c" ->
         S.Response.new(
           confidence: 10,
           text: "c response. interaction done!",
