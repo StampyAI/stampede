@@ -157,14 +157,20 @@ defmodule Stampede do
     end
   end
 
+  @doc """
+  chunk text using binary parts which reference the original binary
+  """
   def text_chunk(text, len, max_pieces, premade_regex \\ nil)
       when is_bitstring(text) and is_integer(len) and is_integer(max_pieces) and
              (is_nil(premade_regex) or is_struct(premade_regex, Regex)) do
     r = premade_regex || text_chunk_regex(len)
 
-    Regex.scan(r, text, trim: true, capture: :all_but_first)
+    Regex.scan(r, text, trim: true, capture: :all_but_first, return: :index)
     |> Enum.take(max_pieces)
-    |> Enum.map(&hd/1)
+    |> Enum.map(fn [{i, l}] ->
+      # return reference to binary. Regex module has handled unicode already
+      binary_part(text, i, l)
+    end)
   end
 
   def text_chunk_regex(len) when is_integer(len) and len > 0 do
