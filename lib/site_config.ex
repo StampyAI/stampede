@@ -96,18 +96,15 @@ defmodule SiteConfig do
 
   @doc "Verify that explicitly listed plugins actually exist"
   def real_plugins(:all), do: {:ok, :all}
-  def real_plugins(:none), do: {:ok, :none}
 
   def real_plugins(plugs) when not is_struct(plugs, MapSet),
     do: raise("This is not a mapset: #{inspect(plugs)}")
 
   def real_plugins(plugs) when is_struct(plugs, MapSet) do
-    existing = Plugin.ls(plugs)
-
-    if MapSet.equal?(existing, plugs) do
+    if Plugin.loaded?(plugs) do
       {:ok, plugs}
     else
-      raise "Some plugins not found.\nFound: #{inspect(existing)}\nConfigured: #{inspect(plugs)}"
+      raise "Some plugins not found.\nFound: #{Plugin.ls()}\nConfigured: #{inspect(plugs)}"
     end
   end
 

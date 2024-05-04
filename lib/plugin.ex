@@ -49,8 +49,11 @@ defmodule Plugin do
   @callback usage() :: usage_tuples()
   @callback description() :: TxtBlock.t()
 
-  defguard is_bot_invoked(cfg, msg)
-           when cfg.bot_is_loud or msg.at_bot? or msg.dm? or msg.prefix != false
+  defguard is_bot_invoked(msg)
+           when msg.at_bot? or msg.dm? or msg.prefix != false
+
+  defguard is_bot_needed(cfg, msg)
+           when cfg.bot_is_loud or is_bot_invoked(msg)
 
   defmacro __using__(_opts \\ []) do
     quote do
@@ -60,8 +63,16 @@ defmodule Plugin do
 
   @spec default_predicate(map(), map(), success_tuple) :: success_tuple
         when success_tuple: {:respond, arg :: any()}
-  def default_predicate(cfg, msg, success_tuple) when is_bot_invoked(cfg, msg), do: success_tuple
-  def default_predicate(cfg, msg, _) when not is_bot_invoked(cfg, msg), do: nil
+  def default_predicate(cfg, msg, success_tuple) when is_bot_invoked(msg), do: success_tuple
+  def default_predicate(cfg, msg, _) when not is_bot_invoked(msg), do: nil
+
+  def valid?(mod) do
+    b =
+      mod.__info__(:attributes)
+      |> Keyword.get(:behaviour, [])
+
+    Plugin in b
+  end
 
   @doc "returns loaded modules using the Plugin behavior."
   @spec! ls() :: MapSet.t(module())
@@ -81,12 +92,8 @@ defmodule Plugin do
     end)
   end
 
-  @spec! ls(:all | :none | MapSet.t()) :: MapSet.t()
-  def ls(:none), do: MapSet.new()
-  def ls(:all), do: ls()
-
-  def ls(enabled) do
-    MapSet.intersection(enabled, ls())
+  def loaded?(enabled) do
+    MapSet.subset?(enabled, Plugin.ls())
   end
 
   @type! job_result ::
@@ -316,8 +323,18 @@ defmodule Plugin do
         {explained_response, iid}
 
       false ->
-        __MODULE__.ls(SiteConfig.fetch!(cfg, :plugs))
-        |> query_plugins(cfg, msg)
+        if is_bot_needed(cfg, msg) do
+          plugs = SiteConfig.fetch!(cfg, :plugs)
+
+          if plugs == :all do
+            Plugin.ls()
+          else
+            plugs
+          end
+          |> query_plugins(cfg, msg)
+        else
+          nil
+        end
     end
   end
 

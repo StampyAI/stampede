@@ -38,7 +38,7 @@ config :logger, :console,
 
 config :logger,
   handle_otp_reports: true,
-  # this will spam a lot of messages``
+  # this will spam a lot of messages
   handle_sasl_reports: false,
   compile_time_purge_matching:
     (if Mix.env() == :prod do

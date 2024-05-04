@@ -2,11 +2,11 @@ alias Stampede, as: S
 
 # 2nd place
 text_chunk = fn text, len, max_pieces, premade_regex ->
-    r = premade_regex
+  r = premade_regex
 
-    Regex.scan(r, text, trim: true, capture: :all_but_first)
-    |> Enum.take(max_pieces)
-    |> Enum.map(&hd/1)
+  Regex.scan(r, text, trim: true, capture: :all_but_first)
+  |> Enum.take(max_pieces)
+  |> Enum.map(&hd/1)
 end
 
 # 1st place
@@ -24,6 +24,7 @@ defmodule T do
   # very distant last place
   def text_chunk_iter(text, len, max_pieces) when max_pieces > 0 do
     txt_length = String.length(text)
+
     do_text_chunk_iter(
       text,
       len,
@@ -35,8 +36,11 @@ defmodule T do
 
   def do_text_chunk_iter(text, len, max_pieces, txt_length, acc \\ [])
   def do_text_chunk_iter(_text, _len, 0, _txt_length, acc), do: acc
+
   def do_text_chunk_iter(text, len, max_pieces, txt_length, acc)
-      when max_pieces > 0 and txt_length < len, do: [text | acc]
+      when max_pieces > 0 and txt_length < len,
+      do: [text | acc]
+
   def do_text_chunk_iter(text, len, max_pieces, txt_length, acc)
       when max_pieces > 0 do
     if len > txt_length do
@@ -59,9 +63,11 @@ max_pieces = 10
 fake_work = fn chunks ->
   Enum.reduce(chunks, [], fn elem, lst ->
     Process.sleep(10)
+
     unless is_binary(elem) do
       raise "bad split"
     end
+
     [elem | lst]
   end)
 end

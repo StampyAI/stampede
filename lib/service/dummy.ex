@@ -32,6 +32,8 @@ defmodule Service.Dummy.Table do
 end
 
 defmodule Service.Dummy do
+  # TODO: this is not actually parallelized meaning it can't be used in benchmarks
+  # Maybe it should be a supervisor with a process for each thread?
   require Logger
   use GenServer
   use TypeCheck

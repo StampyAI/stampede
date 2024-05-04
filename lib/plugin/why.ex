@@ -35,7 +35,7 @@ defmodule Plugin.Why do
   end
 
   @impl Plugin
-  def query(cfg, msg) when Plugin.is_bot_invoked(cfg, msg) do
+  def query(cfg, msg) when Plugin.is_bot_invoked(msg) do
     if Regex.match?(at_module_regex(), msg.body) do
       {:respond, {msg, cfg.service}}
     else

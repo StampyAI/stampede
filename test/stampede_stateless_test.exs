@@ -43,7 +43,6 @@ defmodule StampedeStatelessTest do
 
       inputs =
         [
-          [%{bot_is_loud: true}, %{}],
           [%{}, %{at_bot?: true}],
           [%{}, %{dm?: true}],
           [%{}, %{prefix: "something"}]
@@ -56,10 +55,10 @@ defmodule StampedeStatelessTest do
             ]
         end)
 
-      assert not Plugin.is_bot_invoked(cfg_defaults, msg_defaults)
+      assert not Plugin.is_bot_invoked(msg_defaults)
 
       for [cfg, msg] <- inputs do
-        assert Plugin.is_bot_invoked(cfg, msg)
+        assert Plugin.is_bot_invoked(msg)
       end
     end
 

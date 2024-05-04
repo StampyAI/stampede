@@ -28,7 +28,7 @@ defmodule Stampede.MixProject do
   def configure_app(mod_list, nil) when is_list(mod_list) do
     configure_app(mod_list,
       extra_applications: [:logger, :runtime_tools],
-      mod: {Stampede.Application, [installed_services: []]},
+      mod: {Stampede.Application, [installed_services: [:dummy]]},
       included_applications: []
     )
   end
@@ -53,12 +53,11 @@ defmodule Stampede.MixProject do
   end
 
   def configure_app([], config_acc) when is_list(config_acc), do: config_acc
-  # Run "mix help compile.app" to learn about applications.
+
   def application do
     configure_app([:discord])
   end
 
-  # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
       # Checking
