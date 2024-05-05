@@ -84,7 +84,14 @@ Benchee.run(
         {
           length(tasks),
           tasks
-          # |> tap(&Enum.each(&1, fn %Task{pid: pid} -> send(pid, :start) end))
+          |> Stream.chunk_every(System.schedulers_online())
+          |> Stream.map(&Enum.map(&1, fn
+            t = %Task{pid: pid} ->
+              send(pid, :start)
+              t
+          end))
+          |> Enum.to_list()
+          |> List.flatten()
           |> Task.yield_many(
             timeout: :timer.seconds(20),
             on_timeout: :kill_task
@@ -157,8 +164,8 @@ Benchee.run(
           |> Enum.map(
             &Task.async(fn ->
               msg = &1
-              # receive do
-              #  :start ->
+              receive do
+                :start ->
               # IO.puts("Getting response for message #{msg.id}: #{msg.body}")
               response = Plugin.get_top_response(cfg, msg)
               # IO.puts("response for message #{msg.id}: #{inspect(response)}")
@@ -174,7 +181,7 @@ Benchee.run(
                   end
               end
 
-              # end
+              end
 
               :ok
             end)
