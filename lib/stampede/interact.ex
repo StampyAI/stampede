@@ -98,32 +98,34 @@ defmodule Stampede.Interact do
   def prepare_interaction!(int) when is_struct(int, S.InteractionForm) do
     iid = Ids.reserve_id(Interactions)
 
-    new_row =
-      struct!(
-        Interactions,
-        id: iid,
-        datetime: S.time(),
-        plugin: int.plugin,
-        # NOTE: message hasn't been posted yet, get this info back
-        posted_msg_id: nil,
-        msg: int.msg,
-        response: int.response,
-        traceback: int.traceback,
-        channel_lock: int.channel_lock
-      )
-      |> Interactions.validate!()
+    spawn_link(fn ->
+      new_row =
+        struct!(
+          Interactions,
+          id: iid,
+          datetime: S.time(),
+          plugin: int.plugin,
+          # NOTE: message hasn't been posted yet, get this info back
+          posted_msg_id: nil,
+          msg: int.msg,
+          response: int.response,
+          traceback: int.traceback,
+          channel_lock: int.channel_lock
+        )
+        |> Interactions.validate!()
 
-    # IO.puts("Interact: new interaction:\n#{new_row |> S.pp()}") # DEBUG
+      # IO.puts("Interact: new interaction:\n#{new_row |> S.pp()}") # DEBUG
 
-    :ok =
-      transaction!(fn ->
-        :ok = do_write_interaction!(new_row)
-        :ok = do_channel_lock!(int, new_row.datetime, iid)
-      end)
+      :ok =
+        transaction!(fn ->
+          :ok = do_write_interaction!(new_row)
+          :ok = do_channel_lock!(int, new_row.datetime, iid)
+        end)
 
-    :ok = announce_interaction(new_row)
+      :ok = announce_interaction(new_row)
 
-    spawn_link(__MODULE__, :check_for_orphaned_interaction, [iid, int.service])
+      check_for_orphaned_interaction(iid, int.service)
+    end)
 
     {:ok, iid}
   end
@@ -163,28 +165,30 @@ defmodule Stampede.Interact do
 
   @spec! finalize_interaction(S.interaction_id(), S.msg_id()) :: :ok
   def finalize_interaction(int_id, posted_msg_id) do
-    transaction!(fn ->
-      Memento.Query.read(
-        Interactions,
-        int_id
-      )
-      |> case do
-        nil ->
-          raise "Interaction #{inspect(int_id)} not found for message #{inspect(posted_msg_id)}"
+    spawn(fn ->
+      transaction!(fn ->
+        Memento.Query.read(
+          Interactions,
+          int_id
+        )
+        |> case do
+          nil ->
+            raise "Interaction #{inspect(int_id)} not found for message #{inspect(posted_msg_id)}"
 
-        int ->
-          _ =
-            Map.update!(int, :posted_msg_id, fn
-              nil ->
-                posted_msg_id
+          int ->
+            _ =
+              Map.update!(int, :posted_msg_id, fn
+                nil ->
+                  posted_msg_id
 
-              _already_set ->
-                raise "Interaction has posted_msg_id already set.\nNew message ID: #{posted_msg_id |> inspect()}\nInteraction: #{int |> S.pp()}"
-            end)
-            |> Memento.Query.write()
+                _already_set ->
+                  raise "Interaction has posted_msg_id already set.\nNew message ID: #{posted_msg_id |> inspect()}\nInteraction: #{int |> S.pp()}"
+              end)
+              |> Memento.Query.write()
 
-          :ok
-      end
+            :ok
+        end
+      end)
     end)
   end
 
@@ -220,73 +224,70 @@ defmodule Stampede.Interact do
 
   @spec! do_channel_lock!(%S.InteractionForm{}, S.timestamp(), integer()) :: :ok
   def do_channel_lock!(int, datetime, int_id) do
-    result =
-      transaction!(fn ->
-        case int.channel_lock do
-          {:lock, channel_id, mfa} ->
-            # try writing new channel lock
-            case channel_locked?(channel_id) do
-              false ->
-                new_row =
-                  struct!(
-                    ChannelLocks,
-                    channel_id: channel_id,
-                    datetime: datetime,
-                    lock_status: true,
-                    callback: mfa,
-                    interaction_id: int_id
-                  )
+    transaction!(fn ->
+      case int.channel_lock do
+        {:lock, channel_id, mfa} ->
+          # try writing new channel lock
+          case channel_locked?(channel_id) do
+            false ->
+              new_row =
+                struct!(
+                  ChannelLocks,
+                  channel_id: channel_id,
+                  datetime: datetime,
+                  lock_status: true,
+                  callback: mfa,
+                  interaction_id: int_id
+                )
 
-                :ok = do_write_channellock!(new_row)
+              :ok = do_write_channellock!(new_row)
 
-              # try to update existing channel lock
-              {_mfa, plug, _iid} ->
-                if plug != int.response.origin_plug do
-                  raise(
-                    "plugin #{int.plugin} trying to lock an already-locked channel owned by #{plug}"
-                  )
-                end
+            # try to update existing channel lock
+            {_mfa, plug, _iid} ->
+              if plug != int.response.origin_plug do
+                raise(
+                  "plugin #{int.plugin} trying to lock an already-locked channel owned by #{plug}"
+                )
+              end
 
-                new_row =
-                  struct!(
-                    ChannelLocks,
-                    channel_id: channel_id,
-                    datetime: datetime,
-                    lock_status: true,
-                    callback: mfa,
-                    interaction_id: int_id
-                  )
+              new_row =
+                struct!(
+                  ChannelLocks,
+                  channel_id: channel_id,
+                  datetime: datetime,
+                  lock_status: true,
+                  callback: mfa,
+                  interaction_id: int_id
+                )
 
-                :ok = do_write_channellock!(new_row)
-            end
+              :ok = do_write_channellock!(new_row)
+          end
 
-          {:unlock, channel_id} ->
-            # try writing channel lock
-            case channel_locked?(channel_id) do
-              false ->
-                Logger.error("plugin #{int.plugin} trying to unlock an already-unlocked channel")
-                :ok
+        {:unlock, channel_id} ->
+          # try writing channel lock
+          case channel_locked?(channel_id) do
+            false ->
+              Logger.error("plugin #{int.plugin} trying to unlock an already-unlocked channel")
+              :ok
 
-              {_, plug, _} when plug == int.plugin ->
-                :ok = do_clear_channellock!(channel_id)
+            {_, plug, _} when plug == int.plugin ->
+              :ok = do_clear_channellock!(channel_id)
 
-              {_, plug, _} when plug != int.plugin ->
-                raise "plugin #{int.plugin |> inspect()} trying to take a lock from #{plug |> inspect()}"
+            {_, plug, _} when plug != int.plugin ->
+              raise "plugin #{int.plugin |> inspect()} trying to take a lock from #{plug |> inspect()}"
 
-              other ->
-                raise "Interact: already existing channel_locked is malformed: #{other |> S.pp()}"
-            end
+            other ->
+              raise "Interact: already existing channel_locked is malformed: #{other |> S.pp()}"
+          end
 
-          false ->
-            # noop
-            :ok
+        false ->
+          # noop
+          :ok
 
-          other ->
-            raise "Interact: bad lock: #{other |> S.pp()}"
-        end
-      end)
-
-    result
+        other ->
+          raise "Interact: bad lock: #{other |> S.pp()}"
+      end
+    end)
   end
 
   @spec! do_write_channellock!(%ChannelLocks{}) :: :ok
