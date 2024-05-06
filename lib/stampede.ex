@@ -217,4 +217,29 @@ defmodule Stampede do
 
   @type! mapset(t) :: map(any(), t)
   @type! mapset() :: mapset(any())
+
+  @spec! fulfill_predicate_before_time(DateTime.t(), (-> boolean())) :: :fulfilled | :failed
+  def fulfill_predicate_before_time(cutoff, pred) do
+    if pred.() do
+      :fulfilled
+    else
+      if DateTime.utc_now() |> DateTime.after?(cutoff) do
+        :failed
+      else
+        fulfill_predicate_before_time(cutoff, pred)
+      end
+    end
+  end
+
+  def ensure_app_ready?() do
+    match?({:ok, _}, Application.ensure_all_started(:stampede)) and
+      :ok ==
+        Memento.wait(
+          Stampede.Tables.mnesia_tables(),
+          :timer.seconds(5)
+        )
+  end
+
+  def ensure_app_ready!(),
+    do: ensure_app_ready?() || raise("Stampede wouldn't start on time")
 end

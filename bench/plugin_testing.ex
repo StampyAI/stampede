@@ -31,8 +31,10 @@ defmodule T do
           end
         end
 
-      Module.create(name, contents, Macro.Env.location(__ENV__))
-      Code.ensure_loaded!(name)
+      if not Code.loaded?(name) do
+        Module.create(name, contents, Macro.Env.location(__ENV__))
+        Code.ensure_loaded!(name)
+      end
 
       MapSet.put(acc, name)
     end)
@@ -46,6 +48,7 @@ defmodule T do
       }
     end)
     |> Enum.take(num)
+    |> Aja.Vector.new()
   end
 
   def stupid_get_top_response(cfg, msg) do
@@ -72,219 +75,271 @@ defmodule T do
 end
 
 inputs = %{
-  "20 modules, 100 messages" => %{mods: T.make_fake_modules(20), msgs: T.make_messages(100, 3)}
+  "20 modules, 100 messages at 1/3" => %{
+    mods: T.make_fake_modules(20),
+    msgs: T.make_messages(100, 3)
+  },
+  "20 modules, 10000 messages at 1/20" => %{
+    mods: T.make_fake_modules(20),
+    msgs: T.make_messages(10000, 20)
+  }
 }
 
-{:ok, _} = Application.ensure_all_started(:stampede)
+suites = %{
+  "Current plugin processing code" => {
+    fn {cfg, tasks} ->
+      should_end = DateTime.utc_now() |> DateTime.add(20)
 
-Benchee.run(
-  %{
-    "Current plugin processing code" => {
-      fn {cfg, tasks} ->
-        {
-          length(tasks),
-          tasks
-          |> Stream.chunk_every(System.schedulers_online())
-          |> Stream.map(&Enum.map(&1, fn
-            t = %Task{pid: pid} ->
-              send(pid, :start)
-              t
-          end))
-          |> Enum.to_list()
-          |> List.flatten()
-          |> Task.yield_many(
-            timeout: :timer.seconds(20),
-            on_timeout: :kill_task
-          )
-          |> Enum.map(fn
-            {_task, {:ok, _result}} ->
-              :ok
+      Aja.Enum.each(tasks, &send(&1, :start))
 
-            other ->
-              raise "Bad match " <> inspect(other, pretty: true)
-          end)
-        }
-      end,
-      before_scenario: fn %{mods: mods, msgs: msgs} ->
-        server_id =
-          "serv_#{S.random_string_weak(8)}"
-          |> String.to_atom()
+      S.fulfill_predicate_before_time(should_end, fn ->
+        Aja.Enum.all?(tasks, fn pid -> not Process.alive?(pid) end)
+      end)
+      |> case do
+        :fulfilled ->
+          :ok
 
-        cfg =
-          SiteConfig.validate!(
-            [
-              service: :dummy,
-              server_id: server_id,
-              error_channel_id: :errors,
-              plugs: mods
-            ],
-            Service.Dummy.site_config_schema()
-          )
-
-        user_id =
-          "user_#{S.random_string_weak(8)}"
-          |> String.to_atom()
-
-        channel_id =
-          "thread_#{S.random_string_weak(8)}"
-          |> String.to_atom()
-
-        tasks =
-          msgs
-          |> Enum.map_reduce(0, fn
-            :ping, i ->
-              {
-                S.Msg.new(
-                  body: "!ping",
-                  server_id: server_id,
-                  author_id: user_id,
-                  channel_id: channel_id,
-                  id: i,
-                  service: Service.Dummy
-                )
-                |> S.Msg.add_context(cfg),
-                i + 1
-              }
-
-            :unrelated, i ->
-              {
-                S.Msg.new(
-                  body: "lololol",
-                  server_id: server_id,
-                  author_id: user_id,
-                  channel_id: channel_id,
-                  id: i,
-                  service: Service.Dummy
-                )
-                |> S.Msg.add_context(cfg),
-                i + 1
-              }
-          end)
-          |> elem(0)
-          |> Enum.map(
-            &Task.async(fn ->
-              msg = &1
-              receive do
-                :start ->
-              # IO.puts("Getting response for message #{msg.id}: #{msg.body}")
-              response = Plugin.get_top_response(cfg, msg)
-              # IO.puts("response for message #{msg.id}: #{inspect(response)}")
-              case response do
-                {%{text: "pong!"}, _iid} ->
-                  if msg.body != "ping" do
-                    raise "got pong when I shouldnt have"
-                  end
-
-                nil ->
-                  if msg.body != "lololol" do
-                    raise "didnt get response when I should have"
-                  end
-              end
-
-              end
-
-              :ok
-            end)
-          )
-
-        {cfg, tasks}
+        :failed ->
+          raise "All tasks should have been done by now"
       end
-    },
-    "single threaded plugin processing" => {
-      fn {cfg, msgs} ->
-        {
-          length(msgs),
-          Task.async_stream(
-            msgs,
-            fn msg ->
-              # IO.puts("Getting response for message #{msg.id}: #{msg.body}")
-              response = T.stupid_get_top_response(cfg, msg)
-              # IO.puts("response for message #{msg.id}: #{inspect(response)}")
-              case response do
-                %{text: "pong!"} ->
-                  if msg.body != "ping" do
-                    raise "got pong when I shouldnt have"
-                  end
 
-                nil ->
-                  if msg.body != "lololol" do
-                    raise "didnt get response when I should have"
-                  end
-              end
+      {
+        length(tasks),
+        tasks
+      }
+    end,
+    before_scenario: fn %{mods: mods, msgs: msgs} ->
+      server_id =
+        "serv_#{S.random_string_weak(8)}"
+        |> String.to_atom()
 
-              :ok
-            end,
-            timeout: :timer.seconds(20),
-            ordered: false,
-            max_concurrency: 1000
-          )
-          |> Enum.to_list()
-        }
-      end,
-      before_scenario: fn %{mods: mods, msgs: msgs} ->
-        server_id =
-          "serv_#{S.random_string_weak(8)}"
-          |> String.to_atom()
+      cfg =
+        SiteConfig.validate!(
+          [
+            service: :dummy,
+            server_id: server_id,
+            error_channel_id: :errors,
+            plugs: mods
+          ],
+          Service.Dummy.site_config_schema()
+        )
 
-        cfg =
-          SiteConfig.validate!(
-            [
-              service: :dummy,
-              server_id: server_id,
-              error_channel_id: :errors,
-              plugs: mods
-            ],
-            Service.Dummy.site_config_schema()
-          )
+      user_id =
+        "user_#{S.random_string_weak(8)}"
+        |> String.to_atom()
 
-        user_id =
-          "user_#{S.random_string_weak(8)}"
-          |> String.to_atom()
+      channel_id =
+        "thread_#{S.random_string_weak(8)}"
+        |> String.to_atom()
 
-        channel_id =
-          "thread_#{S.random_string_weak(8)}"
-          |> String.to_atom()
+      tasks =
+        msgs
+        |> Aja.Enum.map_reduce(0, fn
+          :ping, i ->
+            {
+              S.Msg.new(
+                body: "!ping",
+                server_id: server_id,
+                author_id: user_id,
+                channel_id: channel_id,
+                id: i,
+                service: Service.Dummy
+              )
+              |> S.Msg.add_context(cfg),
+              i + 1
+            }
 
-        msgs =
-          msgs
-          |> Enum.map_reduce(0, fn
-            :ping, i ->
-              {
-                S.Msg.new(
-                  body: "!ping",
-                  server_id: server_id,
-                  author_id: user_id,
-                  channel_id: channel_id,
-                  id: i,
-                  service: Service.Dummy
-                )
-                |> S.Msg.add_context(cfg),
-                i + 1
-              }
+          :unrelated, i ->
+            {
+              S.Msg.new(
+                body: "lololol",
+                server_id: server_id,
+                author_id: user_id,
+                channel_id: channel_id,
+                id: i,
+                service: Service.Dummy
+              )
+              |> S.Msg.add_context(cfg),
+              i + 1
+            }
+        end)
+        |> elem(0)
+        |> Aja.Enum.map(
+          &spawn_link(fn ->
+            msg = &1
 
-            :unrelated, i ->
-              {
-                S.Msg.new(
-                  body: "lololol",
-                  server_id: server_id,
-                  author_id: user_id,
-                  channel_id: channel_id,
-                  id: i,
-                  service: Service.Dummy
-                )
-                |> S.Msg.add_context(cfg),
-                i + 1
-              }
+            receive do
+              :start ->
+                # IO.puts("Getting response for message #{msg.id}: #{msg.body}")
+                response = Plugin.get_top_response(cfg, msg)
+                # IO.puts("response for message #{msg.id}: #{inspect(response)}")
+                case response do
+                  {%{text: "pong!"}, _iid} ->
+                    if msg.body != "ping" do
+                      raise "got pong when I shouldnt have"
+                    end
+
+                  nil ->
+                    if msg.body != "lololol" do
+                      raise "didnt get response when I should have"
+                    end
+                end
+            end
+
+            :ok
           end)
-          |> elem(0)
+        )
 
-        {cfg, msgs}
-      end
-    }
+      {cfg, tasks}
+    end
   },
-  inputs: inputs,
-  time: 20,
-  memory_time: 3,
-  pre_check: true
-  # profile_after: true
-)
+  "single threaded plugin processing" => {
+    fn {cfg, tasks} ->
+      should_end = DateTime.utc_now() |> DateTime.add(20)
+
+      Aja.Enum.each(tasks, &send(&1, :start))
+
+      S.fulfill_predicate_before_time(should_end, fn ->
+        Aja.Enum.all?(tasks, fn pid -> not Process.alive?(pid) end)
+      end)
+      |> case do
+        :fulfilled ->
+          :ok
+
+        :failed ->
+          raise "All tasks should have been done by now"
+      end
+
+      {
+        length(tasks),
+        tasks
+      }
+    end,
+    before_scenario: fn %{mods: mods, msgs: msgs} ->
+      server_id =
+        "serv_#{S.random_string_weak(8)}"
+        |> String.to_atom()
+
+      cfg =
+        SiteConfig.validate!(
+          [
+            service: :dummy,
+            server_id: server_id,
+            error_channel_id: :errors,
+            plugs: mods
+          ],
+          Service.Dummy.site_config_schema()
+        )
+
+      user_id =
+        "user_#{S.random_string_weak(8)}"
+        |> String.to_atom()
+
+      channel_id =
+        "thread_#{S.random_string_weak(8)}"
+        |> String.to_atom()
+
+      tasks =
+        msgs
+        |> Aja.Enum.map_reduce(0, fn
+          :ping, i ->
+            {
+              S.Msg.new(
+                body: "!ping",
+                server_id: server_id,
+                author_id: user_id,
+                channel_id: channel_id,
+                id: i,
+                service: Service.Dummy
+              )
+              |> S.Msg.add_context(cfg),
+              i + 1
+            }
+
+          :unrelated, i ->
+            {
+              S.Msg.new(
+                body: "lololol",
+                server_id: server_id,
+                author_id: user_id,
+                channel_id: channel_id,
+                id: i,
+                service: Service.Dummy
+              )
+              |> S.Msg.add_context(cfg),
+              i + 1
+            }
+        end)
+        |> elem(0)
+        |> Aja.Enum.map(
+          &spawn_link(fn ->
+            msg = &1
+
+            receive do
+              :start ->
+                # IO.puts("Getting response for message #{msg.id}: #{msg.body}")
+                response = T.stupid_get_top_response(cfg, msg)
+                # IO.puts("response for message #{msg.id}: #{inspect(response)}")
+                case response do
+                  %{text: "pong!"} ->
+                    if msg.body != "ping" do
+                      raise "got pong when I shouldnt have"
+                    end
+
+                  nil ->
+                    if msg.body != "lololol" do
+                      raise "didnt get response when I should have"
+                    end
+                end
+            end
+
+            :ok
+          end)
+        )
+
+      {cfg, tasks}
+    end
+  }
+}
+
+Stampede.ensure_app_ready!()
+
+ef_opts = [
+  :filename,
+  {:output_directory, "/mnt/MattNAS/Coding/Stampede_profiling/2024-05-05"},
+  {:output_format, :svg},
+  {:return, :filename}
+]
+
+spawn(fn -> :eflambe.capture({Plugin, :query_plugins, 3}, 100, ef_opts) end)
+# :eflambe.capture {Stampede.Interact, :prepare_interaction, 1}, 100, ef_opts
+# :eflambe.capture {Stampede, :fulfill_predicate_before_time, 2}, 1000, ef_opts
+
+suites
+|> Map.fetch!("Current plugin processing code")
+|> elem(1)
+|> Keyword.fetch!(:before_scenario)
+|> tap(fn _ -> IO.puts("scenario prep") end)
+|> then(fn f ->
+  f.(inputs |> Map.fetch!("20 modules, 100 messages at 1/3"))
+end)
+|> tap(fn _ -> IO.puts("actual job") end)
+|> then(fn before_scenario_result ->
+  suites
+  |> Map.fetch!("Current plugin processing code")
+  |> elem(0)
+  # |> then(fn f -> :eflambe.apply({f, [before_scenario_result]}, ef_opts) end)
+  |> then(fn f ->
+    spawn_link(fn -> f.(before_scenario_result) end)
+  end)
+end)
+
+:eflambe.capture({Plugin, :query_plugins, 3}, 100, ef_opts)
+# Benchee.run(
+#  suites,
+#  inputs: inputs,
+#  time: 20,
+#  memory_time: 3,
+#  pre_check: true
+#  # profile_after: true
+# )

@@ -79,6 +79,12 @@ defmodule Stampede.MixProject do
       # Benchmarking
       {:benchee, "~> 1.1", runtime: false, only: :dev},
 
+      # profiling
+      {:eflambe, "~> 0.3.1", only: :dev},
+
+      # Fast arrays
+      {:arrays_aja, "~> 0.2.0"},
+
       # SERVICES
       # {:nostrum, "~> 0.8.0", runtime: false},
       {:nostrum, github: "Kraigie/nostrum", runtime: false},

@@ -8,6 +8,7 @@ defmodule Stampede.Tables do
   alias S.Tables.{Ids, Interactions, ChannelLocks}
 
   @mnesia_tables [Ids, Interactions, ChannelLocks]
+  def mnesia_tables(), do: @mnesia_tables
 
   def init(args) do
     clear_state = Keyword.fetch!(args, :clear_state)
