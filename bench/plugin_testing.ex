@@ -14,12 +14,12 @@ defmodule T do
           use Plugin
 
           def query(cfg, msg) do
-            Process.sleep(unquote(Integer.mod(i, 500)))
+            Process.sleep(unquote(Integer.mod(i * 2, 500)))
             Plugin.Test.query(cfg, msg)
           end
 
           def respond(arg) do
-            Process.sleep(unquote(Integer.mod(i * 2, 500)))
+            Process.sleep(unquote(Integer.mod(i * 10, 500)))
 
             Plugin.Test.respond(arg)
             |> then(fn
@@ -54,65 +54,59 @@ defmodule T do
 
   def stupid_get_top_response(cfg, msg) do
     if Plugin.is_bot_needed(cfg, msg) do
-      for plug <- cfg.plugs do
-        {
-          plug,
-          Plugin.get_response({plug, :query, [cfg, msg]}, cfg, msg)
-          |> case do
-            {:job_ok, {:respond, arg}} ->
-              Plugin.get_response({plug, :respond, [arg]}, cfg, msg)
+      {
+        for plug <- cfg.plugs do
+          {
+            plug,
+            Plugin.get_response({plug, :query, [cfg, msg]}, cfg, msg)
+            |> case do
+              {:job_ok, {:respond, arg}} ->
+                Plugin.get_response({plug, :respond, [arg]}, cfg, msg)
 
-            other ->
-              other
-          end
-        }
-      end
-      |> Plugin.resolve_responses()
-      |> Map.fetch!(:r)
+              other ->
+                other
+            end
+          }
+        end
+        |> Plugin.resolve_responses()
+        |> Map.fetch!(:r),
+        :no_interaction
+      }
     else
       nil
     end
   end
 
-  def make_run_tasks(name) do
-    fn {cfg, tasks} ->
-      Aja.Enum.each(tasks, &send(&1, {:start, self()}))
+  def make_run_tasks(name, query_func) do
+    fn {cfg, msgs} ->
 
-      should_end = DateTime.utc_now() |> DateTime.add(20)
+      results = Task.async_stream(msgs, fn msg ->
+        response = query_func.(cfg, msg)
 
-      Process.put(
-        :my_tasks,
-        tasks |> MapSet.new()
-      )
+        case response do
+          {%{text: "pong!"}, _iid} ->
+            if msg.body != "ping" do
+              raise "got pong when I shouldnt have"
+            end
 
-      S.fulfill_predicate_before_time(should_end, fn ->
-        receive do
-          {:done, pid, status} ->
-            Process.put(:my_tasks, Process.get(:my_tasks) |> MapSet.delete(pid))
+          nil ->
+            if msg.body != "lololol" do
+              raise "didnt get response when I should have"
+            end
         end
 
-        Enum.empty?(Process.get(:my_tasks))
-      end)
-      |> case do
-        :fulfilled ->
-          IO.puts("all tasks done")
-          :ok
-
-        :failed ->
-          still_alive = Process.get(:my_tasks) |> MapSet.size()
-          task_num = Aja.vec_size(tasks)
-
-          raise "#{name}: All tasks should have been done by now. #{still_alive}/#{task_num} live. "
-      end
+        :ok
+      end, timeout: :timer.seconds(5), max_concurrency: 16, ordered: false, on_timeout: :exit)
+      |> Enum.to_list()
 
       {
-        Aja.vec_size(tasks),
-        tasks
+        Aja.vec_size(msgs),
+        results
       }
-    end
+  end
   end
 
-  def make_before_scenario(query_func) do
+  def make_before_scenario() do
     fn %{mods: mods, msgs: msgs} ->
       server_id =
         "serv_#{S.random_string_weak(8)}"
@@ -137,7 +131,7 @@ defmodule T do
         "thread_#{S.random_string_weak(8)}"
         |> String.to_atom()
 
-      tasks =
+      msgs =
         msgs
         |> Aja.Vector.map_reduce(0, fn
           :ping, i ->
@@ -169,36 +163,8 @@ defmodule T do
             }
         end)
         |> elem(0)
-        |> Aja.Vector.map(
-          &spawn_link(fn ->
-            msg = &1
 
-            receive do
-              {:start, parent} ->
-                response = query_func.(cfg, msg)
-
-                case response do
-                  {%{text: "pong!"}, _iid} ->
-                    send(parent, {:done, self(), :got_response})
-
-                    if msg.body != "ping" do
-                      raise "got pong when I shouldnt have"
-                    end
-
-                  nil ->
-                    send(parent, {:done, self(), :ignored})
-
-                    if msg.body != "lololol" do
-                      raise "didnt get response when I should have"
-                    end
-                end
-            end
-
-            :ok
-          end)
-        )
-
-      {cfg, tasks}
+      {cfg, msgs}
     end
   end
 end
@@ -216,12 +182,12 @@ inputs = %{
 
 suites = %{
   "Current plugin processing code" => {
-    T.make_run_tasks("current"),
-    before_scenario: T.make_before_scenario(&Plugin.get_top_response/2)
+    T.make_run_tasks("current", &Plugin.get_top_response/2),
+    before_scenario: T.make_before_scenario()
   },
   "single threaded plugin processing" => {
-    T.make_run_tasks("stupid"),
-    before_scenario: T.make_before_scenario(&T.stupid_get_top_response/2)
+    T.make_run_tasks("stupid", &T.stupid_get_top_response/2),
+    before_scenario: T.make_before_scenario()
   }
 }
 
