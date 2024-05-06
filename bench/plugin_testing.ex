@@ -82,9 +82,9 @@ defmodule T do
   end
 
   def make_run_tasks(name, query_func) do
-    fn {cfg, msgs, make_via_tuple, max_concurrency} ->
+    fn {cfg, msgs, super_name, max_concurrency} ->
 
-      results = Task.Supervisor.async_stream(make_via_tuple.(self()), msgs, fn msg ->
+      results = Task.Supervisor.async_stream(super_name, msgs, fn msg ->
         response = query_func.(cfg, msg)
 
         case response do
@@ -169,11 +169,8 @@ defmodule T do
         |> elem(0)
 
       super_name = :testing_super
-      make_via_tuple = fn _pid ->
-        super_name
-      end
 
-      {cfg, msgs, make_via_tuple, max_concurrency}
+      {cfg, msgs, super_name, max_concurrency}
     end
   end
 end
