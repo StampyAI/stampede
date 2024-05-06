@@ -311,7 +311,8 @@ ef_opts = [
   {:return, :filename}
 ]
 
-spawn(fn -> :eflambe.capture({Plugin, :query_plugins, 3}, 100, ef_opts) end)
+:xprof.start()
+#spawn(fn -> :eflambe.capture({Plugin, :query_plugins, 3}, 100, ef_opts) end)
 # :eflambe.capture {Stampede.Interact, :prepare_interaction, 1}, 100, ef_opts
 # :eflambe.capture {Stampede, :fulfill_predicate_before_time, 2}, 1000, ef_opts
 
@@ -328,13 +329,11 @@ end)
   suites
   |> Map.fetch!("Current plugin processing code")
   |> elem(0)
-  # |> then(fn f -> :eflambe.apply({f, [before_scenario_result]}, ef_opts) end)
   |> then(fn f ->
-    spawn_link(fn -> f.(before_scenario_result) end)
+    f.(before_scenario_result)
   end)
 end)
 
-:eflambe.capture({Plugin, :query_plugins, 3}, 100, ef_opts)
 # Benchee.run(
 #  suites,
 #  inputs: inputs,
