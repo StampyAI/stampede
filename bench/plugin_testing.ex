@@ -5,21 +5,25 @@ defmodule T do
   require Plugin
   require Aja
 
-  def make_fake_modules(num) when is_integer(num) and num > 0 do
+  def make_fake_modules(num, lagginess) when is_integer(num) and num > 0 do
+    lag_max = ((lagginess == :slow && 2000) || 10)
     Enum.reduce(0..num, MapSet.new(), fn i, acc ->
       name = Module.concat(Plugin, "fake_#{i}")
+
+      lag = ((Float.pow(1.5, -i) * lag_max) |> round())
+      IO.puts("This lag: #{lag |> to_string()}")
 
       contents =
         quote do
           use Plugin
 
           def query(cfg, msg) do
-            Process.sleep(unquote(Integer.mod(i * 2, 500)))
+            Process.sleep(unquote(lag * 0.1 |> round()))
             Plugin.Test.query(cfg, msg)
           end
 
           def respond(arg) do
-            Process.sleep(unquote(Integer.mod(i * 10, 500)))
+            Process.sleep(unquote(lag + 10))
 
             Plugin.Test.respond(arg)
             |> then(fn
@@ -78,9 +82,9 @@ defmodule T do
   end
 
   def make_run_tasks(name, query_func) do
-    fn {cfg, msgs} ->
+    fn {cfg, msgs, make_via_tuple, max_concurrency} ->
 
-      results = Task.async_stream(msgs, fn msg ->
+      results = Task.Supervisor.async_stream(make_via_tuple.(self()), msgs, fn msg ->
         response = query_func.(cfg, msg)
 
         case response do
@@ -96,7 +100,7 @@ defmodule T do
         end
 
         :ok
-      end, timeout: :timer.seconds(5), max_concurrency: 16, ordered: false, on_timeout: :exit)
+      end, timeout: :timer.seconds(20), max_concurrency: max_concurrency, ordered: false, on_timeout: :exit)
       |> Enum.to_list()
 
       {
@@ -107,7 +111,7 @@ defmodule T do
   end
 
   def make_before_scenario() do
-    fn %{mods: mods, msgs: msgs} ->
+    fn %{mods: mods, msgs: msgs, max_concurrency: max_concurrency} ->
       server_id =
         "serv_#{S.random_string_weak(8)}"
         |> String.to_atom()
@@ -164,20 +168,32 @@ defmodule T do
         end)
         |> elem(0)
 
-      {cfg, msgs}
+      super_name = S.random_string_weak(8) |> String.to_atom()
+      {:ok, _} = PartitionSupervisor.start_link(
+        child_spec: Task.Supervisor,
+        name: super_name,
+        partitions: max_concurrency
+      )
+      make_via_tuple = fn pid ->
+        {:via, PartitionSupervisor, {super_name, pid}}
+      end
+
+      {cfg, msgs, make_via_tuple, max_concurrency}
     end
   end
 end
 
 inputs = %{
-  "20 modules, 100 messages at 1/3" => %{
-    mods: T.make_fake_modules(20),
-    msgs: T.make_messages(100, 3)
+  "20 slow modules, 100 messages at 1/3, 16 divisions" => %{
+    mods: T.make_fake_modules(20, :slow),
+    msgs: T.make_messages(100, 3),
+    max_concurrency: 16
   },
-  "20 modules, 10000 messages at 1/20" => %{
-    mods: T.make_fake_modules(20),
-    msgs: T.make_messages(10000, 20)
-  }
+  "20 slow modules, 100 messages at 1/3, 32 divisions" => %{
+    mods: T.make_fake_modules(20, :slow),
+    msgs: T.make_messages(100, 3),
+    max_concurrency: 32
+  },
 }
 
 suites = %{
@@ -240,8 +256,8 @@ ef_opts = [
 Benchee.run(
   suites,
   inputs: inputs,
-  time: 20,
-  memory_time: 3,
+  time: 10,
+  # memory_time: 3,
   pre_check: true
   # profile_after: true
 )
