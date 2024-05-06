@@ -98,32 +98,32 @@ defmodule Stampede.Interact do
   def prepare_interaction!(int) when is_struct(int, S.InteractionForm) do
     iid = Ids.reserve_id(Interactions)
 
-      new_row =
-        struct!(
-          Interactions,
-          id: iid,
-          datetime: S.time(),
-          plugin: int.plugin,
-          # NOTE: message hasn't been posted yet, get this info back
-          posted_msg_id: nil,
-          msg: int.msg,
-          response: int.response,
-          traceback: int.traceback,
-          channel_lock: int.channel_lock
-        )
-        |> Interactions.validate!()
+    new_row =
+      struct!(
+        Interactions,
+        id: iid,
+        datetime: S.time(),
+        plugin: int.plugin,
+        # NOTE: message hasn't been posted yet, get this info back
+        posted_msg_id: nil,
+        msg: int.msg,
+        response: int.response,
+        traceback: int.traceback,
+        channel_lock: int.channel_lock
+      )
+      |> Interactions.validate!()
 
-      # IO.puts("Interact: new interaction:\n#{new_row |> S.pp()}") # DEBUG
+    # IO.puts("Interact: new interaction:\n#{new_row |> S.pp()}") # DEBUG
 
-      :ok =
-        transaction!(fn ->
-          :ok = do_write_interaction!(new_row)
-          :ok = do_channel_lock!(int, new_row.datetime, iid)
-        end)
+    :ok =
+      transaction!(fn ->
+        :ok = do_write_interaction!(new_row)
+        :ok = do_channel_lock!(int, new_row.datetime, iid)
+      end)
 
-      :ok = announce_interaction(new_row)
+    :ok = announce_interaction(new_row)
 
-      _ = spawn_link(__MODULE__, :check_for_orphaned_interaction, [iid, int.service])
+    _ = spawn_link(__MODULE__, :check_for_orphaned_interaction, [iid, int.service])
 
     {:ok, iid}
   end
