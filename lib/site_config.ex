@@ -104,7 +104,7 @@ defmodule SiteConfig do
     if Plugin.loaded?(plugs) do
       {:ok, plugs}
     else
-      raise "Some plugins not found.\nFound: #{Plugin.ls()}\nConfigured: #{inspect(plugs)}"
+      raise "Some plugins not found.\nFound: #{inspect(Plugin.ls())}\nConfigured: #{inspect(plugs)}"
     end
   end
 
