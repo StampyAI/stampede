@@ -1,5 +1,5 @@
 defmodule StampedeTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
   import ExUnit.CaptureLog
   alias Stampede, as: S
   alias Service.Dummy, as: D

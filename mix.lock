@@ -19,6 +19,7 @@
   "earmark_parser": {:hex, :earmark_parser, "1.4.39", "424642f8335b05bb9eb611aa1564c148a8ee35c9c8a8bba6e129d51a3e3c6769", [:mix], [], "hexpm", "06553a88d1f1846da9ef066b87b57c6f605552cfbe40d20bd8d59cc6bde41944"},
   "ed25519": {:hex, :ed25519, "1.4.1", "479fb83c3e31987c9cad780e6aeb8f2015fb5a482618cdf2a825c9aff809afc4", [:mix], [], "hexpm", "0dacb84f3faa3d8148e81019ca35f9d8dcee13232c32c9db5c2fb8ff48c80ec7"},
   "eflambe": {:hex, :eflambe, "0.3.1", "ef0a35084fad1f50744496730a9662782c0a9ebf449d3e03143e23295c5926ea", [:rebar3], [{:meck, "0.9.2", [hex: :meck, repo: "hexpm", optional: false]}], "hexpm", "58d5997be606d4e269e9e9705338e055281fdf3e4935cc902c8908e9e4516c5f"},
+  "eflame": {:hex, :eflame, "1.0.1", "0664d287e39eef3c413749254b3af5f4f8b00be71c1af67d325331c4890be0fc", [:mix], [], "hexpm", "e0b08854a66f9013129de0b008488f3411ae9b69b902187837f994d7a99cf04e"},
   "equivalex": {:hex, :equivalex, "1.0.3", "170d9a82ae066e0020dfe1cf7811381669565922eb3359f6c91d7e9a1124ff74", [:mix], [], "hexpm", "46fa311adb855117d36e461b9c0ad2598f72110ad17ad73d7533c78020e045fc"},
   "erlex": {:hex, :erlex, "0.2.6", "c7987d15e899c7a2f34f5420d2a2ea0d659682c06ac607572df55a43753aa12e", [:mix], [], "hexpm", "2ed2e25711feb44d52b17d2780eabf998452f6efda104877a3881c2f8c0c0c75"},
   "ex_check": {:hex, :ex_check, "0.16.0", "07615bef493c5b8d12d5119de3914274277299c6483989e52b0f6b8358a26b5f", [:mix], [], "hexpm", "4d809b72a18d405514dda4809257d8e665ae7cf37a7aee3be6b74a34dec310f5"},
