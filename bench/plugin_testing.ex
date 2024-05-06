@@ -6,7 +6,7 @@ defmodule T do
   require Aja
 
   def make_fake_modules(num, lagginess) when is_integer(num) and num > 0 do
-    lag_max = ((lagginess == :slow && 2000) || 10)
+    lag_max = ((lagginess == :slow && 500) || 10)
     Enum.reduce(0..num, MapSet.new(), fn i, acc ->
       name = Module.concat(Plugin, "fake_#{i}")
 
@@ -168,14 +168,9 @@ defmodule T do
         end)
         |> elem(0)
 
-      super_name = S.random_string_weak(8) |> String.to_atom()
-      {:ok, _} = PartitionSupervisor.start_link(
-        child_spec: Task.Supervisor,
-        name: super_name,
-        partitions: max_concurrency
-      )
-      make_via_tuple = fn pid ->
-        {:via, PartitionSupervisor, {super_name, pid}}
+      super_name = :testing_super
+      make_via_tuple = fn _pid ->
+        super_name
       end
 
       {cfg, msgs, make_via_tuple, max_concurrency}
@@ -183,12 +178,9 @@ defmodule T do
   end
 end
 
+{:ok, _} = Task.Supervisor.start_link(name: :testing_super)
+
 inputs = %{
-  "20 slow modules, 100 messages at 1/3, 16 divisions" => %{
-    mods: T.make_fake_modules(20, :slow),
-    msgs: T.make_messages(100, 3),
-    max_concurrency: 16
-  },
   "20 slow modules, 100 messages at 1/3, 32 divisions" => %{
     mods: T.make_fake_modules(20, :slow),
     msgs: T.make_messages(100, 3),
@@ -199,10 +191,6 @@ inputs = %{
 suites = %{
   "Current plugin processing code" => {
     T.make_run_tasks("current", &Plugin.get_top_response/2),
-    before_scenario: T.make_before_scenario()
-  },
-  "single threaded plugin processing" => {
-    T.make_run_tasks("stupid", &T.stupid_get_top_response/2),
     before_scenario: T.make_before_scenario()
   }
 }
@@ -256,7 +244,7 @@ ef_opts = [
 Benchee.run(
   suites,
   inputs: inputs,
-  time: 10,
+  time: 20,
   # memory_time: 3,
   pre_check: true
   # profile_after: true
