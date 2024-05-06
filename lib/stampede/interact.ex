@@ -98,7 +98,6 @@ defmodule Stampede.Interact do
   def prepare_interaction!(int) when is_struct(int, S.InteractionForm) do
     iid = Ids.reserve_id(Interactions)
 
-    spawn_link(fn ->
       new_row =
         struct!(
           Interactions,
@@ -124,8 +123,7 @@ defmodule Stampede.Interact do
 
       :ok = announce_interaction(new_row)
 
-      check_for_orphaned_interaction(iid, int.service)
-    end)
+      _ = spawn_link(__MODULE__, :check_for_orphaned_interaction, [iid, int.service])
 
     {:ok, iid}
   end
@@ -165,31 +163,29 @@ defmodule Stampede.Interact do
 
   @spec! finalize_interaction(S.interaction_id(), S.msg_id()) :: :ok
   def finalize_interaction(int_id, posted_msg_id) do
-    spawn(fn ->
-      transaction!(fn ->
-        Memento.Query.read(
-          Interactions,
-          int_id
-        )
-        |> case do
-          nil ->
-            raise "Interaction #{inspect(int_id)} not found for message #{inspect(posted_msg_id)}"
+    transaction!(fn ->
+      Memento.Query.read(
+        Interactions,
+        int_id
+      )
+      |> case do
+        nil ->
+          raise "Interaction #{inspect(int_id)} not found for message #{inspect(posted_msg_id)}"
 
-          int ->
-            _ =
-              Map.update!(int, :posted_msg_id, fn
-                nil ->
-                  posted_msg_id
+        int ->
+          _ =
+            Map.update!(int, :posted_msg_id, fn
+              nil ->
+                posted_msg_id
 
-                _already_set ->
-                  raise "Interaction has posted_msg_id already set.\nNew message ID: #{posted_msg_id |> inspect()}\nInteraction: #{int |> S.pp()}"
-              end)
-              |> Memento.Query.write()
-
-            :ok
-        end
-      end)
+              _already_set ->
+                raise "Interaction has posted_msg_id already set.\nNew message ID: #{posted_msg_id |> inspect()}\nInteraction: #{int |> S.pp()}"
+            end)
+            |> Memento.Query.write()
+      end
     end)
+
+    :ok
   end
 
   @spec! announce_interaction(%Interactions{}) :: :ok
