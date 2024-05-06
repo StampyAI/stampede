@@ -7,8 +7,6 @@ let
     (elixir-ls.override { elixir = elixir_1_15; })
     libyaml
     libyaml.dev
-    zlib
-    stdenv
   ];
 
   # define shell startup command

@@ -77,10 +77,10 @@ defmodule Stampede.MixProject do
       {:stream_data, "~> 0.5.0"},
 
       # Benchmarking
-      {:benchee, ">= 0.0.0", runtime: false, only: :dev},
+      {:benchee, "~> 1.1", runtime: false, only: :dev},
 
       # profiling
-      {:xprof, ">= 0.0.0"},
+      {:eflambe, "~> 0.3.1", only: :dev},
 
       # Fast arrays
       {:arrays_aja, "~> 0.2.0"},
