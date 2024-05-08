@@ -80,7 +80,9 @@ defmodule Stampede.MixProject do
       {:benchee, "~> 1.1", runtime: false, only: :dev},
 
       # profiling
-      {:eflame, ">= 0.0.0", only: :dev},
+      # {:eflambe, ">= 0.0.0", only: :dev},
+      {:eflambe, ">= 0.0.0"},
+      {:sweet_xml, ">= 0.0.0"},
 
       # Fast arrays
       {:arrays_aja, "~> 0.2.0"},

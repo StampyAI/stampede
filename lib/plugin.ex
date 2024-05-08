@@ -302,6 +302,17 @@ defmodule Plugin do
   @spec! get_top_response(SiteConfig.t(), Msg.t()) ::
            nil | {response :: Response.t(), interaction_id :: S.interaction_id()}
   def get_top_response(cfg, msg) do
+    ef_opts = [
+      {:output_directory, "./eflame/"},
+      {:output_format, :svg},
+      :value,
+      {:return, :value}
+    ]
+
+    :eflambe.apply({__MODULE__, :do_get_top_response, [cfg, msg]}, ef_opts)
+  end
+
+  def do_get_top_response(cfg, msg) do
     case S.Interact.channel_locked?(msg.channel_id) do
       {{m, f, args_without_msg}, _plugin, _iid} ->
         {response, iid} = query_plugins([{m, f, [msg | args_without_msg]}], cfg, msg)

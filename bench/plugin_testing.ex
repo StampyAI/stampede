@@ -197,52 +197,53 @@ Stampede.ensure_app_ready!()
 apply_trace = fn f ->
   :eflame.apply(
     :normal_with_children,
-    "/mnt/MattNAS/Coding/Stampede_profiling/2024-05-05/eflame",
+    "./eflame/",
     f,
     []
   )
 end
 
 ef_opts = [
-  :filename,
-  {:output_directory, "/mnt/MattNAS/Coding/Stampede_profiling/2024-05-05"},
+  {:output_directory, "./eflame/"},
   {:output_format, :svg},
-  {:return, :filename}
+  :value
 ]
 
-# spawn(fn -> :eflame.capture({Plugin, :query_plugins, 3}, 100, ef_opts) end)
+#Application.ensure_loaded(:eflambe_app)
+
+#spawn(fn -> :eflambe.capture({Plugin, :query_plugins, 3}, 100, ef_opts) end)
 # :eflame.capture {Stampede.Interact, :prepare_interaction, 1}, 100, ef_opts
 # :eflame.capture {Stampede, :fulfill_predicate_before_time, 2}, 1000, ef_opts
 
-# suites
-# |> Map.fetch!("Current plugin processing code")
-# |> elem(1)
-# |> Keyword.fetch!(:before_scenario)
-# |> tap(fn _ -> IO.puts("scenario prep") end)
-# |> then(fn f ->
-#   f.(%{
-#     mods: T.make_fake_modules(20),
-#     msgs: T.make_messages(1, 1)
-#   })
-# end)
-# |> tap(fn _ -> IO.puts("actual job") end)
-# |> then(fn before_scenario_result ->
-#   suites
-#   |> Map.fetch!("Current plugin processing code")
-#   |> elem(0)
-#   |> then(fn f ->
-#     apply_trace.(fn ->
-#       f.(before_scenario_result)
-#     end)
-#   end)
-# end)
+suites
+|> Map.fetch!("Current plugin processing code")
+|> elem(1)
+|> Keyword.fetch!(:before_scenario)
+|> tap(fn _ -> IO.puts("scenario prep") end)
+|> then(fn f ->
+  f.(%{
+    mods: T.make_fake_modules(1, :slow),
+    msgs: T.make_messages(2, 3),
+    max_concurrency: 32
+  }
+  )
+end)
+|> tap(fn _ -> IO.puts("actual job") end)
+|> then(fn before_scenario_result ->
+  suites
+  |> Map.fetch!("Current plugin processing code")
+  |> elem(0)
+  |> then(fn f ->
+    f.(before_scenario_result)
+  end)
+end)
 
 # :eflame.capture({Plugin, :query_plugins, 3}, 100, ef_opts)
-Benchee.run(
-  suites,
-  inputs: inputs,
-  time: 20,
-  # memory_time: 3,
-  pre_check: true
-  # profile_after: true
-)
+#Benchee.run(
+#  suites,
+#  inputs: inputs,
+#  time: 20,
+#  # memory_time: 3,
+#  pre_check: true
+#  # profile_after: true
+#)
