@@ -19,15 +19,16 @@ defmodule Service.Dummy.Table do
   end
 
   def validate!(record) when is_struct(record, __MODULE__) do
-    TypeCheck.conforms!(record, %__MODULE__{
-      id: nil | integer(),
-      datetime: S.timestamp(),
-      server_id: atom(),
-      channel: atom(),
-      user: atom(),
-      body: any(),
-      referenced_msg_id: nil | integer()
-    })
+    record
+    # |> TypeCheck.conforms!(%__MODULE__{
+    #   id: nil | integer(),
+    #   datetime: S.timestamp(),
+    #   server_id: atom(),
+    #   channel: atom(),
+    #   user: atom(),
+    #   body: any(),
+    #   referenced_msg_id: nil | integer()
+    # })
   end
 end
 

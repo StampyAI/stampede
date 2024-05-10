@@ -1,0 +1,9 @@
+TYPE CHECKING MAKES PROCESSING TWICE AS SLOW
+##### With input 20 fast modules, 32 messages, 4 divisions #####
+Name                                     ips        average  deviation         median         99th %
+Typechecking                            0.29         3.42 s     ±3.95%         3.34 s         3.64 s
+No typechecking                         0.60         1.66 s     ±4.60%         1.62 s         1.84 s
+No typecheck + no struct checks         9.41      106.26 ms     ±3.37%      105.20 ms      122.10 ms
+
+mnesia concurrency                      9.41      106.26 ms     ±3.37%      105.20 ms      122.10 ms
+no mnesia concurrency                   9.41      106.24 ms     ±3.25%      105.14 ms      121.14 ms

@@ -67,31 +67,26 @@ defmodule Stampede.Interact do
 
   @spec! channel_locked?(S.channel_id()) :: S.channel_lock_status()
   def channel_locked?(channel_id) do
-    match =
-      transaction!(fn ->
+    transaction!(fn ->
+      match =
         Memento.Query.read(ChannelLocks, channel_id)
-      end)
 
-    case match do
-      %ChannelLocks{lock_status: status, callback: mfa, interaction_id: iid} ->
-        if status do
-          # get plugin
-          plug =
-            transaction!(fn ->
-              [%{plugin: plug}] =
-                Memento.Query.match(Interactions, {iid, :_, :"$1", :_, :_, :_, :_, :_})
+      case match do
+        %ChannelLocks{lock_status: status, callback: mfa, interaction_id: iid} ->
+          if status do
+            # get plugin
+            [%{plugin: plug}] =
+              Memento.Query.match(Interactions, {iid, :_, :"$1", :_, :_, :_, :_, :_})
 
-              plug
-            end)
+            {mfa, plug, iid}
+          else
+            false
+          end
 
-          {mfa, plug, iid}
-        else
+        nil ->
           false
-        end
-
-      nil ->
-        false
-    end
+      end
+    end)
   end
 
   @spec! prepare_interaction!(%S.InteractionForm{}) :: {:ok, S.interaction_id()}

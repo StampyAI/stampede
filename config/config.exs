@@ -79,6 +79,8 @@ config :nostrum,
 config :mnesia,
   dir: ~c".mnesia/#{Mix.env()}/#{node()}"
 
+config :stampede, :type_check, enable_runtime_checks: false
+
 for config <- "./*.secret.exs" |> Path.expand(__DIR__) |> Path.wildcard() do
   import_config config
 end

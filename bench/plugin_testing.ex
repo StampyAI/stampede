@@ -1,16 +1,18 @@
 alias Stampede, as: S
 require Stampede.Msg
+require Aja
 
 defmodule T do
   require Plugin
   require Aja
 
   def make_fake_modules(num, lagginess) when is_integer(num) and num > 0 do
-    lag_max = ((lagginess == :slow && 500) || 10)
+    lag_max = (lagginess == :slow && 500) || 1
+
     Enum.reduce(0..num, MapSet.new(), fn i, acc ->
       name = Module.concat(Plugin, "fake_#{i}")
 
-      lag = ((Float.pow(1.5, -i) * lag_max) |> round())
+      lag = (Float.pow(1.5, -i) * lag_max) |> round()
       IO.puts("This lag: #{lag |> to_string()}")
 
       contents =
@@ -18,7 +20,7 @@ defmodule T do
           use Plugin
 
           def query(cfg, msg) do
-            Process.sleep(unquote(lag * 0.1 |> round()))
+            Process.sleep(unquote((lag * 0.1) |> round()))
             Plugin.Test.query(cfg, msg)
           end
 
@@ -82,16 +84,19 @@ defmodule T do
   end
 
   def make_run_tasks(name, query_func) do
-    fn {cfg, msgs, super_name, max_concurrency} ->
-
-      results = Task.Supervisor.async_stream(super_name, msgs, fn msg ->
+    fn
+      {cfg, msg} ->
         response = query_func.(cfg, msg)
 
         case response do
-          {%{text: "pong!"}, _iid} ->
+          {%{text: "pong!"}, iid} ->
             if msg.body != "ping" do
               raise "got pong when I shouldnt have"
             end
+
+            Stampede.Interact.finalize_interaction(iid, Integer.pow(msg.id, 4))
+
+          # falsify posted message ID
 
           nil ->
             if msg.body != "lololol" do
@@ -100,77 +105,167 @@ defmodule T do
         end
 
         :ok
-      end, timeout: :timer.seconds(20), max_concurrency: max_concurrency, ordered: false, on_timeout: :exit)
-      |> Enum.to_list()
 
-      {
-        Aja.vec_size(msgs),
-        results
-      }
-  end
+      {cfg, msgs, super_name, max_concurrency} ->
+        get_response = fn msg ->
+          response = query_func.(cfg, msg)
+
+          case response do
+            {%{text: "pong!"}, iid} ->
+              if msg.body != "ping" do
+                raise "got pong when I shouldnt have"
+              end
+
+              Stampede.Interact.finalize_interaction(iid, Integer.pow(msg.id, 4))
+
+            # falsify posted message ID
+
+            nil ->
+              if msg.body != "lololol" do
+                raise "didnt get response when I should have"
+              end
+          end
+
+          :ok
+        end
+
+        results =
+          if max_concurrency > 1 do
+            Task.Supervisor.async_stream(super_name, msgs, get_response,
+              timeout: :timer.seconds(20),
+              max_concurrency: max_concurrency,
+              ordered: false,
+              on_timeout: :exit
+            )
+            |> Enum.to_list()
+          else
+            Enum.map(msgs, get_response)
+          end
+
+        {
+          Aja.vec_size(msgs),
+          results
+        }
+    end
   end
 
   def make_before_scenario() do
-    fn %{mods: mods, msgs: msgs, max_concurrency: max_concurrency} ->
-      server_id =
-        "serv_#{S.random_string_weak(8)}"
-        |> String.to_atom()
+    fn
+      %{mods: mods, single_msg: single_msg} ->
+        server_id =
+          "serv_#{S.random_string_weak(8)}"
+          |> String.to_atom()
 
-      cfg =
-        SiteConfig.validate!(
-          [
-            service: :dummy,
-            server_id: server_id,
-            error_channel_id: :errors,
-            plugs: mods
-          ],
-          Service.Dummy.site_config_schema()
-        )
+        cfg =
+          SiteConfig.validate!(
+            [
+              service: :dummy,
+              server_id: server_id,
+              error_channel_id: :errors,
+              plugs: mods
+            ],
+            Service.Dummy.site_config_schema()
+          )
 
-      user_id =
-        "user_#{S.random_string_weak(8)}"
-        |> String.to_atom()
+        user_id =
+          "user_#{S.random_string_weak(8)}"
+          |> String.to_atom()
 
-      channel_id =
-        "thread_#{S.random_string_weak(8)}"
-        |> String.to_atom()
+        channel_id =
+          "thread_#{S.random_string_weak(8)}"
+          |> String.to_atom()
 
-      msgs =
-        msgs
-        |> Aja.Vector.map_reduce(0, fn
-          :ping, i ->
-            {
+        msg_id =
+          Process.get(:dummy_msg_id, 0)
+          |> tap(&Process.put(:dummy_msg_id, &1 + 1))
+
+        msg =
+          case single_msg do
+            Aja.vec([:ping]) ->
               S.Msg.new(
                 body: "!ping",
                 server_id: server_id,
                 author_id: user_id,
                 channel_id: channel_id,
-                id: i,
+                id: msg_id,
                 service: Service.Dummy
               )
-              |> S.Msg.add_context(cfg),
-              i + 1
-            }
+              |> S.Msg.add_context(cfg)
 
-          :unrelated, i ->
-            {
+            Aja.vec([:unrelated]) ->
               S.Msg.new(
                 body: "lololol",
                 server_id: server_id,
                 author_id: user_id,
                 channel_id: channel_id,
-                id: i,
+                id: msg_id,
                 service: Service.Dummy
               )
-              |> S.Msg.add_context(cfg),
-              i + 1
-            }
-        end)
-        |> elem(0)
+              |> S.Msg.add_context(cfg)
+          end
 
-      super_name = :testing_super
+        {cfg, msg}
 
-      {cfg, msgs, super_name, max_concurrency}
+      %{mods: mods, msgs: msgs, max_concurrency: max_concurrency} ->
+        server_id =
+          "serv_#{S.random_string_weak(8)}"
+          |> String.to_atom()
+
+        cfg =
+          SiteConfig.validate!(
+            [
+              service: :dummy,
+              server_id: server_id,
+              error_channel_id: :errors,
+              plugs: mods
+            ],
+            Service.Dummy.site_config_schema()
+          )
+
+        user_id =
+          "user_#{S.random_string_weak(8)}"
+          |> String.to_atom()
+
+        channel_id =
+          "thread_#{S.random_string_weak(8)}"
+          |> String.to_atom()
+
+        msgs =
+          msgs
+          |> Aja.Vector.map_reduce(0, fn
+            :ping, i ->
+              {
+                S.Msg.new(
+                  body: "!ping",
+                  server_id: server_id,
+                  author_id: user_id,
+                  channel_id: channel_id,
+                  id: i,
+                  service: Service.Dummy
+                )
+                |> S.Msg.add_context(cfg),
+                i + 1
+              }
+
+            :unrelated, i ->
+              {
+                S.Msg.new(
+                  body: "lololol",
+                  server_id: server_id,
+                  author_id: user_id,
+                  channel_id: channel_id,
+                  id: i,
+                  service: Service.Dummy
+                )
+                |> S.Msg.add_context(cfg),
+                i + 1
+              }
+          end)
+          |> elem(0)
+
+        super_name = :testing_super
+
+        {cfg, msgs, super_name, max_concurrency}
     end
   end
 end
@@ -178,11 +273,20 @@ end
 {:ok, _} = Task.Supervisor.start_link(name: :testing_super)
 
 inputs = %{
-  "20 slow modules, 100 messages at 1/3, 32 divisions" => %{
-    mods: T.make_fake_modules(20, :slow),
-    msgs: T.make_messages(100, 3),
-    max_concurrency: 32
-  },
+  # "20 slow modules, 100 messages at 1/3, 32 divisions" => %{
+  #   mods: T.make_fake_modules(20, :slow),
+  #   msgs: T.make_messages(100, 3),
+  #   max_concurrency: 32
+  # },
+  "20 fast modules, 32 messages, 4 divisions" => %{
+    mods: T.make_fake_modules(20, :fast),
+    msgs: T.make_messages(32, 1),
+    max_concurrency: 4
+  }
+  # "20 fast modules, single message" => %{
+  #  mods: T.make_fake_modules(20, :fast),
+  #  single_msg: T.make_messages(1, 1)
+  # }
 }
 
 suites = %{
@@ -193,6 +297,7 @@ suites = %{
 }
 
 Stampede.ensure_app_ready!()
+Stampede.Tables.clear_all_tables()
 
 apply_trace = fn f ->
   :eflame.apply(
@@ -209,41 +314,42 @@ ef_opts = [
   :value
 ]
 
-#Application.ensure_loaded(:eflambe_app)
+# Application.ensure_loaded(:eflambe_app)
 
-#spawn(fn -> :eflambe.capture({Plugin, :query_plugins, 3}, 100, ef_opts) end)
+# spawn(fn -> :eflambe.capture({Plugin, :query_plugins, 3}, 100, ef_opts) end)
 # :eflame.capture {Stampede.Interact, :prepare_interaction, 1}, 100, ef_opts
 # :eflame.capture {Stampede, :fulfill_predicate_before_time, 2}, 1000, ef_opts
 
-suites
-|> Map.fetch!("Current plugin processing code")
-|> elem(1)
-|> Keyword.fetch!(:before_scenario)
-|> tap(fn _ -> IO.puts("scenario prep") end)
-|> then(fn f ->
-  f.(%{
-    mods: T.make_fake_modules(1, :slow),
-    msgs: T.make_messages(2, 3),
-    max_concurrency: 32
-  }
-  )
-end)
-|> tap(fn _ -> IO.puts("actual job") end)
-|> then(fn before_scenario_result ->
-  suites
-  |> Map.fetch!("Current plugin processing code")
-  |> elem(0)
-  |> then(fn f ->
-    f.(before_scenario_result)
-  end)
-end)
+# suites
+# |> Map.fetch!("Current plugin processing code")
+# |> elem(1)
+# |> Keyword.fetch!(:before_scenario)
+# |> tap(fn _ -> IO.puts("scenario prep") end)
+# |> then(fn f ->
+#  f.(%{
+#    mods: T.make_fake_modules(1, :slow),
+#    msgs: T.make_messages(2, 3),
+#    max_concurrency: 32
+#  }
+#  )
+# end)
+# |> tap(fn _ -> IO.puts("actual job") end)
+# |> then(fn before_scenario_result ->
+#  suites
+#  |> Map.fetch!("Current plugin processing code")
+#  |> elem(0)
+#  |> then(fn f ->
+#    f.(before_scenario_result)
+#  end)
+# end)
 
 # :eflame.capture({Plugin, :query_plugins, 3}, 100, ef_opts)
-#Benchee.run(
-#  suites,
-#  inputs: inputs,
-#  time: 20,
-#  # memory_time: 3,
-#  pre_check: true
-#  # profile_after: true
-#)
+Benchee.run(
+  suites,
+  inputs: inputs,
+  time: 60,
+  memory_time: 3,
+  pre_check: true
+  # profile_after: true
+  # profile_after: :fprof
+)

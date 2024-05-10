@@ -9,13 +9,13 @@ defmodule TxtBlock.Md do
     do: TxtBlock.plain_indent_io(txt, n)
 
   def format(txt, :quote_block) do
-    TypeCheck.conforms!(txt, S.str_list())
+    # TypeCheck.conforms!(txt, S.str_list())
 
     TxtBlock.plain_indent_io(txt, "> ")
   end
 
   def format(txt, :source_block) do
-    TypeCheck.conforms!(txt, S.str_list())
+    # TypeCheck.conforms!(txt, S.str_list())
 
     [
       "```\n",
@@ -25,7 +25,7 @@ defmodule TxtBlock.Md do
   end
 
   def format(txt, :source) do
-    TypeCheck.conforms!(txt, S.str_list())
+    # TypeCheck.conforms!(txt, S.str_list())
 
     ["`", txt, "`"]
   end
