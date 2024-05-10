@@ -2,8 +2,18 @@ TYPE CHECKING MAKES PROCESSING TWICE AS SLOW
 ##### With input 20 fast modules, 32 messages, 4 divisions #####
 Name                                     ips        average  deviation         median         99th %
 Typechecking                            0.29         3.42 s     ±3.95%         3.34 s         3.64 s
-No typechecking                         0.60         1.66 s     ±4.60%         1.62 s         1.84 s
-No typecheck + no struct checks         9.41      106.26 ms     ±3.37%      105.20 ms      122.10 ms
+Typecheck + no struct checks            0.47         2.12 s     ±7.62%         2.02 s         2.46 s
+No typechecking + struct checks         0.60         1.66 s     ±4.60%         1.62 s         1.84 s
+No typechecking + no struct checks      9.56      104.56 ms     ±2.29%      104.08 ms      116.36 ms
 
-mnesia concurrency                      9.41      106.26 ms     ±3.37%      105.20 ms      122.10 ms
-no mnesia concurrency                   9.41      106.24 ms     ±3.25%      105.14 ms      121.14 ms
+MNESIA CONCURRENCY MAKES NO DIFFERENCE
+##### With input 20 fast modules, 512 messages, 8 divisions #####
+Name                                     ips        average  deviation         median         99th %
+with concurrency                         1.19      840.46 ms     ±1.91%      835.33 ms      914.21 ms
+without concurrency                      1.18      845.20 ms     ±2.58%      836.34 ms      923.01 ms
+
+MNESIA COMPRESSION FOR INTERACTIONS IS PRETTY GOOD
+with compression:
+  Elixir.Stampede.Tables.Interactions: with 41984    records occupying 23285913 words of mem
+without compression:
+  Elixir.Stampede.Tables.Interactions: with 41984    records occupying 61680281 words of mem
