@@ -7,9 +7,14 @@ defmodule Stampede.Tables.ChannelLocks do
     index: [:interaction_id],
     type: :set,
     disc_copies: S.nodes(),
-    access_mode: :read_write
-
-  # storage_properties: [ets: []]
+    access_mode: :read_write,
+    storage_properties: [
+      ets: [
+        write_concurrency: :auto,
+        read_concurrency: true,
+        decentralized_counters: true
+      ]
+    ]
 
   @spec! validate!(%__MODULE__{}) :: %__MODULE__{}
   def validate!(record) when is_struct(record, __MODULE__) do

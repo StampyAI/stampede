@@ -18,9 +18,15 @@ defmodule Stampede.Tables.Interactions do
     type: :set,
     disc_copies: S.nodes(),
     access_mode: :read_write,
-    index: [:datetime, :posted_msg_id]
-
-  # storage_properties: [ets: []]
+    index: [:datetime, :posted_msg_id],
+    storage_properties: [
+      ets: [
+        :compressed,
+        write_concurrency: :auto,
+        read_concurrency: true,
+        decentralized_counters: true
+      ]
+    ]
 
   # TODO: benchmarking.
   # try write_concurrency and read_concurrency
