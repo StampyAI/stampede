@@ -273,20 +273,16 @@ end
 {:ok, _} = Task.Supervisor.start_link(name: :testing_super)
 
 inputs = %{
-  # "20 slow modules, 100 messages at 1/3, 32 divisions" => %{
-  #   mods: T.make_fake_modules(20, :slow),
-  #   msgs: T.make_messages(100, 3),
-  #   max_concurrency: 32
+  # "20 fast modules, 32 messages, 4 divisions" => %{
+  #   mods: T.make_fake_modules(20, :fast),
+  #   msgs: T.make_messages(32, 1),
+  #   max_concurrency: 4
   # },
-  "20 fast modules, 32 messages, 4 divisions" => %{
+  "20 fast modules, 512 messages, 8 divisions" => %{
     mods: T.make_fake_modules(20, :fast),
-    msgs: T.make_messages(32, 1),
-    max_concurrency: 4
+    msgs: T.make_messages(512, 1),
+    max_concurrency: 8
   }
-  # "20 fast modules, single message" => %{
-  #  mods: T.make_fake_modules(20, :fast),
-  #  single_msg: T.make_messages(1, 1)
-  # }
 }
 
 suites = %{
@@ -348,8 +344,8 @@ Benchee.run(
   suites,
   inputs: inputs,
   time: 60,
-  memory_time: 3,
-  pre_check: true
-  # profile_after: true
+  profile_after: true,
+  # memory_time: 60,
   # profile_after: :fprof
+  pre_check: true
 )
