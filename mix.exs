@@ -77,7 +77,7 @@ defmodule Stampede.MixProject do
       {:stream_data, "~> 0.5.0"},
 
       # Benchmarking
-      {:benchee, "~> 1.1", runtime: false, only: :dev},
+      {:benchee, "~> 1.1", runtime: false, only: :bench},
 
       # profiling
       # {:eflambe, ">= 0.0.0", only: :dev},

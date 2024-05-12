@@ -283,6 +283,11 @@ inputs = %{
     msgs: T.make_messages(512, 1),
     max_concurrency: 8
   }
+  # "20 fast modules, 1 message 1 thread" => %{
+  #   mods: T.make_fake_modules(20, :fast),
+  #   msgs: T.make_messages(1, 1),
+  #   max_concurrency: 1
+  # }
 }
 
 suites = %{

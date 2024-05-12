@@ -27,6 +27,8 @@ extra_metadata =
 config :stampede,
   compile_env: Mix.env()
 
+config :stampede, :type_check, enable_runtime_checks: Mix.env() != :bench
+
 config :stampede, Stampede.Scheduler,
   jobs: [
     {"@daily", {Stampede.Interact, :clean_interactions!, []}}
@@ -78,8 +80,6 @@ config :nostrum,
 # Don't mix environment databases
 config :mnesia,
   dir: ~c".mnesia/#{Mix.env()}/#{node()}"
-
-config :stampede, :type_check, enable_runtime_checks: false
 
 for config <- "./*.secret.exs" |> Path.expand(__DIR__) |> Path.wildcard() do
   import_config config
