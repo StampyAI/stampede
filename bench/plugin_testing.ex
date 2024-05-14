@@ -349,7 +349,7 @@ Benchee.run(
   suites,
   inputs: inputs,
   time: 60,
-  profile_after: true,
+  # profile_after: true,
   # memory_time: 60,
   # profile_after: :fprof
   pre_check: true
