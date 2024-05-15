@@ -24,3 +24,5 @@ Name                                     ips        average  deviation         m
 Avoiding sending data through threads   1.19      839.05 ms     ±2.00%      835.25 ms      948.81 ms
 Copying cfg and msg to new thread       1.19      841.37 ms     ±1.47%      838.30 ms      891.12 ms
 Combine query/response into one func    1.18      844.46 ms     ±1.87%      837.42 ms      905.90 ms
+
+NO DIFFERENCE FOUND BETWEEN DIRECT Task.Async AND Task.Supervisor AND PartitionSupervisor
