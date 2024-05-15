@@ -28,6 +28,7 @@ defmodule Plugin.Test do
   @impl Plugin
   @spec! respond(SiteConfig.t(), S.Msg.t()) :: nil | S.Response.t()
   def respond(_cfg, msg) when not Plugin.is_bot_invoked(msg), do: nil
+
   def respond(_cfg, msg) when Plugin.is_bot_invoked(msg) do
     case msg.body do
       "ping" ->

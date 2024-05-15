@@ -20,6 +20,7 @@ defmodule Plugin.Sentience do
   @impl Plugin
   @spec! respond(SiteConfig.t(), S.Msg.t()) :: nil | S.Response.t()
   def respond(_cfg, msg) when not Plugin.is_bot_invoked(msg), do: nil
+
   def respond(_cfg, msg = %S.Msg{id: msg_id}) when Plugin.is_bot_invoked(msg) do
     S.Response.new(
       confidence: 1,

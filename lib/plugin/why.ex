@@ -37,6 +37,7 @@ defmodule Plugin.Why do
   @impl Plugin
   @spec! respond(SiteConfig.t(), S.Msg.t()) :: nil | S.Response.t()
   def respond(_cfg, msg) when not Plugin.is_bot_invoked(msg), do: nil
+
   def respond(cfg, msg) when Plugin.is_bot_invoked(msg) do
     if Regex.match?(at_module_regex(), msg.body) do
       valid_confidence = 10
