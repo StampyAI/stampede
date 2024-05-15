@@ -61,6 +61,8 @@ defmodule TxtBlock.Md do
       """
       Testing formats.
 
+      *Italicized*
+
       Quoted
       > Quoted line 1
       > Quoted line 2
@@ -83,7 +85,7 @@ defmodule TxtBlock.Md do
 
       Numbered list
       1. Item 1
-      2. Item 2
+      2. *Nested Italics Item 2*
       3. Item 3
       """
     end

@@ -86,6 +86,8 @@ defmodule TxtBlock.Debugging do
   def all_formats_example() do
     [
       "Testing formats.\n\n",
+      {:italics, "Italicized"},
+      "\n\n",
       "Quoted\n",
       {:quote_block, "Quoted line 1\nQuoted line 2\n"},
       "\n",
@@ -99,7 +101,7 @@ defmodule TxtBlock.Debugging do
       {{:list, :dotted}, ["Item 1", "Item 2", "Item 3"]},
       "\n",
       "Numbered list\n",
-      {{:list, :numbered}, ["Item 1", "Item 2", "Item 3"]}
+      {{:list, :numbered}, ["Item 1", {:italics, "Nested Italics Item 2"}, "Item 3"]}
     ]
   end
 end
