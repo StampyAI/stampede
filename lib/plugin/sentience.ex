@@ -18,11 +18,9 @@ defmodule Plugin.Sentience do
   end
 
   @impl Plugin
-  def query(cfg, msg), do: Plugin.default_predicate(cfg, msg, {:respond, msg.id})
-
-  @impl Plugin
-  @spec! respond(msg_id :: S.msg_id()) :: nil | S.Response.t()
-  def respond(msg_id) do
+  @spec! respond(SiteConfig.t(), S.Msg.t()) :: nil | S.Response.t()
+  def respond(_cfg, msg) when not Plugin.is_bot_invoked(msg), do: nil
+  def respond(_cfg, msg = %S.Msg{id: msg_id}) when Plugin.is_bot_invoked(msg) do
     S.Response.new(
       confidence: 1,
       text: S.confused_response(),

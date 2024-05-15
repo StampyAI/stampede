@@ -26,10 +26,9 @@ defmodule Plugin.Test do
   end
 
   @impl Plugin
-  def query(cfg, msg), do: Plugin.default_predicate(cfg, msg, {:respond, msg})
-
-  @impl Plugin
-  def respond(msg) do
+  @spec! respond(SiteConfig.t(), S.Msg.t()) :: nil | S.Response.t()
+  def respond(_cfg, msg) when not Plugin.is_bot_invoked(msg), do: nil
+  def respond(_cfg, msg) when Plugin.is_bot_invoked(msg) do
     case msg.body do
       "ping" ->
         S.Response.new(

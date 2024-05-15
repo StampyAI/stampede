@@ -19,15 +19,10 @@ defmodule T do
         quote do
           use Plugin
 
-          def query(cfg, msg) do
-            Process.sleep(unquote((lag * 0.1) |> round()))
-            Plugin.Test.query(cfg, msg)
-          end
-
-          def respond(arg) do
+          def respond(cfg, msg) do
             Process.sleep(unquote(lag + 10))
 
-            Plugin.Test.respond(arg)
+            Plugin.Test.respond(cfg, msg)
             |> then(fn
               m when is_map(m) ->
                 Map.put(m, :origin_plug, __MODULE__)

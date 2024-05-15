@@ -30,14 +30,9 @@ defmodule Plugin do
   @first_response_timeout 500
 
   @doc """
-  Should this module respond to the given config and message? If so, we will execute this plugin's "respond" callback with the returned value.
-  These methods on all plugins are run syncronously with every incoming message in the caller thread.
+  Decide if and how this plugin should respond
   """
-  @callback query(SiteConfig.t(), Msg.t()) :: nil | {:respond, arg :: any()}
-  @doc """
-  Decide on a response for the given arg.
-  """
-  @callback respond(arg :: any()) :: nil | Response.t()
+  @callback respond(cfg :: SiteConfig.t(), msg :: Msg.t()) :: nil | Response.t()
 
   @typedoc """
   Describe uses for a plugin in a input-output manner, no prefix included.
@@ -60,11 +55,6 @@ defmodule Plugin do
       @behaviour unquote(__MODULE__)
     end
   end
-
-  @spec default_predicate(map(), map(), success_tuple) :: success_tuple
-        when success_tuple: {:respond, arg :: any()}
-  def default_predicate(cfg, msg, success_tuple) when is_bot_invoked(msg), do: success_tuple
-  def default_predicate(cfg, msg, _) when not is_bot_invoked(msg), do: nil
 
   def valid?(mod) do
     b =
@@ -166,18 +156,12 @@ defmodule Plugin do
         this_plug when is_atom(this_plug) ->
           {
             this_plug,
-            case get_response({this_plug, :query, [cfg, msg]}, cfg, msg) do
-              {:job_ok, {:respond, arg}} ->
-                Task.Supervisor.async_nolink(
-                  S.quick_task_via(),
-                  __MODULE__,
-                  :get_response,
-                  [{this_plug, :respond, [arg]}, cfg, msg]
-                )
-
-              other ->
-                other
-            end
+            Task.Supervisor.async_nolink(
+              S.quick_task_via(),
+              __MODULE__,
+              :get_response,
+              [{this_plug, :respond, [cfg, msg]}, cfg, msg]
+            )
           }
       end)
 

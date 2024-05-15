@@ -84,8 +84,7 @@ defmodule StampedeStatelessTest do
         )
         |> S.Msg.add_context(dummy_cfg)
 
-      {:respond, arg} = Plugin.Test.query(dummy_cfg, msg)
-      r = Plugin.Test.respond(arg)
+      r = Plugin.Test.respond(dummy_cfg, msg)
       assert r.text == "pong!"
 
       msg =
@@ -99,8 +98,7 @@ defmodule StampedeStatelessTest do
         |> S.Msg.add_context(dummy_cfg)
 
       assert_raise SillyError, fn ->
-        {:respond, arg} = Plugin.Test.query(dummy_cfg, msg)
-        _ = Plugin.Test.respond(arg)
+        _ = Plugin.Test.respond(dummy_cfg, msg)
       end
 
       msg =
@@ -114,8 +112,7 @@ defmodule StampedeStatelessTest do
         |> S.Msg.add_context(dummy_cfg)
 
       try do
-        {:respond, arg} = Plugin.Test.query(dummy_cfg, msg)
-        _ = Plugin.Test.respond(arg)
+        _ = Plugin.Test.respond(dummy_cfg, msg)
       catch
         _t, e ->
           assert e == SillyThrow
@@ -131,8 +128,7 @@ defmodule StampedeStatelessTest do
         )
         |> S.Msg.add_context(dummy_cfg)
 
-      {:respond, arg} = Plugin.Test.query(dummy_cfg, msg)
-      %{callback: {m, f, a}} = Plugin.Test.respond(arg)
+      %{callback: {m, f, a}} = Plugin.Test.respond(dummy_cfg, msg)
 
       cbr = apply(m, f, a)
       assert String.starts_with?(cbr.text, "Called back with")

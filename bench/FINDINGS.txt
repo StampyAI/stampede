@@ -18,8 +18,9 @@ with compression:
 without compression:
   Elixir.Stampede.Tables.Interactions: with 41984    records occupying 61680281 words of mem
 
-OVERHEAD FOR SENDING CFG TO NEW THREAD ISN'T A PROBLEM
+OVERHEAD FOR SENDING CFG+MSG TO NEW THREAD ISN'T A PROBLEM
 ##### With input 20 fast modules, 512 messages, 8 divisions #####
 Name                                     ips        average  deviation         median         99th %
 Avoiding sending data through threads   1.19      839.05 ms     ±2.00%      835.25 ms      948.81 ms
 Copying cfg and msg to new thread       1.19      841.37 ms     ±1.47%      838.30 ms      891.12 ms
+Combine query/response into one func    1.18      844.46 ms     ±1.87%      837.42 ms      905.90 ms

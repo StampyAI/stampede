@@ -35,54 +35,49 @@ defmodule Plugin.Why do
   end
 
   @impl Plugin
-  def query(cfg, msg) when Plugin.is_bot_invoked(msg) do
+  @spec! respond(SiteConfig.t(), S.Msg.t()) :: nil | S.Response.t()
+  def respond(_cfg, msg) when not Plugin.is_bot_invoked(msg), do: nil
+  def respond(cfg, msg) when Plugin.is_bot_invoked(msg) do
     if Regex.match?(at_module_regex(), msg.body) do
-      {:respond, {msg, cfg.service}}
+      valid_confidence = 10
+
+      case Map.fetch!(msg, :referenced_msg_id) do
+        nil ->
+          Response.new(
+            confidence: valid_confidence,
+            text:
+              "It looks like you're asking about one of my messages, but you didn't reference which one.",
+            origin_msg_id: msg.id,
+            why: ["User didn't reference any message."]
+          )
+
+        ref ->
+          # Ok, let's return a traceback.
+          case S.Interact.get_traceback(ref) do
+            {:ok, traceback} ->
+              Response.new(
+                confidence: valid_confidence,
+                text: traceback |> TxtBlock.to_str_list(cfg.service),
+                origin_msg_id: msg.id,
+                why: ["User asked why I said something, so I told them."]
+              )
+
+            other ->
+              Response.new(
+                confidence: valid_confidence,
+                text: msg_fail(ref),
+                origin_msg_id: msg.id,
+                why: [
+                  "We checked for an interaction from message ",
+                  S.pp(ref),
+                  " but found nothing. The Interact database returned:\n",
+                  S.pp(other)
+                ]
+              )
+          end
+      end
     else
       nil
-    end
-  end
-
-  def query(_, _), do: nil
-
-  @impl Plugin
-  def respond({msg, service}) do
-    valid_confidence = 10
-
-    case Map.fetch!(msg, :referenced_msg_id) do
-      nil ->
-        Response.new(
-          confidence: valid_confidence,
-          text:
-            "It looks like you're asking about one of my messages, but you didn't reference which one.",
-          origin_msg_id: msg.id,
-          why: ["User didn't reference any message."]
-        )
-
-      ref ->
-        # Ok, let's return a traceback.
-        case S.Interact.get_traceback(ref) do
-          {:ok, traceback} ->
-            Response.new(
-              confidence: valid_confidence,
-              text: traceback |> TxtBlock.to_str_list(service),
-              origin_msg_id: msg.id,
-              why: ["User asked why I said something, so I told them."]
-            )
-
-          other ->
-            Response.new(
-              confidence: valid_confidence,
-              text: msg_fail(ref),
-              origin_msg_id: msg.id,
-              why: [
-                "We checked for an interaction from message ",
-                S.pp(ref),
-                " but found nothing. The Interact database returned:\n",
-                S.pp(other)
-              ]
-            )
-        end
     end
   end
 
