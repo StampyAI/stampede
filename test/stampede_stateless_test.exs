@@ -194,6 +194,10 @@ defmodule StampedeStatelessTest do
       assert correctly_split_msg == S.text_chunk(large_msg, split_size, max_pieces)
       assert [smol_msg] == S.text_chunk(smol_msg, split_size, max_pieces)
     end
+
+    test "typechecking enabled during tests" do
+      assert_raise TypeCheck.TypeError, fn -> S.Debugging.always_fails_typecheck() end
+    end
   end
 
   describe "cfg_table" do
@@ -301,6 +305,19 @@ defmodule StampedeStatelessTest do
 
       assert one == correct
       assert two == correct
+    end
+
+    test "list with italics" do
+      one = {{:list, :numbered}, ["1", ["2", " ", "foo"], ["3 ", {:italics, "bar"}]]}
+
+      correct =
+        """
+        1. 1
+        2. 2 foo
+        3. 3 *bar*
+        """
+
+      assert correct == TxtBlock.to_binary(one, Service.Dummy)
     end
 
     test "Markdown" do

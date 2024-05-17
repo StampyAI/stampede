@@ -18,15 +18,19 @@ defmodule Stampede.Tables.ChannelLocks do
 
   @spec! validate!(%__MODULE__{}) :: %__MODULE__{}
   def validate!(record) when is_struct(record, __MODULE__) do
-    record
-    # |> TypeCheck.conforms!(%__MODULE__{
-    #   channel_id: S.channel_id(),
-    #   datetime: S.timestamp(),
-    #   # TODO: remove
-    #   lock_status: true,
-    #   # TODO: add next/break options
-    #   callback: nil | S.module_function_args(),
-    #   interaction_id: S.interaction_id()
-    # })
+    if S.enable_typechecking?() do
+      record
+      |> TypeCheck.conforms!(%__MODULE__{
+        channel_id: S.channel_id(),
+        datetime: S.timestamp(),
+        # TODO: remove
+        lock_status: true,
+        # TODO: add next/break options
+        callback: nil | S.module_function_args(),
+        interaction_id: S.interaction_id()
+      })
+    else
+      record
+    end
   end
 end

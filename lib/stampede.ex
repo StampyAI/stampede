@@ -242,4 +242,20 @@ defmodule Stampede do
 
   def ensure_app_ready!(),
     do: ensure_app_ready?() || raise("Stampede wouldn't start on time")
+
+  if Application.compile_env!(:stampede, [:type_check, :enable_runtime_checks]) do
+    def enable_typechecking?(), do: true
+  else
+    def enable_typechecking?(), do: false
+  end
+
+  defmodule Debugging do
+    use TypeCheck
+
+    @spec! always_fails_typecheck() :: :ok
+    def always_fails_typecheck() do
+      Process.put(:lollollol, :fail)
+      Process.get(:lollollol)
+    end
+  end
 end

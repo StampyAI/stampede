@@ -35,18 +35,22 @@ defmodule Stampede.Tables.Interactions do
   def validate!(record) when is_struct(record, __MODULE__) do
     if S.Interact.id_exists?(record.id), do: raise("Interaction already recorded??")
 
-    record
-    # |> TypeCheck.conforms!(%__MODULE__{
-    #   id: S.interaction_id(),
-    #   datetime: S.timestamp(),
-    #   plugin: module(),
-    #   # This can't be set until the service has posted the message
-    #   posted_msg_id: nil | S.msg_id(),
-    #   msg: Msg.t(),
-    #   response: Response.t(),
-    #   traceback: TxtBlock.t(),
-    #   channel_lock: S.channel_lock_action()
-    # })
+    if S.enable_typechecking?() do
+      record
+      |> TypeCheck.conforms!(%__MODULE__{
+        id: S.interaction_id(),
+        datetime: S.timestamp(),
+        plugin: module(),
+        # This can't be set until the service has posted the message
+        posted_msg_id: nil | S.msg_id(),
+        msg: Msg.t(),
+        response: Response.t(),
+        traceback: TxtBlock.t(),
+        channel_lock: S.channel_lock_action()
+      })
+    else
+      record
+    end
   end
 
   def validate!(record) when not is_struct(record, __MODULE__),

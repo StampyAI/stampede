@@ -27,7 +27,9 @@ extra_metadata =
 config :stampede,
   compile_env: Mix.env()
 
-config :stampede, :type_check, enable_runtime_checks: Mix.env() != :bench
+config :stampede, :type_check,
+  enable_runtime_checks: Mix.env() in [:dev, :test],
+  debug: false
 
 config :stampede, Stampede.Scheduler,
   jobs: [

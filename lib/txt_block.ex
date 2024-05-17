@@ -34,6 +34,14 @@ defmodule TxtBlock do
       when is_binary(txt),
       do: txt
 
+  defguard is_list_sensitive(type)
+           when is_tuple(type) and tuple_size(type) == 2 and elem(type, 0) == :list
+
+  def to_str_list({type, blk}, service_name) when is_list_sensitive(type) do
+    Enum.map(blk, &to_str_list(&1, service_name))
+    |> Service.txt_format(type, service_name)
+  end
+
   def to_str_list({type, blk}, service_name) do
     to_str_list(blk, service_name)
     |> Service.txt_format(type, service_name)
