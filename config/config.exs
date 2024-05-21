@@ -37,7 +37,7 @@ config :stampede, Stampede.Scheduler,
   ]
 
 config :logger, :console,
-  level: :warning,
+  level: :all,
   metadata: stampede_metadata ++ [:mfa]
 
 config :logger,

@@ -98,34 +98,64 @@ defmodule Service.Discord do
     end)
   end
 
-  def do_send_msg(channel_id, msg, try \\ 0) do
-    case Api.create_message(
-           channel_id,
-           content: msg
-         ) do
-      {:ok, %{id: id}} ->
-        {:ok, id}
+  defp api_create_message(channel_id, opts) do
+    case :persistent_term.get({__MODULE__, :mock_api}, nil) do
+      nil ->
+        Api.create_message(channel_id, opts)
 
-      {:error, e} ->
-        if try < 5 do
-          IO.puts(
-            :stderr,
-            [
-              "send_msg: discord message send failure ##",
-              try,
-              ", error ",
-              e |> S.pp(),
-              ". Trying again..."
-            ]
-          )
+      :fail ->
+        {:error, :mock_forced_failure}
 
-          :ok = Process.sleep(500)
+      other ->
+        raise "Not implemented: #{other |> inspect()}"
+    end
+  end
 
-          do_send_msg(channel_id, msg, try + 1)
-        else
-          IO.puts(:stderr, "send_msg: gave up trying to send message. Nothing else to do.")
-          {:error, e}
-        end
+  def do_send_msg(channel_id, msg),
+    do: do_send_msg(channel_id, msg, 10, 0, DateTime.utc_now() |> DateTime.add(1, :second))
+
+  def do_send_msg(channel_id, msg, max_tries, try, timeout) do
+    if DateTime.after?(DateTime.utc_now(), timeout) do
+      IO.puts(:stderr, "Discord do_send_msg: timeout")
+      {:error, :timeout}
+    else
+      case api_create_message(
+             channel_id,
+             content: msg
+           ) do
+        {:ok, %{id: id}} ->
+          {:ok, id}
+
+        {:error, e} ->
+          if try < max_tries do
+            # exponential backoff
+            time_to_wait = 10 * Integer.pow(2, try)
+
+            IO.puts(
+              :stderr,
+              [
+                "Discord do_send_msg: send failure #",
+                try |> to_string(),
+                ", error ",
+                e |> S.pp(),
+                ". Trying again in ",
+                time_to_wait |> to_string(),
+                "ms..."
+              ]
+            )
+
+            :ok = Process.sleep(time_to_wait)
+
+            do_send_msg(channel_id, msg, max_tries, try + 1, timeout)
+          else
+            IO.puts(
+              :stderr,
+              "Discord do_send_msg: gave up trying to send message. Nothing else to do."
+            )
+
+            {:error, e}
+          end
+      end
     end
   end
 
