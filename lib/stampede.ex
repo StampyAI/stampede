@@ -1,4 +1,5 @@
 defmodule Stampede do
+  @compile [:bin_opt_info, :recv_opt_info]
   use TypeCheck
   @type! service_name :: module()
   @type! channel_id :: any()
@@ -21,6 +22,8 @@ defmodule Stampede do
            String.t()
            | []
            | nonempty_list(lazy(Stampede.str_list()))
+  @type! mapset(t) :: map(any(), t)
+  @type! mapset() :: mapset(any())
 
   @type! traceback :: TxtBlock.t()
   @type! enabled_plugs :: :all | [] | nonempty_list(module())
@@ -217,9 +220,6 @@ defmodule Stampede do
   end
 
   def make_dm_tuple(service_name), do: {:dm, service_name}
-
-  @type! mapset(t) :: map(any(), t)
-  @type! mapset() :: mapset(any())
 
   @spec! fulfill_predicate_before_time(DateTime.t(), (-> boolean())) :: :fulfilled | :failed
   def fulfill_predicate_before_time(cutoff, pred) do

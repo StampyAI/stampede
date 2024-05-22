@@ -1,4 +1,5 @@
 defmodule TxtBlock.Md do
+  @compile [:bin_opt_info, :recv_opt_info]
   use TypeCheck
   alias Stampede, as: S
 

@@ -1,4 +1,5 @@
 defmodule Stampede.CfgTable do
+  @compile [:bin_opt_info, :recv_opt_info]
   use GenServer
   require Logger
   alias Stampede, as: S

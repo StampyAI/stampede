@@ -1,4 +1,5 @@
 defmodule Stampede.Tables do
+  @compile [:bin_opt_info, :recv_opt_info]
   @moduledoc """
   Manage various Mnesia tables.
   """

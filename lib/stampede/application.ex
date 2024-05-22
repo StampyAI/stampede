@@ -1,4 +1,5 @@
 defmodule Stampede.Application do
+  @compile [:bin_opt_info, :recv_opt_info]
   # See https://hexdocs.pm/elixir/Application.html
   # for more information on OTP Applications
   @moduledoc false

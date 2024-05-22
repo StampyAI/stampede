@@ -1,4 +1,5 @@
 defmodule Stampede.Tables.Interactions do
+  @compile [:bin_opt_info, :recv_opt_info]
   use TypeCheck
   alias Stampede.Msg
   alias Stampede.Response

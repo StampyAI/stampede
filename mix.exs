@@ -11,6 +11,12 @@ defmodule Stampede.MixProject do
       dialyzer: dialyzer(),
       preferred_cli_env: [release: :prod, test: :test],
       aliases: [test: "test --no-start"],
+      # Appears to not work at all
+      erlc_options: [
+        strong_validation: true,
+        recv_opt_info: true,
+        bin_opt_info: true
+      ],
 
       # Docs
       name: "Stampede",

@@ -1,4 +1,5 @@
 defmodule Stampede.Tables.Ids do
+  @compile [:bin_opt_info, :recv_opt_info]
   alias Stampede, as: S
   use TypeCheck
 

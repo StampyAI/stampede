@@ -1,4 +1,5 @@
 defmodule Stampede.Interact do
+  @compile [:bin_opt_info, :recv_opt_info]
   require Logger
   alias Stampede, as: S
   alias S.Tables.{Ids, Interactions, ChannelLocks}

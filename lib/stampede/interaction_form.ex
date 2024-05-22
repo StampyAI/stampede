@@ -1,4 +1,5 @@
 defmodule Stampede.InteractionForm do
+  @compile [:bin_opt_info, :recv_opt_info]
   alias Stampede, as: S
   alias S.{Msg, Response}
   use TypeCheck

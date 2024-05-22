@@ -1,4 +1,5 @@
 defmodule SiteConfig do
+  @compile [:bin_opt_info, :recv_opt_info]
   @moduledoc """
   This module defines how per-site configurations are validated and represented.
 

@@ -1,4 +1,5 @@
 defmodule Service.Discord do
+  @compile [:bin_opt_info, :recv_opt_info]
   alias Stampede, as: S
   alias S.{Msg}
   alias Nostrum.Api
@@ -276,6 +277,7 @@ defmodule Service.Discord do
 end
 
 defmodule Service.Discord.Handler do
+  @compile [:bin_opt_info, :recv_opt_info]
   use TypeCheck
   use TypeCheck.Defstruct
   use GenServer
@@ -415,6 +417,7 @@ defmodule Service.Discord.Handler do
 end
 
 defmodule Service.Discord.Consumer do
+  @compile [:bin_opt_info, :recv_opt_info]
   @moduledoc """
   Handles Nostrum's business while passing off jobs to Handler
   """
