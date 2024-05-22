@@ -193,13 +193,7 @@ defmodule Service.Discord do
     formatted = format_plugin_fail(cfg, msg, error_info)
 
     _ =
-      spawn(fn ->
-        _ =
-          send_msg(
-            channel_id,
-            formatted
-          )
-      end)
+      Task.start_link(__MODULE__, :send_msg, [channel_id, formatted])
 
     {:ok, formatted}
   end

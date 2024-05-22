@@ -119,7 +119,7 @@ defmodule Stampede.Interact do
 
     :ok = announce_interaction(new_row)
 
-    _ = spawn_link(__MODULE__, :check_for_orphaned_interaction, [iid, int.service])
+    _ = Task.start_link(__MODULE__, :check_for_orphaned_interaction, [iid, int.service])
 
     {:ok, iid}
   end

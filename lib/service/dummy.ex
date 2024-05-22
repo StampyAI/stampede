@@ -187,9 +187,9 @@ defmodule Service.Dummy do
     formatted =
       format_plugin_fail(cfg, msg, error_info)
 
+    # NOTE: as this function is generally being called inside a GenServer process, spawning a new thread is required.
     _ =
-      spawn(fn ->
-        # NOTE: as this function is generally being called inside a GenServer process, spawning a new thread is required.
+      Task.start_link(fn ->
         send_msg(
           SiteConfig.fetch!(cfg, :server_id),
           SiteConfig.fetch!(cfg, :error_channel_id),
