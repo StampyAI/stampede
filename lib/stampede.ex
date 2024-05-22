@@ -131,8 +131,11 @@ defmodule Stampede do
 
   def split_prefix(text, prefix) when is_binary(prefix) and is_binary(text) do
     case text do
-      <<^prefix::binary-size(floor(bit_size(prefix) / 8)), rest::binary>> ->
-        {prefix, rest}
+      <<^prefix::binary-size(floor(bit_size(prefix) / 8)), _::binary>> ->
+        {
+          binary_part(text, 0, byte_size(prefix)),
+          binary_part(text, byte_size(prefix), byte_size(text) - 1)
+        }
 
       not_prefixed ->
         {false, not_prefixed}
