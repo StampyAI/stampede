@@ -2,7 +2,7 @@ defmodule Service.Dummy.Table do
   @compile [:bin_opt_info, :recv_opt_info]
   use TypeCheck
   alias Stampede.Msg
-  alias Stampede.Response
+  alias Stampede.ResponseToPost
   alias Stampede, as: S
 
   use Memento.Table,
@@ -44,7 +44,7 @@ defmodule Service.Dummy do
   alias Service.Dummy
   alias Stampede, as: S
   require S
-  alias S.{Msg, Response}
+  alias S.{Msg, ResponseToPost}
   require Msg
 
   use Service
@@ -130,7 +130,7 @@ defmodule Service.Dummy do
   def send_msg({server_id, channel, user}, text, opts \\ []),
     do: send_msg(server_id, channel, user, text, opts)
 
-  # BUG: why does Dialyzer not acknowledge unwrapped nil and Response?
+  # BUG: why does Dialyzer not acknowledge unwrapped nil and ResponseToPost?
   @spec! send_msg(
            dummy_server_id(),
            dummy_channel_id(),
@@ -139,12 +139,12 @@ defmodule Service.Dummy do
            keyword()
          ) ::
            %{
-             response: nil | Response.t(),
+             response: nil | ResponseToPost.t(),
              posted_msg_id: dummy_msg_id(),
              bot_response_msg_id: nil | dummy_msg_id()
            }
            | nil
-           | Response.t()
+           | ResponseToPost.t()
   def send_msg(server_id, channel, user, text, opts \\ []) do
     formatted_text =
       TxtBlock.to_binary(text, __MODULE__)
@@ -333,7 +333,7 @@ defmodule Service.Dummy do
 
       result =
         case Plugin.get_top_response(cfg, inciting_msg_with_context) do
-          {response, iid} when is_struct(response, Response) ->
+          {response, iid} when is_struct(response, ResponseToPost) ->
             binary_response =
               response
               |> Map.update!(:text, fn blk ->
@@ -411,7 +411,7 @@ defmodule Service.Dummy do
   end
 
   defp do_post_response({server_id, channel}, response, state)
-       when is_struct(response, Response) do
+       when is_struct(response, ResponseToPost) do
     {server_id, channel, @bot_user, response.text, response.origin_msg_id}
     |> do_add_new_msg(state)
   end

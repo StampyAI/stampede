@@ -27,14 +27,14 @@ defmodule Plugin do
   require PluginCrashInfo
   alias PluginCrashInfo, as: CrashInfo
   alias Stampede, as: S
-  alias S.{Msg, Response, InteractionForm}
+  alias S.{Msg, ResponseToPost, InteractionForm}
   require InteractionForm
   @first_response_timeout 500
 
   @doc """
   Decide if and how this plugin should respond
   """
-  @callback respond(cfg :: SiteConfig.t(), msg :: Msg.t()) :: nil | Response.t()
+  @callback respond(cfg :: SiteConfig.t(), msg :: Msg.t()) :: nil | ResponseToPost.t()
 
   @typedoc """
   Describe uses for a plugin in a input-output manner, no prefix included.
@@ -140,7 +140,7 @@ defmodule Plugin do
            SiteConfig.t(),
            S.Msg.t()
          ) ::
-           nil | {response :: Response.t(), interaction_id :: S.interaction_id()}
+           nil | {response :: ResponseToPost.t(), interaction_id :: S.interaction_id()}
   def query_plugins(call_list, cfg, msg) do
     tasks =
       Enum.map(call_list, fn
@@ -220,7 +220,7 @@ defmodule Plugin do
         {plug, result} ->
           case result do
             r = {:job_ok, return} ->
-              if is_struct(return, S.Response) and plug != return.origin_plug do
+              if is_struct(return, S.ResponseToPost) and plug != return.origin_plug do
                 raise(
                   "Plug #{plug} doesn't match #{return.origin_plug}. I screwed up the task running code."
                 )
@@ -241,7 +241,7 @@ defmodule Plugin do
         nil
 
       # we have a response to immediately provide
-      %Response{callback: nil} ->
+      %ResponseToPost{callback: nil} ->
         {:ok, iid} =
           S.InteractionForm.new(
             service: cfg.service,
@@ -257,7 +257,7 @@ defmodule Plugin do
 
       # we can't get a response until we run this callback
       # TODO: let callback decide to not respond, and fall back to the next highest priority response
-      %Response{callback: {mod, fun, args}} ->
+      %ResponseToPost{callback: {mod, fun, args}} ->
         followup =
           apply(mod, fun, args)
 
@@ -286,7 +286,7 @@ defmodule Plugin do
 
   @doc "Poll all enabled plugins and choose the most relevant one."
   @spec! get_top_response(SiteConfig.t(), Msg.t()) ::
-           nil | {response :: Response.t(), interaction_id :: S.interaction_id()}
+           nil | {response :: ResponseToPost.t(), interaction_id :: S.interaction_id()}
   def ashfhfdn_get_top_response(cfg, msg) do
     ef_opts = [
       {:output_directory, "./eflame/"},
@@ -371,7 +371,7 @@ defmodule Plugin do
   @doc "Choose best response, creating a traceback along the way."
   @spec! resolve_responses(nonempty_list(plugin_job_result())) :: %{
            # NOTE: reversing order from 'nil | response' to 'response | nil' makes Dialyzer not count nil?
-           r: nil | S.Response.t(),
+           r: nil | S.ResponseToPost.t(),
            tb: S.traceback()
          }
   def resolve_responses(tlist) do

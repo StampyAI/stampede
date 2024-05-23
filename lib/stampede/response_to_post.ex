@@ -1,4 +1,4 @@
-defmodule Stampede.Response do
+defmodule Stampede.ResponseToPost do
   @compile [:bin_opt_info, :recv_opt_info]
   @moduledoc """
   The data type for choosing between possible responses to a message.
@@ -32,7 +32,7 @@ defmodule Stampede.Response do
     channel_lock: false :: S.channel_lock_action()
   )
 
-  @doc "makes a new Response but automatically tags the source module unless already being tagged"
+  @doc "makes a new ResponseToPost but automatically tags the source module unless already being tagged"
   defmacro new(keys) do
     quote do
       struct!(

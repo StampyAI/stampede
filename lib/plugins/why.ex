@@ -1,8 +1,8 @@
 defmodule Plugins.Why do
   use TypeCheck
-  require Stampede.Response
+  require Stampede.ResponseToPost
   alias Stampede, as: S
-  alias S.{Response, InteractionForm}
+  alias S.{ResponseToPost, InteractionForm}
   require InteractionForm
 
   use Plugin
@@ -34,7 +34,7 @@ defmodule Plugins.Why do
   end
 
   @impl Plugin
-  @spec! respond(SiteConfig.t(), S.Msg.t()) :: nil | S.Response.t()
+  @spec! respond(SiteConfig.t(), S.Msg.t()) :: nil | S.ResponseToPost.t()
   def respond(_cfg, msg) when not Plugin.is_bot_invoked(msg), do: nil
 
   def respond(cfg, msg) when Plugin.is_bot_invoked(msg) do
@@ -43,7 +43,7 @@ defmodule Plugins.Why do
 
       case Map.fetch!(msg, :referenced_msg_id) do
         nil ->
-          Response.new(
+          ResponseToPost.new(
             confidence: valid_confidence,
             text:
               "It looks like you're asking about one of my messages, but you didn't reference which one.",
@@ -55,7 +55,7 @@ defmodule Plugins.Why do
           # Ok, let's return a traceback.
           case S.Interact.get_traceback(ref) do
             {:ok, traceback} ->
-              Response.new(
+              ResponseToPost.new(
                 confidence: valid_confidence,
                 text: traceback |> TxtBlock.to_str_list(cfg.service),
                 origin_msg_id: msg.id,
@@ -63,7 +63,7 @@ defmodule Plugins.Why do
               )
 
             other ->
-              Response.new(
+              ResponseToPost.new(
                 confidence: valid_confidence,
                 text: msg_fail(ref),
                 origin_msg_id: msg.id,

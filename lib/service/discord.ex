@@ -277,7 +277,7 @@ defmodule Service.Discord.Handler do
   use GenServer
   require Logger
   alias Stampede, as: S
-  alias S.{Response, Msg}
+  alias S.{ResponseToPost, Msg}
   require Msg
   alias Service.Discord
 
@@ -396,7 +396,7 @@ defmodule Service.Discord.Handler do
       |> S.Msg.add_context(our_cfg)
 
     case Plugin.get_top_response(our_cfg, inciting_msg_with_context) do
-      {%Response{text: r_text}, iid} when r_text != nil ->
+      {%ResponseToPost{text: r_text}, iid} when r_text != nil ->
         {:ok, first_id: bot_response_msg_id} =
           Discord.send_msg(inciting_msg_with_context.channel_id, r_text)
 
