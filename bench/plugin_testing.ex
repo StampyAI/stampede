@@ -1,5 +1,5 @@
 alias Stampede, as: S
-require Stampede.Msg
+require Stampede.MsgReceived
 require Aja
 
 defmodule T do
@@ -177,7 +177,7 @@ defmodule T do
         msg =
           case single_msg do
             Aja.vec([:ping]) ->
-              S.Msg.new(
+              S.MsgReceived.new(
                 body: "!ping",
                 server_id: server_id,
                 author_id: user_id,
@@ -185,10 +185,10 @@ defmodule T do
                 id: msg_id,
                 service: Service.Dummy
               )
-              |> S.Msg.add_context(cfg)
+              |> S.MsgReceived.add_context(cfg)
 
             Aja.vec([:unrelated]) ->
-              S.Msg.new(
+              S.MsgReceived.new(
                 body: "lololol",
                 server_id: server_id,
                 author_id: user_id,
@@ -196,7 +196,7 @@ defmodule T do
                 id: msg_id,
                 service: Service.Dummy
               )
-              |> S.Msg.add_context(cfg)
+              |> S.MsgReceived.add_context(cfg)
           end
 
         {cfg, msg}
@@ -230,7 +230,7 @@ defmodule T do
           |> Aja.Vector.map_reduce(0, fn
             :ping, i ->
               {
-                S.Msg.new(
+                S.MsgReceived.new(
                   body: "!ping",
                   server_id: server_id,
                   author_id: user_id,
@@ -238,13 +238,13 @@ defmodule T do
                   id: i,
                   service: Service.Dummy
                 )
-                |> S.Msg.add_context(cfg),
+                |> S.MsgReceived.add_context(cfg),
                 i + 1
               }
 
             :unrelated, i ->
               {
-                S.Msg.new(
+                S.MsgReceived.new(
                   body: "lololol",
                   server_id: server_id,
                   author_id: user_id,
@@ -252,7 +252,7 @@ defmodule T do
                   id: i,
                   service: Service.Dummy
                 )
-                |> S.Msg.add_context(cfg),
+                |> S.MsgReceived.add_context(cfg),
                 i + 1
               }
           end)

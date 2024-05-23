@@ -1,9 +1,9 @@
 defmodule Service.Discord do
   @compile [:bin_opt_info, :recv_opt_info]
   alias Stampede, as: S
-  alias S.{Msg}
+  alias S.{MsgReceived}
   alias Nostrum.Api
-  require Msg
+  require MsgReceived
   use TypeCheck
   use Supervisor, restart: :permanent
   require Logger
@@ -25,7 +25,7 @@ defmodule Service.Discord do
   @consecutive_msg_limit 10
 
   def into_msg(svc_msg) do
-    Msg.new(
+    MsgReceived.new(
       id: svc_msg.id,
       body: svc_msg.content,
       channel_id: svc_msg.channel_id,
@@ -248,8 +248,8 @@ defmodule Service.Discord do
 
   @impl Service
   def dm?(%Nostrum.Struct.Message{guild_id: gid}), do: gid == nil
-  def dm?(%S.Msg{server_id: {:dm, __MODULE__}}), do: true
-  def dm?(%S.Msg{server_id: _}), do: false
+  def dm?(%S.MsgReceived{server_id: {:dm, __MODULE__}}), do: true
+  def dm?(%S.MsgReceived{server_id: _}), do: false
 
   @impl Service
   def start_link(args) do
@@ -277,8 +277,8 @@ defmodule Service.Discord.Handler do
   use GenServer
   require Logger
   alias Stampede, as: S
-  alias S.{ResponseToPost, Msg}
-  require Msg
+  alias S.{ResponseToPost, MsgReceived}
+  require MsgReceived
   alias Service.Discord
 
   @typep! vips :: S.CfgTable.vips()
@@ -393,7 +393,7 @@ defmodule Service.Discord.Handler do
     inciting_msg_with_context =
       discord_msg
       |> Discord.into_msg()
-      |> S.Msg.add_context(our_cfg)
+      |> S.MsgReceived.add_context(our_cfg)
 
     case Plugin.get_top_response(our_cfg, inciting_msg_with_context) do
       {%ResponseToPost{text: r_text}, iid} when r_text != nil ->

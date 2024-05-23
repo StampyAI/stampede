@@ -34,7 +34,7 @@ defmodule Plugins.Why do
   end
 
   @impl Plugin
-  @spec! respond(SiteConfig.t(), S.Msg.t()) :: nil | S.ResponseToPost.t()
+  @spec! respond(SiteConfig.t(), S.MsgReceived.t()) :: nil | S.ResponseToPost.t()
   def respond(_cfg, msg) when not Plugin.is_bot_invoked(msg), do: nil
 
   def respond(cfg, msg) when Plugin.is_bot_invoked(msg) do

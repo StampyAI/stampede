@@ -27,14 +27,14 @@ defmodule Plugin do
   require PluginCrashInfo
   alias PluginCrashInfo, as: CrashInfo
   alias Stampede, as: S
-  alias S.{Msg, ResponseToPost, InteractionForm}
+  alias S.{MsgReceived, ResponseToPost, InteractionForm}
   require InteractionForm
   @first_response_timeout 500
 
   @doc """
   Decide if and how this plugin should respond
   """
-  @callback respond(cfg :: SiteConfig.t(), msg :: Msg.t()) :: nil | ResponseToPost.t()
+  @callback respond(cfg :: SiteConfig.t(), msg :: MsgReceived.t()) :: nil | ResponseToPost.t()
 
   @typedoc """
   Describe uses for a plugin in a input-output manner, no prefix included.
@@ -95,7 +95,7 @@ defmodule Plugin do
   @type! plugin_job_result :: {module(), job_result()}
 
   @doc "Attempt some task, safely catch errors, and format the error report for the originating service"
-  @spec! get_response(S.module_function_args(), SiteConfig.t(), S.Msg.t()) ::
+  @spec! get_response(S.module_function_args(), SiteConfig.t(), S.MsgReceived.t()) ::
            job_result()
   def get_response({m, f, a}, cfg, msg) do
     # if an error occurs in process_msg, catch it and return as data
@@ -138,7 +138,7 @@ defmodule Plugin do
            nonempty_list(module() | S.module_function_args())
            | MapSet.t(module() | S.module_function_args()),
            SiteConfig.t(),
-           S.Msg.t()
+           S.MsgReceived.t()
          ) ::
            nil | {response :: ResponseToPost.t(), interaction_id :: S.interaction_id()}
   def query_plugins(call_list, cfg, msg) do
@@ -285,7 +285,7 @@ defmodule Plugin do
   end
 
   @doc "Poll all enabled plugins and choose the most relevant one."
-  @spec! get_top_response(SiteConfig.t(), Msg.t()) ::
+  @spec! get_top_response(SiteConfig.t(), MsgReceived.t()) ::
            nil | {response :: ResponseToPost.t(), interaction_id :: S.interaction_id()}
   def ashfhfdn_get_top_response(cfg, msg) do
     ef_opts = [

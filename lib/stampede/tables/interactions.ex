@@ -1,7 +1,7 @@
 defmodule Stampede.Tables.Interactions do
   @compile [:bin_opt_info, :recv_opt_info]
   use TypeCheck
-  alias Stampede.Msg
+  alias Stampede.MsgReceived
   alias Stampede.ResponseToPost
   alias Stampede, as: S
 
@@ -44,7 +44,7 @@ defmodule Stampede.Tables.Interactions do
         plugin: module(),
         # This can't be set until the service has posted the message
         posted_msg_id: nil | S.msg_id(),
-        msg: Msg.t(),
+        msg: MsgReceived.t(),
         response: ResponseToPost.t(),
         traceback: TxtBlock.t(),
         channel_lock: S.channel_lock_action()

@@ -18,10 +18,10 @@ defmodule Plugins.Sentience do
   end
 
   @impl Plugin
-  @spec! respond(SiteConfig.t(), S.Msg.t()) :: nil | S.ResponseToPost.t()
+  @spec! respond(SiteConfig.t(), S.MsgReceived.t()) :: nil | S.ResponseToPost.t()
   def respond(_cfg, msg) when not Plugin.is_bot_invoked(msg), do: nil
 
-  def respond(_cfg, msg = %S.Msg{id: msg_id}) when Plugin.is_bot_invoked(msg) do
+  def respond(_cfg, msg = %S.MsgReceived{id: msg_id}) when Plugin.is_bot_invoked(msg) do
     S.ResponseToPost.new(
       confidence: 1,
       text: S.confused_response(),

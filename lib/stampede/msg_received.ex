@@ -1,4 +1,4 @@
-defmodule Stampede.Msg do
+defmodule Stampede.MsgReceived do
   @compile [:bin_opt_info, :recv_opt_info]
   use TypeCheck
   use TypeCheck.Defstruct

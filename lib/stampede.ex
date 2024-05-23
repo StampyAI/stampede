@@ -4,7 +4,7 @@ defmodule Stampede do
   @type! service_name :: module()
   @type! channel_id :: any()
   @typedoc """
-  Used in S.Msg in place of a server ID to denote DM threads
+  Used in S.MsgReceived in place of a server ID to denote DM threads
   """
   @type! dm_tuple :: {:dm, service_name()}
   @type! server_id :: integer() | atom() | dm_tuple()
@@ -50,7 +50,7 @@ defmodule Stampede do
     raise "intentional internal error: #{text}"
   end
 
-  @doc "Check a Msg struct against a SiteConfig whether this author is privileged"
+  @doc "Check a MsgReceived struct against a SiteConfig whether this author is privileged"
   @spec! author_privileged?(
            %{server_id: any()},
            %{author_id: any()}

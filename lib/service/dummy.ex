@@ -1,7 +1,7 @@
 defmodule Service.Dummy.Table do
   @compile [:bin_opt_info, :recv_opt_info]
   use TypeCheck
-  alias Stampede.Msg
+  alias Stampede.MsgReceived
   alias Stampede.ResponseToPost
   alias Stampede, as: S
 
@@ -44,8 +44,8 @@ defmodule Service.Dummy do
   alias Service.Dummy
   alias Stampede, as: S
   require S
-  alias S.{Msg, ResponseToPost}
-  require Msg
+  alias S.{MsgReceived, ResponseToPost}
+  require MsgReceived
 
   use Service
 
@@ -207,7 +207,7 @@ defmodule Service.Dummy do
   def log_serious_error(_), do: :ok
 
   def into_msg({id, server_id, channel, user, body, ref}) do
-    Msg.new(
+    MsgReceived.new(
       id: id,
       body: body,
       channel_id: channel,
@@ -329,7 +329,7 @@ defmodule Service.Dummy do
 
       inciting_msg_with_context =
         inciting_msg
-        |> S.Msg.add_context(cfg)
+        |> S.MsgReceived.add_context(cfg)
 
       result =
         case Plugin.get_top_response(cfg, inciting_msg_with_context) do
@@ -418,7 +418,7 @@ defmodule Service.Dummy do
 
   @spec! do_add_new_msg(tuple(), %__MODULE__{}) :: %{
            posted_msg_id: dummy_msg_id(),
-           posted_msg_object: %Msg{},
+           posted_msg_object: %MsgReceived{},
            new_state: %__MODULE__{}
          }
   defp do_add_new_msg(msg_tuple = {server_id, channel, user, text, ref}, state) do
