@@ -1,4 +1,4 @@
-defmodule Plugin.Sentience do
+defmodule Plugins.Sentience do
   use TypeCheck
   alias Stampede, as: S
   require S.Response

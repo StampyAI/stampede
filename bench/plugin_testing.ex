@@ -10,7 +10,7 @@ defmodule T do
     lag_max = (lagginess == :slow && 500) || 1
 
     Enum.reduce(0..num, MapSet.new(), fn i, acc ->
-      name = Module.concat(Plugin, "fake_#{i}")
+      name = Module.concat(Plugins, "fake_#{i}")
 
       lag = (Float.pow(1.5, -i) * lag_max) |> round()
       IO.puts("This lag: #{lag |> to_string()}")

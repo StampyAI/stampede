@@ -21,7 +21,7 @@ defmodule StampedeStatelessTest do
     server_id: :testing,
     error_channel_id: :error,
     prefix: "!",
-    plugs: MapSet.new([Plugin.Test, Plugin.Sentience]),
+    plugs: MapSet.new([Plugins.Test, Plugins.Sentience]),
     vip_ids: MapSet.new([:server]),
     dm_handler: true,
     bot_is_loud: false
@@ -84,7 +84,7 @@ defmodule StampedeStatelessTest do
         )
         |> S.Msg.add_context(dummy_cfg)
 
-      r = Plugin.Test.respond(dummy_cfg, msg)
+      r = Plugins.Test.respond(dummy_cfg, msg)
       assert r.text == "pong!"
 
       msg =
@@ -98,7 +98,7 @@ defmodule StampedeStatelessTest do
         |> S.Msg.add_context(dummy_cfg)
 
       assert_raise SillyError, fn ->
-        _ = Plugin.Test.respond(dummy_cfg, msg)
+        _ = Plugins.Test.respond(dummy_cfg, msg)
       end
 
       msg =
@@ -112,7 +112,7 @@ defmodule StampedeStatelessTest do
         |> S.Msg.add_context(dummy_cfg)
 
       try do
-        _ = Plugin.Test.respond(dummy_cfg, msg)
+        _ = Plugins.Test.respond(dummy_cfg, msg)
       catch
         _t, e ->
           assert e == SillyThrow
@@ -128,7 +128,7 @@ defmodule StampedeStatelessTest do
         )
         |> S.Msg.add_context(dummy_cfg)
 
-      %{callback: {m, f, a}} = Plugin.Test.respond(dummy_cfg, msg)
+      %{callback: {m, f, a}} = Plugins.Test.respond(dummy_cfg, msg)
 
       cbr = apply(m, f, a)
       assert String.starts_with?(cbr.text, "Called back with")

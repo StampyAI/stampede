@@ -1,4 +1,4 @@
-defmodule Plugin.Test do
+defmodule Plugins.Test do
   require Logger
   use TypeCheck
   alias Stampede, as: S

@@ -69,7 +69,7 @@ defmodule Plugin do
   @doc "returns loaded modules using the Plugin behavior."
   @spec! ls() :: MapSet.t(module())
   def ls() do
-    S.find_submodules(Plugin)
+    S.find_submodules(Plugins)
     |> Enum.reduce(MapSet.new(), fn
       mod, acc ->
         b =

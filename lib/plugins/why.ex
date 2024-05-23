@@ -1,7 +1,6 @@
-defmodule Plugin.Why do
+defmodule Plugins.Why do
   use TypeCheck
   require Stampede.Response
-  alias Plugin.Why.Debugging
   alias Stampede, as: S
   alias S.{Response, InteractionForm}
   require InteractionForm

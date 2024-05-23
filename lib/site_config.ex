@@ -6,7 +6,7 @@ defmodule SiteConfig do
   A configuration usually starts as a YAML file on-disk. It is then:
   - read into an Erlang term
   - validated with NimbleOptions (simultaneously handling defaults and type-checking)
-  - some transformations are done; for example, turning atoms referring to services and plugins into their proper names ("discord" into Elixir.Service.Discord, "why" into Elixir.Plugin.Why).
+  - some transformations are done; for example, turning atoms referring to services and plugins into their proper names ("discord" into Elixir.Service.Discord, "why" into Elixir.Plugins.Why).
   - turned into a SiteConfig struct (internally a map)
   - Given to Stampede.CfgTable which handles storage of the configs and keeping services up-to-date.
 
@@ -146,7 +146,7 @@ defmodule SiteConfig do
     |> Map.new()
   end
 
-  @doc "Turn plug_name into Elixir.Plugin.PlugName"
+  @doc "Turn plug_name into Elixir.Plugins.PlugName"
   def concat_plugs(kwlist, _schema) do
     if is_list(Keyword.get(kwlist, :plugs)) do
       Keyword.update!(kwlist, :plugs, fn plugs ->
@@ -157,7 +157,7 @@ defmodule SiteConfig do
           ll when is_list(ll) ->
             Enum.map(ll, fn name ->
               camel_name = name |> to_string() |> Macro.camelize()
-              Module.safe_concat(Plugin, camel_name)
+              Module.safe_concat(Plugins, camel_name)
             end)
             |> MapSet.new()
         end

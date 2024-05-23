@@ -22,7 +22,7 @@ defmodule StampedeTest do
     server_id: :testing,
     error_channel_id: :error,
     prefix: "!",
-    plugs: MapSet.new([Plugin.Test, Plugin.Sentience, Plugin.Why]),
+    plugs: MapSet.new([Plugins.Test, Plugins.Sentience, Plugins.Why]),
     dm_handler: false,
     filename: :"test SiteConfig load_all",
     vip_ids: MapSet.new([:server]),
@@ -46,7 +46,7 @@ defmodule StampedeTest do
     id = context.test
 
     if Map.get(context, :dummy, false) do
-      :ok = D.new_server(id, MapSet.new([Plugin.Test, Plugin.Sentience, Plugin.Why]))
+      :ok = D.new_server(id, MapSet.new([Plugins.Test, Plugins.Sentience, Plugins.Why]))
     end
 
     %{id: id}
@@ -241,7 +241,7 @@ defmodule StampedeTest do
 
       D.send_msg(s.id, :t1, :u1, "!Why did you say that, specifically?", ref: bot_response_msg_id)
       |> Map.fetch!(:text)
-      |> Plugin.Why.Debugging.probably_a_traceback()
+      |> Plugins.Why.Debugging.probably_a_traceback()
       |> assert("couldn't find traceback, maybe regex needs update?")
     end
 
@@ -250,7 +250,7 @@ defmodule StampedeTest do
         ref: {s.id, :t1, :system, 9999}
       )
       |> Map.fetch!(:text)
-      |> Plugin.Why.Debugging.probably_a_missing_interaction()
+      |> Plugins.Why.Debugging.probably_a_missing_interaction()
       |> assert()
     end
 
