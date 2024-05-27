@@ -261,13 +261,11 @@ defmodule Plugin do
         followup =
           apply(mod, fun, args)
 
-        new_tb = [
-          traceback,
-          "\nTop response was a callback, so i called it. It responded with: \n\"",
-          followup.text,
-          "\"",
-          followup.why
-        ]
+        new_tb =
+          Stampede.Traceback.append(
+            traceback,
+            {:callback_called, followup.text, followup.why}
+          )
 
         {:ok, iid} =
           S.InteractionForm.new(
@@ -298,23 +296,15 @@ defmodule Plugin do
     :eflambe.apply({__MODULE__, :do_get_top_response, [cfg, msg]}, ef_opts)
   end
 
-  def get_top_response(cfg, msg) do
+  def get_top_response(cfg, msg = %S.MsgReceived{}) do
     case S.Interact.channel_locked?(msg.channel_id) do
       {{m, f, args_without_msg}, _plugin, _iid} ->
         {response, iid} = query_plugins([{m, f, [msg | args_without_msg]}], cfg, msg)
 
         explained_response =
-          Map.update!(response, :why, fn tb ->
-            [
-              "Channel ",
-              msg.channel_id |> inspect(),
-              "was locked to module ",
-              m |> inspect(),
-              ", function ",
-              "f",
-              ", so we called it.\n"
-              | tb
-            ]
+          Map.update!(response, :why, fn why ->
+            {:channel_lock_triggered, msg.channel_id, m, f, response.text, why}
+            |> S.Traceback.do_single_transform()
           end)
 
         {explained_response, iid}
@@ -372,11 +362,11 @@ defmodule Plugin do
   @spec! resolve_responses(nonempty_list(plugin_job_result())) :: %{
            # NOTE: reversing order from 'nil | response' to 'response | nil' makes Dialyzer not count nil?
            r: nil | S.ResponseToPost.t(),
-           tb: S.traceback()
+           tb: S.Traceback.t()
          }
   def resolve_responses(tlist) do
     task_sort(tlist)
-    |> do_rr(nil, [])
+    |> do_rr(nil, Aja.Vector.new())
   end
 
   def do_rr([], chosen_response, traceback) do
@@ -391,12 +381,14 @@ defmodule Plugin do
         chosen_response,
         traceback
       ) do
-    do_rr(rest, chosen_response, [
-      traceback,
-      "\nWe asked ",
-      plug |> inspect(),
-      ", and it decided not to answer."
-    ])
+    do_rr(
+      rest,
+      chosen_response,
+      S.Traceback.append(
+        traceback,
+        {:declined_to_answer, plug}
+      )
+    )
   end
 
   def do_rr(
@@ -404,12 +396,14 @@ defmodule Plugin do
         chosen_response,
         traceback
       ) do
-    do_rr(rest, chosen_response, [
-      traceback,
-      "\nWe asked ",
-      plug |> inspect(),
-      ", but it timed out."
-    ])
+    do_rr(
+      rest,
+      chosen_response,
+      S.Traceback.append(
+        traceback,
+        {:timeout, plug}
+      )
+    )
   end
 
   def do_rr(
@@ -417,40 +411,32 @@ defmodule Plugin do
         chosen_response,
         traceback
       ) do
-    tb =
+    responded_log =
       if response.callback do
-        [
-          traceback,
-          "\nWe asked ",
-          plug |> inspect(),
-          ", and it responded with confidence ",
-          response.confidence |> inspect(),
-          " offering a callback.\nWhen asked why, it said: \"",
-          response.why,
-          "\""
-        ]
+        {:replied_offering_callback, plug, response.confidence, response.why}
       else
-        [
-          traceback,
-          "\nWe asked ",
-          plug |> inspect(),
-          ", and it responded with confidence ",
-          response.confidence |> inspect(),
-          ":\n",
-          {:quote_block, response.text},
-          "When asked why, it said: \"",
-          response.why,
-          "\""
-        ]
+        {:replied_with_text, plug, response.confidence, response.text, response.why}
       end
 
+    # assuming first response is chosen response, meaning pre-sorted
     if chosen_response == nil do
-      do_rr(rest, response, [
-        tb,
-        "\nWe chose this response."
-      ])
+      do_rr(
+        rest,
+        response,
+        S.Traceback.append(
+          traceback,
+          {:response_was_chosen, responded_log}
+        )
+      )
     else
-      do_rr(rest, chosen_response, tb)
+      do_rr(
+        rest,
+        chosen_response,
+        S.Traceback.append(
+          traceback,
+          responded_log
+        )
+      )
     end
   end
 
@@ -462,14 +448,10 @@ defmodule Plugin do
     do_rr(
       rest,
       chosen_response,
-      [
+      S.Traceback.append(
         traceback,
-        "\nWe asked ",
-        plug |> inspect(),
-        ", but there was an error of type ",
-        val |> inspect(),
-        "."
-      ]
+        {:plugin_errored, plug, val}
+      )
     )
   end
 end

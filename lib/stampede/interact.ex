@@ -6,6 +6,7 @@ defmodule Stampede.Interact do
   import S.Tables, only: [transaction!: 1]
   use TypeCheck
   use TypeCheck.Defstruct
+  require Stampede.Traceback
 
   @type! id :: non_neg_integer()
 
@@ -52,13 +53,26 @@ defmodule Stampede.Interact do
     end)
   end
 
-  @spec! get_traceback(S.msg_id()) :: {:ok, S.traceback()} | {:error, any()}
+  @spec! get_traceback(S.msg_id()) :: {:ok, TxtBlock.t()} | {:error, any()}
   def get_traceback(msg_id) do
     transaction!(fn ->
       get(msg_id)
       |> case do
         {:ok, record} ->
-          {:ok, record.traceback}
+          final_tb =
+            case record.traceback do
+              tb when S.Traceback.is_traceback(tb) ->
+                S.Traceback.to_txt_block(tb)
+                |> tap(fn stringified ->
+                  Map.put(record, :traceback, stringified)
+                  |> Memento.Query.write()
+                end)
+
+              tb when S.Traceback.is_stringified(tb) ->
+                tb
+            end
+
+          {:ok, final_tb}
 
         other ->
           other

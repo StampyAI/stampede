@@ -38,6 +38,7 @@ defmodule Plugins.Why do
   def respond(_cfg, msg) when not Plugin.is_bot_invoked(msg), do: nil
 
   def respond(cfg, msg) when Plugin.is_bot_invoked(msg) do
+    # TODO: short and long tracebacks with "specifically"
     if Regex.match?(at_module_regex(), msg.body) do
       valid_confidence = 10
 

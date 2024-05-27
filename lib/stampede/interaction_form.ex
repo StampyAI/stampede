@@ -11,7 +11,7 @@ defmodule Stampede.InteractionForm do
     service: _ :: atom(),
     msg: _ :: MsgReceived.t(),
     response: _ :: ResponseToPost.t(),
-    traceback: [] :: TxtBlock.t(),
+    traceback: _ :: S.Traceback.t(),
     channel_lock: false :: S.channel_lock_action()
   )
 

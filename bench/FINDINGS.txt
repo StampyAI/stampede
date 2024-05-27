@@ -6,7 +6,7 @@ Typecheck + no struct checks            0.47         2.12 s     ±7.62%         
 No typechecking + struct checks         0.60         1.66 s     ±4.60%         1.62 s         1.84 s
 No typechecking + no struct checks      9.56      104.56 ms     ±2.29%      104.08 ms      116.36 ms
 
-MNESIA CONCURRENCY MAKES NO DIFFERENCE
+MNESIA CONCURRENCY MAKES LITTLE DIFFERENCE
 ##### With input 20 fast modules, 512 messages, 8 divisions #####
 Name                                     ips        average  deviation         median         99th %
 with concurrency                         1.19      840.46 ms     ±1.91%      835.33 ms      914.21 ms
@@ -25,4 +25,12 @@ Avoiding sending data through threads   1.19      839.05 ms     ±2.00%      835
 Copying cfg and msg to new thread       1.19      841.37 ms     ±1.47%      838.30 ms      891.12 ms
 Combine query/response into one func    1.18      844.46 ms     ±1.87%      837.42 ms      905.90 ms
 
-NO DIFFERENCE FOUND BETWEEN DIRECT Task.Async AND Task.Supervisor AND PartitionSupervisor
+FOR PLUGIN MULTITHREADING, NO DIFFERENCE FOUND BETWEEN DIRECT Task.Async AND Task.Supervisor AND PartitionSupervisor
+(no stats)
+
+SYMBOLIC TRACEBACK LOGGING SAVES MEMORY
+IOLIST: 9728 records occupying 5428632  words of mem
+averaging 558 words per record
+
+SYMBOLIC: 10752 records occupying 2264216  words of mem
+averaging 210 words per record

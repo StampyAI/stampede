@@ -25,7 +25,6 @@ defmodule Stampede do
   @type! mapset(t) :: map(any(), t)
   @type! mapset() :: mapset(any())
 
-  @type! traceback :: TxtBlock.t()
   @type! enabled_plugs :: :all | [] | nonempty_list(module())
   @type! channel_lock_action ::
            false | {:lock, channel_id(), module_function_args()} | {:unlock, channel_id()}

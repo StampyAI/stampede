@@ -19,6 +19,7 @@ defmodule Stampede.ResponseToPost do
   """
   use TypeCheck
   use TypeCheck.Defstruct
+  require Aja
   alias Stampede, as: S
 
   defstruct!(
@@ -26,7 +27,7 @@ defmodule Stampede.ResponseToPost do
     text: _ :: nil | TxtBlock.t(),
     origin_plug: _ :: module(),
     origin_msg_id: _ :: nil | S.msg_id(),
-    why: [] :: S.traceback(),
+    why: _ :: TxtBlock.t(),
     callback: nil :: nil | S.module_function_args(),
     # channel lock args will be prepended to with the msg triggering it
     channel_lock: false :: S.channel_lock_action()

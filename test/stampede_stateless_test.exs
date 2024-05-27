@@ -328,4 +328,36 @@ defmodule StampedeStatelessTest do
       assert processed == TxtBlock.Md.Debugging.all_formats_processed()
     end
   end
+
+  describe "Response picking and tracebacks" do
+    test "no response" do
+      tlist =
+        [{Plugins.Test, {:job_ok, nil}}]
+
+      assert match?(%{r: nil, tb: _}, Plugin.resolve_responses(tlist))
+    end
+
+    test "default response" do
+      tlist =
+        [
+          {Plugins.Sentience,
+           {:job_ok,
+            %Stampede.ResponseToPost{
+              confidence: 1,
+              text: {:italics, "confused beeping"},
+              origin_plug: Plugins.Sentience,
+              origin_msg_id: 49,
+              why: ["I didn't have any better ideas."],
+              callback: nil,
+              channel_lock: false
+            }}}
+        ]
+
+      result = Plugin.resolve_responses(tlist)
+
+      assert match?(%{r: %Stampede.ResponseToPost{}, tb: _}, Plugin.resolve_responses(tlist)) &&
+               result.r.confidence == 1 &&
+               result.r.origin_plug == Plugins.Sentience
+    end
+  end
 end

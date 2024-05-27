@@ -80,7 +80,8 @@ defmodule Plugins.Test do
     S.ResponseToPost.new(
       confidence: 10,
       origin_msg_id: msg_id,
-      text: "Called back with number #{num}"
+      text: "Called back with number #{num}",
+      why: "Testing callbacks"
     )
   end
 

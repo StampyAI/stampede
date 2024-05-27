@@ -46,7 +46,7 @@ defmodule Stampede.Tables.Interactions do
         posted_msg_id: nil | S.msg_id(),
         msg: MsgReceived.t(),
         response: ResponseToPost.t(),
-        traceback: TxtBlock.t(),
+        traceback: S.Traceback.t() | TxtBlock.t(),
         channel_lock: S.channel_lock_action()
       })
     else
