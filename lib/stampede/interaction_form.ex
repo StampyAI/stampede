@@ -1,4 +1,7 @@
 defmodule Stampede.InteractionForm do
+  @moduledoc """
+  A proposal for an interaction to be given to `Stampede.Interact`, before all details are fleshed out.
+  """
   @compile [:bin_opt_info, :recv_opt_info]
   alias Stampede, as: S
   alias S.{MsgReceived, ResponseToPost}

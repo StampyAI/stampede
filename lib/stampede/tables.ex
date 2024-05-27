@@ -1,8 +1,6 @@
 defmodule Stampede.Tables do
   @compile [:bin_opt_info, :recv_opt_info]
-  @moduledoc """
-  Manage various Mnesia tables.
-  """
+  # Manage various Mnesia tables. Generally avoiding keeping business logic here
   require Logger
   use TypeCheck
   alias Stampede, as: S

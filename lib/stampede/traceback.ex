@@ -1,4 +1,7 @@
 defmodule Stampede.Traceback do
+  @moduledoc """
+  Build and convert symbolic representations of tracebacks.
+  """
   @compile [:bin_opt_info, :recv_opt_info]
   use TypeCheck
   require Aja

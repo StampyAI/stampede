@@ -1,4 +1,5 @@
 defmodule Plugins.Test do
+  @moduledoc false
   require Logger
   use TypeCheck
   alias Stampede, as: S
@@ -135,9 +136,11 @@ defmodule Plugins.Test do
 end
 
 defmodule SillyError do
+  @moduledoc false
   defexception message: "Intentional exception raised"
 end
 
 defmodule SillyThrow do
+  @moduledoc false
   defexception message: "Intentional throw made"
 end

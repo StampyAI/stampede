@@ -1,4 +1,7 @@
 defmodule Service do
+  @moduledoc """
+  Defines behavior for a service, which recieves incoming messages and posts responses.
+  """
   @compile [:bin_opt_info, :recv_opt_info]
   use TypeCheck
   alias Stampede, as: S

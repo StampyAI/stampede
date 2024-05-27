@@ -6,7 +6,7 @@ Stampede is in a very early state and may drastically change. It is a sequel to 
 
 ## Use
 
-Configurations are written in YAML and left in `./Sites/`. In different environments (such as `test` and `dev`) it will use configs from `./Sites_{environment-name}`.
+Configurations are written in YAML and left in `./Sites/`. In different environments (such as `test` and `dev`) it will read configs from `./Sites_{environment-name}`. Check the service documentation for what options your service has available.
 
 - `./lib/services` defines services where chat requests are incoming.
-- `./lib/plugin` defines plugins which suggest potential responses, along with a confidence estimate for how relevant the response would be. Plugins which use resources or take time will offer a *callback* instead, which will only be called if no other plugins have higher confidence.
+- `./lib/plugins` defines plugins which suggest potential responses, along with a confidence estimate for how relevant the response would be. Plugins which use resources or take time will offer a *callback* instead, which will only be called if no other plugins have higher confidence.

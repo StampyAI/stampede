@@ -1,4 +1,7 @@
 defmodule Stampede do
+  @moduledoc """
+  Defines project-wide types and utility functions.
+  """
   @compile [:bin_opt_info, :recv_opt_info]
   use TypeCheck
   @type! service_name :: module()
@@ -252,6 +255,7 @@ defmodule Stampede do
   end
 
   defmodule Debugging do
+    @moduledoc false
     use TypeCheck
 
     @spec! always_fails_typecheck() :: :ok

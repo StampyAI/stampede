@@ -1,9 +1,9 @@
 defmodule TxtBlock do
   @compile [:bin_opt_info, :recv_opt_info]
   @moduledoc """
-  Storage for text to be formatted differently according to context, i.e. posting to different services. iolist-friendly (except for improper lists).
+  Symbolic storage for text to be formatted differently according to context, i.e. posting to different services. iolist-friendly (except for improper lists).
 
-  Section types with their markdown equivalents:
+  Section types with their markdown equivalents as examples, see also TxtBlock.Debugging.all_formats_example()
   - quote_block (greater-than signs '>')
   - source_block (triple backticks)
   - source (single backticks)

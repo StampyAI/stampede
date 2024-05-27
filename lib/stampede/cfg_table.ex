@@ -1,4 +1,7 @@
 defmodule Stampede.CfgTable do
+  @moduledoc """
+  Handles publishing configurations as `:persistent_term` entities. (And not technically a table.)
+  """
   @compile [:bin_opt_info, :recv_opt_info]
   use GenServer
   require Logger

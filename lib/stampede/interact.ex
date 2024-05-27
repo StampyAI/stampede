@@ -1,4 +1,7 @@
 defmodule Stampede.Interact do
+  @moduledoc """
+  Remembers interactions for a limited time.
+  """
   @compile [:bin_opt_info, :recv_opt_info]
   require Logger
   alias Stampede, as: S

@@ -1,4 +1,5 @@
 defmodule Plugins.Why do
+  @moduledoc false
   use TypeCheck
   require Stampede.ResponseToPost
   alias Stampede, as: S

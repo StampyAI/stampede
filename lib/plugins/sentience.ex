@@ -1,4 +1,5 @@
 defmodule Plugins.Sentience do
+  @moduledoc false
   use TypeCheck
   alias Stampede, as: S
   require S.ResponseToPost

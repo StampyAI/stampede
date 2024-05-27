@@ -271,6 +271,7 @@ defmodule Service.Discord do
 end
 
 defmodule Service.Discord.Handler do
+  @moduledoc false
   @compile [:bin_opt_info, :recv_opt_info]
   use TypeCheck
   use TypeCheck.Defstruct
@@ -411,6 +412,7 @@ defmodule Service.Discord.Handler do
 end
 
 defmodule Service.Discord.Consumer do
+  @moduledoc false
   @compile [:bin_opt_info, :recv_opt_info]
   @moduledoc """
   Handles Nostrum's business while passing off jobs to Handler

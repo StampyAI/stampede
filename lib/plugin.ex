@@ -1,4 +1,5 @@
 defmodule PluginCrashInfo do
+  @moduledoc false
   @compile [:bin_opt_info, :recv_opt_info]
   use TypeCheck
   use TypeCheck.Defstruct
@@ -21,6 +22,9 @@ defmodule PluginCrashInfo do
 end
 
 defmodule Plugin do
+  @moduledoc """
+  Define the beavior for plugins to use.
+  """
   @compile [:bin_opt_info, :recv_opt_info]
   use TypeCheck
   require Logger

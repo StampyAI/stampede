@@ -1,4 +1,7 @@
 defmodule Stampede.MsgReceived do
+  @moduledoc """
+  A message recieved from an outside service.
+  """
   @compile [:bin_opt_info, :recv_opt_info]
   use TypeCheck
   use TypeCheck.Defstruct
