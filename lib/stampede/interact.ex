@@ -62,14 +62,8 @@ defmodule Stampede.Interact do
           final_tb =
             case record.traceback do
               tb when S.Traceback.is_traceback(tb) ->
+                # this would result in repeat work when called twice, but that's not a likely use case
                 S.Traceback.to_txt_block(tb)
-                |> tap(fn stringified ->
-                  Map.put(record, :traceback, stringified)
-                  |> Memento.Query.write()
-                end)
-
-              tb when S.Traceback.is_stringified(tb) ->
-                tb
             end
 
           {:ok, final_tb}
