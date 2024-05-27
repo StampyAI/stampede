@@ -1,4 +1,5 @@
 defmodule Stampede.Application do
+  @compile [:bin_opt_info, :recv_opt_info]
   # See https://hexdocs.pm/elixir/Application.html
   # for more information on OTP Applications
   @moduledoc false
@@ -16,7 +17,7 @@ defmodule Stampede.Application do
         doc: "Services installed as part of the mix project. Passed in from mix.exs"
       ],
       services: [
-        type: {:or, [{:in, [:none, :all]}, {:list, {:in, Map.keys(S.services())}}]},
+        type: {:or, [{:in, [:all]}, {:list, {:in, Map.keys(S.services())}}]},
         default: :all,
         doc: "what will actually be started by Stampede"
       ],
@@ -127,10 +128,6 @@ defmodule Stampede.Application do
           installed = Keyword.fetch!(startup_args, :installed_services)
           Logger.debug("Stampede starting all services: #{inspect(installed)}")
           all_services(installed)
-
-        :none ->
-          Logger.debug("Stampede starting no services")
-          []
 
         name when is_atom(name) ->
           Logger.debug("Stampede starting only #{name}")

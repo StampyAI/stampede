@@ -1,4 +1,5 @@
 defmodule PluginCrashInfo do
+  @compile [:bin_opt_info, :recv_opt_info]
   use TypeCheck
   use TypeCheck.Defstruct
 
@@ -20,24 +21,20 @@ defmodule PluginCrashInfo do
 end
 
 defmodule Plugin do
+  @compile [:bin_opt_info, :recv_opt_info]
   use TypeCheck
   require Logger
   require PluginCrashInfo
   alias PluginCrashInfo, as: CrashInfo
   alias Stampede, as: S
-  alias S.{Msg, Response, InteractionForm}
+  alias S.{MsgReceived, ResponseToPost, InteractionForm}
   require InteractionForm
   @first_response_timeout 500
 
   @doc """
-  Should this module respond to the given config and message? If so, we will execute this plugin's "respond" callback with the returned value.
-  These methods on all plugins are run syncronously with every incoming message in the caller thread.
+  Decide if and how this plugin should respond
   """
-  @callback query(SiteConfig.t(), Msg.t()) :: nil | {:respond, arg :: any()}
-  @doc """
-  Decide on a response for the given arg.
-  """
-  @callback respond(arg :: any()) :: nil | Response.t()
+  @callback respond(cfg :: SiteConfig.t(), msg :: MsgReceived.t()) :: nil | ResponseToPost.t()
 
   @typedoc """
   Describe uses for a plugin in a input-output manner, no prefix included.
@@ -49,8 +46,11 @@ defmodule Plugin do
   @callback usage() :: usage_tuples()
   @callback description() :: TxtBlock.t()
 
-  defguard is_bot_invoked(cfg, msg)
-           when cfg.bot_is_loud or msg.at_bot? or msg.dm? or msg.prefix != false
+  defguard is_bot_invoked(msg)
+           when msg.at_bot? or msg.dm? or msg.prefix != false
+
+  defguard is_bot_needed(cfg, msg)
+           when cfg.bot_is_loud or is_bot_invoked(msg)
 
   defmacro __using__(_opts \\ []) do
     quote do
@@ -58,15 +58,18 @@ defmodule Plugin do
     end
   end
 
-  @spec default_predicate(map(), map(), success_tuple) :: success_tuple
-        when success_tuple: {:respond, arg :: any()}
-  def default_predicate(cfg, msg, success_tuple) when is_bot_invoked(cfg, msg), do: success_tuple
-  def default_predicate(cfg, msg, _) when not is_bot_invoked(cfg, msg), do: nil
+  def valid?(mod) do
+    b =
+      mod.__info__(:attributes)
+      |> Keyword.get(:behaviour, [])
+
+    Plugin in b
+  end
 
   @doc "returns loaded modules using the Plugin behavior."
   @spec! ls() :: MapSet.t(module())
   def ls() do
-    S.find_submodules(Plugin)
+    S.find_submodules(Plugins)
     |> Enum.reduce(MapSet.new(), fn
       mod, acc ->
         b =
@@ -81,12 +84,8 @@ defmodule Plugin do
     end)
   end
 
-  @spec! ls(:all | :none | MapSet.t()) :: MapSet.t()
-  def ls(:none), do: MapSet.new()
-  def ls(:all), do: ls()
-
-  def ls(enabled) do
-    MapSet.intersection(enabled, ls())
+  def loaded?(enabled) do
+    MapSet.subset?(enabled, Plugin.ls())
   end
 
   @type! job_result ::
@@ -96,7 +95,7 @@ defmodule Plugin do
   @type! plugin_job_result :: {module(), job_result()}
 
   @doc "Attempt some task, safely catch errors, and format the error report for the originating service"
-  @spec! get_response(S.module_function_args(), SiteConfig.t(), S.Msg.t()) ::
+  @spec! get_response(S.module_function_args(), SiteConfig.t(), S.MsgReceived.t()) ::
            job_result()
   def get_response({m, f, a}, cfg, msg) do
     # if an error occurs in process_msg, catch it and return as data
@@ -139,9 +138,9 @@ defmodule Plugin do
            nonempty_list(module() | S.module_function_args())
            | MapSet.t(module() | S.module_function_args()),
            SiteConfig.t(),
-           S.Msg.t()
+           S.MsgReceived.t()
          ) ::
-           nil | {response :: Response.t(), interaction_id :: S.interaction_id()}
+           nil | {response :: ResponseToPost.t(), interaction_id :: S.interaction_id()}
   def query_plugins(call_list, cfg, msg) do
     tasks =
       Enum.map(call_list, fn
@@ -159,18 +158,12 @@ defmodule Plugin do
         this_plug when is_atom(this_plug) ->
           {
             this_plug,
-            case get_response({this_plug, :query, [cfg, msg]}, cfg, msg) do
-              {:job_ok, {:respond, arg}} ->
-                Task.Supervisor.async_nolink(
-                  S.quick_task_via(),
-                  __MODULE__,
-                  :get_response,
-                  [{this_plug, :respond, [arg]}, cfg, msg]
-                )
-
-              other ->
-                other
-            end
+            Task.Supervisor.async_nolink(
+              S.quick_task_via(),
+              __MODULE__,
+              :get_response,
+              [{this_plug, :respond, [cfg, msg]}, cfg, msg]
+            )
           }
       end)
 
@@ -227,7 +220,7 @@ defmodule Plugin do
         {plug, result} ->
           case result do
             r = {:job_ok, return} ->
-              if is_struct(return, S.Response) and plug != return.origin_plug do
+              if is_struct(return, S.ResponseToPost) and plug != return.origin_plug do
                 raise(
                   "Plug #{plug} doesn't match #{return.origin_plug}. I screwed up the task running code."
                 )
@@ -248,7 +241,7 @@ defmodule Plugin do
         nil
 
       # we have a response to immediately provide
-      %Response{callback: nil} ->
+      %ResponseToPost{callback: nil} ->
         {:ok, iid} =
           S.InteractionForm.new(
             service: cfg.service,
@@ -264,17 +257,15 @@ defmodule Plugin do
 
       # we can't get a response until we run this callback
       # TODO: let callback decide to not respond, and fall back to the next highest priority response
-      %Response{callback: {mod, fun, args}} ->
+      %ResponseToPost{callback: {mod, fun, args}} ->
         followup =
           apply(mod, fun, args)
 
-        new_tb = [
-          traceback,
-          "\nTop response was a callback, so i called it. It responded with: \n\"",
-          followup.text,
-          "\"",
-          followup.why
-        ]
+        new_tb =
+          Stampede.Traceback.append(
+            traceback,
+            {:callback_called, followup.text, followup.why}
+          )
 
         {:ok, iid} =
           S.InteractionForm.new(
@@ -292,32 +283,45 @@ defmodule Plugin do
   end
 
   @doc "Poll all enabled plugins and choose the most relevant one."
-  @spec! get_top_response(SiteConfig.t(), Msg.t()) ::
-           nil | {response :: Response.t(), interaction_id :: S.interaction_id()}
-  def get_top_response(cfg, msg) do
+  @spec! get_top_response(SiteConfig.t(), MsgReceived.t()) ::
+           nil | {response :: ResponseToPost.t(), interaction_id :: S.interaction_id()}
+  def ashfhfdn_get_top_response(cfg, msg) do
+    ef_opts = [
+      {:output_directory, "./eflame/"},
+      {:output_format, :svg},
+      :value,
+      {:return, :value}
+    ]
+
+    :eflambe.apply({__MODULE__, :do_get_top_response, [cfg, msg]}, ef_opts)
+  end
+
+  def get_top_response(cfg, msg = %S.MsgReceived{}) do
     case S.Interact.channel_locked?(msg.channel_id) do
       {{m, f, args_without_msg}, _plugin, _iid} ->
         {response, iid} = query_plugins([{m, f, [msg | args_without_msg]}], cfg, msg)
 
         explained_response =
-          Map.update!(response, :why, fn tb ->
-            [
-              "Channel ",
-              msg.channel_id |> inspect(),
-              "was locked to module ",
-              m |> inspect(),
-              ", function ",
-              "f",
-              ", so we called it.\n"
-              | tb
-            ]
+          Map.update!(response, :why, fn why ->
+            {:channel_lock_triggered, msg.channel_id, m, f, response.text, why}
+            |> S.Traceback.do_single_transform()
           end)
 
         {explained_response, iid}
 
       false ->
-        __MODULE__.ls(SiteConfig.fetch!(cfg, :plugs))
-        |> query_plugins(cfg, msg)
+        if is_bot_needed(cfg, msg) do
+          plugs = SiteConfig.fetch!(cfg, :plugs)
+
+          if plugs == :all do
+            Plugin.ls()
+          else
+            plugs
+          end
+          |> query_plugins(cfg, msg)
+        else
+          nil
+        end
     end
   end
 
@@ -357,12 +361,12 @@ defmodule Plugin do
   @doc "Choose best response, creating a traceback along the way."
   @spec! resolve_responses(nonempty_list(plugin_job_result())) :: %{
            # NOTE: reversing order from 'nil | response' to 'response | nil' makes Dialyzer not count nil?
-           r: nil | S.Response.t(),
-           tb: S.traceback()
+           r: nil | S.ResponseToPost.t(),
+           tb: S.Traceback.t()
          }
   def resolve_responses(tlist) do
     task_sort(tlist)
-    |> do_rr(nil, [])
+    |> do_rr(nil, Aja.Vector.new())
   end
 
   def do_rr([], chosen_response, traceback) do
@@ -377,12 +381,14 @@ defmodule Plugin do
         chosen_response,
         traceback
       ) do
-    do_rr(rest, chosen_response, [
-      traceback,
-      "\nWe asked ",
-      plug |> inspect(),
-      ", and it decided not to answer."
-    ])
+    do_rr(
+      rest,
+      chosen_response,
+      S.Traceback.append(
+        traceback,
+        {:declined_to_answer, plug}
+      )
+    )
   end
 
   def do_rr(
@@ -390,12 +396,14 @@ defmodule Plugin do
         chosen_response,
         traceback
       ) do
-    do_rr(rest, chosen_response, [
-      traceback,
-      "\nWe asked ",
-      plug |> inspect(),
-      ", but it timed out."
-    ])
+    do_rr(
+      rest,
+      chosen_response,
+      S.Traceback.append(
+        traceback,
+        {:timeout, plug}
+      )
+    )
   end
 
   def do_rr(
@@ -403,40 +411,32 @@ defmodule Plugin do
         chosen_response,
         traceback
       ) do
-    tb =
+    responded_log =
       if response.callback do
-        [
-          traceback,
-          "\nWe asked ",
-          plug |> inspect(),
-          ", and it responded with confidence ",
-          response.confidence |> inspect(),
-          " offering a callback.\nWhen asked why, it said: \"",
-          response.why,
-          "\""
-        ]
+        {:replied_offering_callback, plug, response.confidence, response.why}
       else
-        [
-          traceback,
-          "\nWe asked ",
-          plug |> inspect(),
-          ", and it responded with confidence ",
-          response.confidence |> inspect(),
-          ":\n",
-          {:quote_block, response.text},
-          "When asked why, it said: \"",
-          response.why,
-          "\""
-        ]
+        {:replied_with_text, plug, response.confidence, response.text, response.why}
       end
 
+    # assuming first response is chosen response, meaning pre-sorted
     if chosen_response == nil do
-      do_rr(rest, response, [
-        tb,
-        "\nWe chose this response."
-      ])
+      do_rr(
+        rest,
+        response,
+        S.Traceback.append(
+          traceback,
+          {:response_was_chosen, responded_log}
+        )
+      )
     else
-      do_rr(rest, chosen_response, tb)
+      do_rr(
+        rest,
+        chosen_response,
+        S.Traceback.append(
+          traceback,
+          responded_log
+        )
+      )
     end
   end
 
@@ -448,14 +448,10 @@ defmodule Plugin do
     do_rr(
       rest,
       chosen_response,
-      [
+      S.Traceback.append(
         traceback,
-        "\nWe asked ",
-        plug |> inspect(),
-        ", but there was an error of type ",
-        val |> inspect(),
-        "."
-      ]
+        {:plugin_errored, plug, val}
+      )
     )
   end
 end

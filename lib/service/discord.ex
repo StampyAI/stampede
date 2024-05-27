@@ -1,8 +1,9 @@
 defmodule Service.Discord do
+  @compile [:bin_opt_info, :recv_opt_info]
   alias Stampede, as: S
-  alias S.{Msg}
+  alias S.{MsgReceived}
   alias Nostrum.Api
-  require Msg
+  require MsgReceived
   use TypeCheck
   use Supervisor, restart: :permanent
   require Logger
@@ -24,7 +25,7 @@ defmodule Service.Discord do
   @consecutive_msg_limit 10
 
   def into_msg(svc_msg) do
-    Msg.new(
+    MsgReceived.new(
       id: svc_msg.id,
       body: svc_msg.content,
       channel_id: svc_msg.channel_id,
@@ -98,34 +99,64 @@ defmodule Service.Discord do
     end)
   end
 
-  def do_send_msg(channel_id, msg, try \\ 0) do
-    case Api.create_message(
-           channel_id,
-           content: msg
-         ) do
-      {:ok, %{id: id}} ->
-        {:ok, id}
+  defp api_create_message(channel_id, opts) do
+    case :persistent_term.get({__MODULE__, :mock_api}, nil) do
+      nil ->
+        Api.create_message(channel_id, opts)
 
-      {:error, e} ->
-        if try < 5 do
-          IO.puts(
-            :stderr,
-            [
-              "send_msg: discord message send failure ##",
-              try,
-              ", error ",
-              e |> S.pp(),
-              ". Trying again..."
-            ]
-          )
+      :fail ->
+        {:error, :mock_forced_failure}
 
-          :ok = Process.sleep(500)
+      other ->
+        raise "Not implemented: #{other |> inspect()}"
+    end
+  end
 
-          do_send_msg(channel_id, msg, try + 1)
-        else
-          IO.puts(:stderr, "send_msg: gave up trying to send message. Nothing else to do.")
-          {:error, e}
-        end
+  def do_send_msg(channel_id, msg),
+    do: do_send_msg(channel_id, msg, 10, 0, DateTime.utc_now() |> DateTime.add(1, :second))
+
+  def do_send_msg(channel_id, msg, max_tries, try, timeout) do
+    if DateTime.after?(DateTime.utc_now(), timeout) do
+      IO.puts(:stderr, "Discord do_send_msg: timeout")
+      {:error, :timeout}
+    else
+      case api_create_message(
+             channel_id,
+             content: msg
+           ) do
+        {:ok, %{id: id}} ->
+          {:ok, id}
+
+        {:error, e} ->
+          if try < max_tries do
+            # exponential backoff
+            time_to_wait = 10 * Integer.pow(2, try)
+
+            IO.puts(
+              :stderr,
+              [
+                "Discord do_send_msg: send failure #",
+                try |> to_string(),
+                ", error ",
+                e |> S.pp(),
+                ". Trying again in ",
+                time_to_wait |> to_string(),
+                "ms..."
+              ]
+            )
+
+            :ok = Process.sleep(time_to_wait)
+
+            do_send_msg(channel_id, msg, max_tries, try + 1, timeout)
+          else
+            IO.puts(
+              :stderr,
+              "Discord do_send_msg: gave up trying to send message. Nothing else to do."
+            )
+
+            {:error, e}
+          end
+      end
     end
   end
 
@@ -162,13 +193,7 @@ defmodule Service.Discord do
     formatted = format_plugin_fail(cfg, msg, error_info)
 
     _ =
-      spawn(fn ->
-        _ =
-          send_msg(
-            channel_id,
-            formatted
-          )
-      end)
+      Task.start_link(__MODULE__, :send_msg, [channel_id, formatted])
 
     {:ok, formatted}
   end
@@ -223,8 +248,8 @@ defmodule Service.Discord do
 
   @impl Service
   def dm?(%Nostrum.Struct.Message{guild_id: gid}), do: gid == nil
-  def dm?(%S.Msg{server_id: {:dm, __MODULE__}}), do: true
-  def dm?(%S.Msg{server_id: _}), do: false
+  def dm?(%S.MsgReceived{server_id: {:dm, __MODULE__}}), do: true
+  def dm?(%S.MsgReceived{server_id: _}), do: false
 
   @impl Service
   def start_link(args) do
@@ -246,13 +271,14 @@ defmodule Service.Discord do
 end
 
 defmodule Service.Discord.Handler do
+  @compile [:bin_opt_info, :recv_opt_info]
   use TypeCheck
   use TypeCheck.Defstruct
   use GenServer
   require Logger
   alias Stampede, as: S
-  alias S.{Response, Msg}
-  require Msg
+  alias S.{ResponseToPost, MsgReceived}
+  require MsgReceived
   alias Service.Discord
 
   @typep! vips :: S.CfgTable.vips()
@@ -367,10 +393,10 @@ defmodule Service.Discord.Handler do
     inciting_msg_with_context =
       discord_msg
       |> Discord.into_msg()
-      |> S.Msg.add_context(our_cfg)
+      |> S.MsgReceived.add_context(our_cfg)
 
     case Plugin.get_top_response(our_cfg, inciting_msg_with_context) do
-      {%Response{text: r_text}, iid} when r_text != nil ->
+      {%ResponseToPost{text: r_text}, iid} when r_text != nil ->
         {:ok, first_id: bot_response_msg_id} =
           Discord.send_msg(inciting_msg_with_context.channel_id, r_text)
 
@@ -385,6 +411,7 @@ defmodule Service.Discord.Handler do
 end
 
 defmodule Service.Discord.Consumer do
+  @compile [:bin_opt_info, :recv_opt_info]
   @moduledoc """
   Handles Nostrum's business while passing off jobs to Handler
   """

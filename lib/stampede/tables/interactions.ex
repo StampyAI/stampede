@@ -1,7 +1,8 @@
 defmodule Stampede.Tables.Interactions do
+  @compile [:bin_opt_info, :recv_opt_info]
   use TypeCheck
-  alias Stampede.Msg
-  alias Stampede.Response
+  alias Stampede.MsgReceived
+  alias Stampede.ResponseToPost
   alias Stampede, as: S
 
   use Memento.Table,
@@ -19,7 +20,14 @@ defmodule Stampede.Tables.Interactions do
     disc_copies: S.nodes(),
     access_mode: :read_write,
     index: [:datetime, :posted_msg_id],
-    storage_properties: [ets: [:compressed]]
+    storage_properties: [
+      ets: [
+        :compressed,
+        write_concurrency: :auto,
+        read_concurrency: true,
+        decentralized_counters: true
+      ]
+    ]
 
   # TODO: benchmarking.
   # try write_concurrency and read_concurrency
@@ -28,17 +36,22 @@ defmodule Stampede.Tables.Interactions do
   def validate!(record) when is_struct(record, __MODULE__) do
     if S.Interact.id_exists?(record.id), do: raise("Interaction already recorded??")
 
-    TypeCheck.conforms!(record, %__MODULE__{
-      id: S.interaction_id(),
-      datetime: S.timestamp(),
-      plugin: module(),
-      # This can't be set until the service has posted the message
-      posted_msg_id: nil | S.msg_id(),
-      msg: Msg.t(),
-      response: Response.t(),
-      traceback: TxtBlock.t(),
-      channel_lock: S.channel_lock_action()
-    })
+    if S.enable_typechecking?() do
+      record
+      |> TypeCheck.conforms!(%__MODULE__{
+        id: S.interaction_id(),
+        datetime: S.timestamp(),
+        plugin: module(),
+        # This can't be set until the service has posted the message
+        posted_msg_id: nil | S.msg_id(),
+        msg: MsgReceived.t(),
+        response: ResponseToPost.t(),
+        traceback: S.Traceback.t(),
+        channel_lock: S.channel_lock_action()
+      })
+    else
+      record
+    end
   end
 
   def validate!(record) when not is_struct(record, __MODULE__),

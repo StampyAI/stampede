@@ -1,4 +1,5 @@
 defmodule TxtBlock do
+  @compile [:bin_opt_info, :recv_opt_info]
   @moduledoc """
   Storage for text to be formatted differently according to context, i.e. posting to different services. iolist-friendly (except for improper lists).
 
@@ -29,10 +30,19 @@ defmodule TxtBlock do
     |> IO.iodata_to_binary()
   end
 
+  defguard is_list_sensitive(type)
+           when is_tuple(type) and tuple_size(type) == 2 and elem(type, 0) == :list
+
   @spec! to_str_list(t(), module()) :: S.str_list()
   def to_str_list(txt, _service_name)
       when is_binary(txt),
       do: txt
+
+  def to_str_list({type, blk}, service_name)
+      when is_list_sensitive(type) do
+    Enum.map(blk, &to_str_list(&1, service_name))
+    |> Service.txt_format(type, service_name)
+  end
 
   def to_str_list({type, blk}, service_name) do
     to_str_list(blk, service_name)
@@ -86,6 +96,8 @@ defmodule TxtBlock.Debugging do
   def all_formats_example() do
     [
       "Testing formats.\n\n",
+      {:italics, "Italicized"},
+      "\n\n",
       "Quoted\n",
       {:quote_block, "Quoted line 1\nQuoted line 2\n"},
       "\n",
@@ -99,7 +111,7 @@ defmodule TxtBlock.Debugging do
       {{:list, :dotted}, ["Item 1", "Item 2", "Item 3"]},
       "\n",
       "Numbered list\n",
-      {{:list, :numbered}, ["Item 1", "Item 2", "Item 3"]}
+      {{:list, :numbered}, ["Item 1", {:italics, "Nested Italics Item 2"}, "Item 3"]}
     ]
   end
 end

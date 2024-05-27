@@ -1,4 +1,5 @@
 defmodule Stampede.Tables.Ids do
+  @compile [:bin_opt_info, :recv_opt_info]
   alias Stampede, as: S
   use TypeCheck
 
@@ -9,7 +10,7 @@ defmodule Stampede.Tables.Ids do
     access_mode: :read_write,
     storage_properties: [
       ets: [
-        write_concurrency: true,
+        write_concurrency: :auto,
         read_concurrency: true,
         decentralized_counters: true
       ]

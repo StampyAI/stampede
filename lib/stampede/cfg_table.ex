@@ -1,4 +1,5 @@
 defmodule Stampede.CfgTable do
+  @compile [:bin_opt_info, :recv_opt_info]
   use GenServer
   require Logger
   alias Stampede, as: S
@@ -83,9 +84,11 @@ defmodule Stampede.CfgTable do
       |> Map.get(service_name, %{})
       |> tap(fn
         m when is_map(m) and map_size(m) == 0 ->
-          Logger.warning(
-            "No servers detected for #{inspect(service_name)}\nTable: #{S.pp(table)}"
-          )
+          unless service_name == Service.Dummy do
+            Logger.warning(
+              "No servers detected for #{inspect(service_name)}\nTable: #{S.pp(table)}"
+            )
+          end
 
         m when is_map(m) ->
           :ok

@@ -1,4 +1,5 @@
-defmodule Stampede.Response do
+defmodule Stampede.ResponseToPost do
+  @compile [:bin_opt_info, :recv_opt_info]
   @moduledoc """
   The data type for choosing between possible responses to a message.
 
@@ -18,6 +19,7 @@ defmodule Stampede.Response do
   """
   use TypeCheck
   use TypeCheck.Defstruct
+  require Aja
   alias Stampede, as: S
 
   defstruct!(
@@ -25,13 +27,13 @@ defmodule Stampede.Response do
     text: _ :: nil | TxtBlock.t(),
     origin_plug: _ :: module(),
     origin_msg_id: _ :: nil | S.msg_id(),
-    why: [] :: S.traceback(),
+    why: _ :: TxtBlock.t(),
     callback: nil :: nil | S.module_function_args(),
     # channel lock args will be prepended to with the msg triggering it
     channel_lock: false :: S.channel_lock_action()
   )
 
-  @doc "makes a new Response but automatically tags the source module unless already being tagged"
+  @doc "makes a new ResponseToPost but automatically tags the source module unless already being tagged"
   defmacro new(keys) do
     quote do
       struct!(

@@ -27,18 +27,22 @@ extra_metadata =
 config :stampede,
   compile_env: Mix.env()
 
+config :stampede, :type_check,
+  enable_runtime_checks: Mix.env() in [:dev, :test],
+  debug: false
+
 config :stampede, Stampede.Scheduler,
   jobs: [
     {"@daily", {Stampede.Interact, :clean_interactions!, []}}
   ]
 
 config :logger, :console,
-  level: :debug,
+  level: :all,
   metadata: stampede_metadata ++ [:mfa]
 
 config :logger,
   handle_otp_reports: true,
-  # this will spam a lot of messages``
+  # this will spam a lot of messages
   handle_sasl_reports: false,
   compile_time_purge_matching:
     (if Mix.env() == :prod do

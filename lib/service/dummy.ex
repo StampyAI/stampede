@@ -1,7 +1,8 @@
 defmodule Service.Dummy.Table do
+  @compile [:bin_opt_info, :recv_opt_info]
   use TypeCheck
-  alias Stampede.Msg
-  alias Stampede.Response
+  alias Stampede.MsgReceived
+  alias Stampede.ResponseToPost
   alias Stampede, as: S
 
   use Memento.Table,
@@ -19,19 +20,23 @@ defmodule Service.Dummy.Table do
   end
 
   def validate!(record) when is_struct(record, __MODULE__) do
-    TypeCheck.conforms!(record, %__MODULE__{
-      id: nil | integer(),
-      datetime: S.timestamp(),
-      server_id: atom(),
-      channel: atom(),
-      user: atom(),
-      body: any(),
-      referenced_msg_id: nil | integer()
-    })
+    record
+    # |> TypeCheck.conforms!(%__MODULE__{
+    #   id: nil | integer(),
+    #   datetime: S.timestamp(),
+    #   server_id: atom(),
+    #   channel: atom(),
+    #   user: atom(),
+    #   body: any(),
+    #   referenced_msg_id: nil | integer()
+    # })
   end
 end
 
 defmodule Service.Dummy do
+  @compile [:bin_opt_info, :recv_opt_info]
+  # TODO: this is not actually parallelized meaning it can't be used in benchmarks
+  # Maybe it should be a supervisor with a process for each thread?
   require Logger
   use GenServer
   use TypeCheck
@@ -39,8 +44,8 @@ defmodule Service.Dummy do
   alias Service.Dummy
   alias Stampede, as: S
   require S
-  alias S.{Msg, Response}
-  require Msg
+  alias S.{MsgReceived, ResponseToPost}
+  require MsgReceived
 
   use Service
 
@@ -125,7 +130,7 @@ defmodule Service.Dummy do
   def send_msg({server_id, channel, user}, text, opts \\ []),
     do: send_msg(server_id, channel, user, text, opts)
 
-  # BUG: why does Dialyzer not acknowledge unwrapped nil and Response?
+  # BUG: why does Dialyzer not acknowledge unwrapped nil and ResponseToPost?
   @spec! send_msg(
            dummy_server_id(),
            dummy_channel_id(),
@@ -134,12 +139,12 @@ defmodule Service.Dummy do
            keyword()
          ) ::
            %{
-             response: nil | Response.t(),
+             response: nil | ResponseToPost.t(),
              posted_msg_id: dummy_msg_id(),
              bot_response_msg_id: nil | dummy_msg_id()
            }
            | nil
-           | Response.t()
+           | ResponseToPost.t()
   def send_msg(server_id, channel, user, text, opts \\ []) do
     formatted_text =
       TxtBlock.to_binary(text, __MODULE__)
@@ -182,9 +187,9 @@ defmodule Service.Dummy do
     formatted =
       format_plugin_fail(cfg, msg, error_info)
 
+    # NOTE: as this function is generally being called inside a GenServer process, spawning a new thread is required.
     _ =
-      spawn(fn ->
-        # NOTE: as this function is generally being called inside a GenServer process, spawning a new thread is required.
+      Task.start_link(fn ->
         send_msg(
           SiteConfig.fetch!(cfg, :server_id),
           SiteConfig.fetch!(cfg, :error_channel_id),
@@ -202,7 +207,7 @@ defmodule Service.Dummy do
   def log_serious_error(_), do: :ok
 
   def into_msg({id, server_id, channel, user, body, ref}) do
-    Msg.new(
+    MsgReceived.new(
       id: id,
       body: body,
       channel_id: channel,
@@ -324,11 +329,11 @@ defmodule Service.Dummy do
 
       inciting_msg_with_context =
         inciting_msg
-        |> S.Msg.add_context(cfg)
+        |> S.MsgReceived.add_context(cfg)
 
       result =
         case Plugin.get_top_response(cfg, inciting_msg_with_context) do
-          {response, iid} when is_struct(response, Response) ->
+          {response, iid} when is_struct(response, ResponseToPost) ->
             binary_response =
               response
               |> Map.update!(:text, fn blk ->
@@ -406,14 +411,14 @@ defmodule Service.Dummy do
   end
 
   defp do_post_response({server_id, channel}, response, state)
-       when is_struct(response, Response) do
+       when is_struct(response, ResponseToPost) do
     {server_id, channel, @bot_user, response.text, response.origin_msg_id}
     |> do_add_new_msg(state)
   end
 
   @spec! do_add_new_msg(tuple(), %__MODULE__{}) :: %{
            posted_msg_id: dummy_msg_id(),
-           posted_msg_object: %Msg{},
+           posted_msg_object: %MsgReceived{},
            new_state: %__MODULE__{}
          }
   defp do_add_new_msg(msg_tuple = {server_id, channel, user, text, ref}, state) do

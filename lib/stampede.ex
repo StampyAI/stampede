@@ -1,9 +1,10 @@
 defmodule Stampede do
+  @compile [:bin_opt_info, :recv_opt_info]
   use TypeCheck
   @type! service_name :: module()
   @type! channel_id :: any()
   @typedoc """
-  Used in S.Msg in place of a server ID to denote DM threads
+  Used in S.MsgReceived in place of a server ID to denote DM threads
   """
   @type! dm_tuple :: {:dm, service_name()}
   @type! server_id :: integer() | atom() | dm_tuple()
@@ -21,8 +22,9 @@ defmodule Stampede do
            String.t()
            | []
            | nonempty_list(lazy(Stampede.str_list()))
+  @type! mapset(t) :: map(any(), t)
+  @type! mapset() :: mapset(any())
 
-  @type! traceback :: TxtBlock.t()
   @type! enabled_plugs :: :all | [] | nonempty_list(module())
   @type! channel_lock_action ::
            false | {:lock, channel_id(), module_function_args()} | {:unlock, channel_id()}
@@ -47,7 +49,7 @@ defmodule Stampede do
     raise "intentional internal error: #{text}"
   end
 
-  @doc "Check a Msg struct against a SiteConfig whether this author is privileged"
+  @doc "Check a MsgReceived struct against a SiteConfig whether this author is privileged"
   @spec! author_privileged?(
            %{server_id: any()},
            %{author_id: any()}
@@ -131,8 +133,11 @@ defmodule Stampede do
 
   def split_prefix(text, prefix) when is_binary(prefix) and is_binary(text) do
     case text do
-      <<^prefix::binary-size(floor(bit_size(prefix) / 8)), rest::binary>> ->
-        {prefix, rest}
+      <<^prefix::binary-size(floor(bit_size(prefix) / 8)), _::binary>> ->
+        {
+          binary_part(text, 0, byte_size(prefix)),
+          binary_part(text, byte_size(prefix), byte_size(text) - 1)
+        }
 
       not_prefixed ->
         {false, not_prefixed}
@@ -157,14 +162,20 @@ defmodule Stampede do
     end
   end
 
+  @doc """
+  chunk text using binary parts which reference the original binary
+  """
   def text_chunk(text, len, max_pieces, premade_regex \\ nil)
       when is_bitstring(text) and is_integer(len) and is_integer(max_pieces) and
              (is_nil(premade_regex) or is_struct(premade_regex, Regex)) do
     r = premade_regex || text_chunk_regex(len)
 
-    Regex.scan(r, text, trim: true, capture: :all_but_first)
+    Regex.scan(r, text, trim: true, capture: :all_but_first, return: :index)
     |> Enum.take(max_pieces)
-    |> Enum.map(&hd/1)
+    |> Enum.map(fn [{i, l}] ->
+      # return reference to binary. Regex module has handled unicode already
+      binary_part(text, i, l)
+    end)
   end
 
   def text_chunk_regex(len) when is_integer(len) and len > 0 do
@@ -209,6 +220,44 @@ defmodule Stampede do
 
   def make_dm_tuple(service_name), do: {:dm, service_name}
 
-  @type! mapset(t) :: map(any(), t)
-  @type! mapset() :: mapset(any())
+  @spec! fulfill_predicate_before_time(DateTime.t(), (-> boolean())) :: :fulfilled | :failed
+  def fulfill_predicate_before_time(cutoff, pred) do
+    if pred.() do
+      :fulfilled
+    else
+      if DateTime.utc_now() |> DateTime.after?(cutoff) do
+        :failed
+      else
+        fulfill_predicate_before_time(cutoff, pred)
+      end
+    end
+  end
+
+  def ensure_app_ready?() do
+    match?({:ok, _}, Application.ensure_all_started(:stampede)) and
+      :ok ==
+        Memento.wait(
+          Stampede.Tables.mnesia_tables(),
+          :timer.seconds(5)
+        )
+  end
+
+  def ensure_app_ready!(),
+    do: ensure_app_ready?() || raise("Stampede wouldn't start on time")
+
+  if Application.compile_env!(:stampede, [:type_check, :enable_runtime_checks]) do
+    def enable_typechecking?(), do: true
+  else
+    def enable_typechecking?(), do: false
+  end
+
+  defmodule Debugging do
+    use TypeCheck
+
+    @spec! always_fails_typecheck() :: :ok
+    def always_fails_typecheck() do
+      Process.put(:lollollol, :fail)
+      Process.get(:lollollol)
+    end
+  end
 end

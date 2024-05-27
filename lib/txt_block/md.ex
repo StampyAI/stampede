@@ -1,4 +1,5 @@
 defmodule TxtBlock.Md do
+  @compile [:bin_opt_info, :recv_opt_info]
   use TypeCheck
   alias Stampede, as: S
 
@@ -9,13 +10,13 @@ defmodule TxtBlock.Md do
     do: TxtBlock.plain_indent_io(txt, n)
 
   def format(txt, :quote_block) do
-    TypeCheck.conforms!(txt, S.str_list())
+    if S.enable_typechecking?(), do: TypeCheck.conforms!(txt, S.str_list())
 
     TxtBlock.plain_indent_io(txt, "> ")
   end
 
   def format(txt, :source_block) do
-    TypeCheck.conforms!(txt, S.str_list())
+    if S.enable_typechecking?(), do: TypeCheck.conforms!(txt, S.str_list())
 
     [
       "```\n",
@@ -25,7 +26,7 @@ defmodule TxtBlock.Md do
   end
 
   def format(txt, :source) do
-    TypeCheck.conforms!(txt, S.str_list())
+    if S.enable_typechecking?(), do: TypeCheck.conforms!(txt, S.str_list())
 
     ["`", txt, "`"]
   end
@@ -61,6 +62,8 @@ defmodule TxtBlock.Md do
       """
       Testing formats.
 
+      *Italicized*
+
       Quoted
       > Quoted line 1
       > Quoted line 2
@@ -83,7 +86,7 @@ defmodule TxtBlock.Md do
 
       Numbered list
       1. Item 1
-      2. Item 2
+      2. *Nested Italics Item 2*
       3. Item 3
       """
     end

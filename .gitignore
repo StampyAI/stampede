@@ -33,3 +33,5 @@ erl_crash.dump
 /.env
 
 /priv
+
+/eflame

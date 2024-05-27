@@ -3,7 +3,7 @@ defmodule StampedeStatelessTest do
   import ExUnit.CaptureLog
   require Plugin
   alias Stampede, as: S
-  require S.Msg
+  require S.MsgReceived
   doctest Stampede
 
   @dummy_cfg """
@@ -21,7 +21,7 @@ defmodule StampedeStatelessTest do
     server_id: :testing,
     error_channel_id: :error,
     prefix: "!",
-    plugs: MapSet.new([Plugin.Test, Plugin.Sentience]),
+    plugs: MapSet.new([Plugins.Test, Plugins.Sentience]),
     vip_ids: MapSet.new([:server]),
     dm_handler: true,
     bot_is_loud: false
@@ -43,7 +43,6 @@ defmodule StampedeStatelessTest do
 
       inputs =
         [
-          [%{bot_is_loud: true}, %{}],
           [%{}, %{at_bot?: true}],
           [%{}, %{dm?: true}],
           [%{}, %{prefix: "something"}]
@@ -56,10 +55,10 @@ defmodule StampedeStatelessTest do
             ]
         end)
 
-      assert not Plugin.is_bot_invoked(cfg_defaults, msg_defaults)
+      assert not Plugin.is_bot_invoked(msg_defaults)
 
       for [cfg, msg] <- inputs do
-        assert Plugin.is_bot_invoked(cfg, msg)
+        assert Plugin.is_bot_invoked(msg)
       end
     end
 
@@ -76,64 +75,60 @@ defmodule StampedeStatelessTest do
       dummy_cfg = @dummy_cfg_verified
 
       msg =
-        S.Msg.new(
+        S.MsgReceived.new(
           id: 0,
           body: "!ping",
           channel_id: :t1,
           author_id: :u1,
           server_id: :none
         )
-        |> S.Msg.add_context(dummy_cfg)
+        |> S.MsgReceived.add_context(dummy_cfg)
 
-      {:respond, arg} = Plugin.Test.query(dummy_cfg, msg)
-      r = Plugin.Test.respond(arg)
+      r = Plugins.Test.respond(dummy_cfg, msg)
       assert r.text == "pong!"
 
       msg =
-        S.Msg.new(
+        S.MsgReceived.new(
           id: 0,
           body: "!raise",
           channel_id: :t1,
           author_id: :u1,
           server_id: :none
         )
-        |> S.Msg.add_context(dummy_cfg)
+        |> S.MsgReceived.add_context(dummy_cfg)
 
       assert_raise SillyError, fn ->
-        {:respond, arg} = Plugin.Test.query(dummy_cfg, msg)
-        _ = Plugin.Test.respond(arg)
+        _ = Plugins.Test.respond(dummy_cfg, msg)
       end
 
       msg =
-        S.Msg.new(
+        S.MsgReceived.new(
           id: 0,
           body: "!throw",
           channel_id: :t1,
           author_id: :u1,
           server_id: :none
         )
-        |> S.Msg.add_context(dummy_cfg)
+        |> S.MsgReceived.add_context(dummy_cfg)
 
       try do
-        {:respond, arg} = Plugin.Test.query(dummy_cfg, msg)
-        _ = Plugin.Test.respond(arg)
+        _ = Plugins.Test.respond(dummy_cfg, msg)
       catch
         _t, e ->
           assert e == SillyThrow
       end
 
       msg =
-        S.Msg.new(
+        S.MsgReceived.new(
           id: 0,
           body: "!callback",
           channel_id: :t1,
           author_id: :u1,
           server_id: :none
         )
-        |> S.Msg.add_context(dummy_cfg)
+        |> S.MsgReceived.add_context(dummy_cfg)
 
-      {:respond, arg} = Plugin.Test.query(dummy_cfg, msg)
-      %{callback: {m, f, a}} = Plugin.Test.respond(arg)
+      %{callback: {m, f, a}} = Plugins.Test.respond(dummy_cfg, msg)
 
       cbr = apply(m, f, a)
       assert String.starts_with?(cbr.text, "Called back with")
@@ -198,6 +193,10 @@ defmodule StampedeStatelessTest do
 
       assert correctly_split_msg == S.text_chunk(large_msg, split_size, max_pieces)
       assert [smol_msg] == S.text_chunk(smol_msg, split_size, max_pieces)
+    end
+
+    test "typechecking enabled during tests" do
+      assert_raise TypeCheck.TypeError, fn -> S.Debugging.always_fails_typecheck() end
     end
   end
 
@@ -308,12 +307,57 @@ defmodule StampedeStatelessTest do
       assert two == correct
     end
 
+    test "list with italics" do
+      one = {{:list, :numbered}, ["1", ["2", " ", "foo"], ["3 ", {:italics, "bar"}]]}
+
+      correct =
+        """
+        1. 1
+        2. 2 foo
+        3. 3 *bar*
+        """
+
+      assert correct == TxtBlock.to_binary(one, Service.Dummy)
+    end
+
     test "Markdown" do
       processed =
         TxtBlock.Debugging.all_formats_example()
         |> TxtBlock.to_binary(Service.Dummy)
 
       assert processed == TxtBlock.Md.Debugging.all_formats_processed()
+    end
+  end
+
+  describe "Response picking and tracebacks" do
+    test "no response" do
+      tlist =
+        [{Plugins.Test, {:job_ok, nil}}]
+
+      assert match?(%{r: nil, tb: _}, Plugin.resolve_responses(tlist))
+    end
+
+    test "default response" do
+      tlist =
+        [
+          {Plugins.Sentience,
+           {:job_ok,
+            %Stampede.ResponseToPost{
+              confidence: 1,
+              text: {:italics, "confused beeping"},
+              origin_plug: Plugins.Sentience,
+              origin_msg_id: 49,
+              why: ["I didn't have any better ideas."],
+              callback: nil,
+              channel_lock: false
+            }}}
+        ]
+
+      result = Plugin.resolve_responses(tlist)
+
+      assert match?(%{r: %Stampede.ResponseToPost{}, tb: _}, Plugin.resolve_responses(tlist)) &&
+               result.r.confidence == 1 &&
+               result.r.origin_plug == Plugins.Sentience
     end
   end
 end

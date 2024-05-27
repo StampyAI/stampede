@@ -1,6 +1,7 @@
 defmodule Stampede.InteractionForm do
+  @compile [:bin_opt_info, :recv_opt_info]
   alias Stampede, as: S
-  alias S.{Msg, Response}
+  alias S.{MsgReceived, ResponseToPost}
   use TypeCheck
   use TypeCheck.Defstruct
 
@@ -8,9 +9,9 @@ defmodule Stampede.InteractionForm do
     # TODO: rename to "chosen_plugin"
     plugin: _ :: any(),
     service: _ :: atom(),
-    msg: _ :: Msg.t(),
-    response: _ :: Response.t(),
-    traceback: [] :: TxtBlock.t(),
+    msg: _ :: MsgReceived.t(),
+    response: _ :: ResponseToPost.t(),
+    traceback: _ :: S.Traceback.t(),
     channel_lock: false :: S.channel_lock_action()
   )
 

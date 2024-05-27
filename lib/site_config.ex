@@ -1,11 +1,12 @@
 defmodule SiteConfig do
+  @compile [:bin_opt_info, :recv_opt_info]
   @moduledoc """
   This module defines how per-site configurations are validated and represented.
 
   A configuration usually starts as a YAML file on-disk. It is then:
   - read into an Erlang term
   - validated with NimbleOptions (simultaneously handling defaults and type-checking)
-  - some transformations are done; for example, turning atoms referring to services and plugins into their proper names ("discord" into Elixir.Service.Discord, "why" into Elixir.Plugin.Why).
+  - some transformations are done; for example, turning atoms referring to services and plugins into their proper names ("discord" into Elixir.Service.Discord, "why" into Elixir.Plugins.Why).
   - turned into a SiteConfig struct (internally a map)
   - Given to Stampede.CfgTable which handles storage of the configs and keeping services up-to-date.
 
@@ -96,18 +97,15 @@ defmodule SiteConfig do
 
   @doc "Verify that explicitly listed plugins actually exist"
   def real_plugins(:all), do: {:ok, :all}
-  def real_plugins(:none), do: {:ok, :none}
 
   def real_plugins(plugs) when not is_struct(plugs, MapSet),
     do: raise("This is not a mapset: #{inspect(plugs)}")
 
   def real_plugins(plugs) when is_struct(plugs, MapSet) do
-    existing = Plugin.ls(plugs)
-
-    if MapSet.equal?(existing, plugs) do
+    if Plugin.loaded?(plugs) do
       {:ok, plugs}
     else
-      raise "Some plugins not found.\nFound: #{inspect(existing)}\nConfigured: #{inspect(plugs)}"
+      raise "Some plugins not found.\nFound: #{inspect(Plugin.ls())}\nConfigured: #{inspect(plugs)}"
     end
   end
 
@@ -148,7 +146,7 @@ defmodule SiteConfig do
     |> Map.new()
   end
 
-  @doc "Turn plug_name into Elixir.Plugin.PlugName"
+  @doc "Turn plug_name into Elixir.Plugins.PlugName"
   def concat_plugs(kwlist, _schema) do
     if is_list(Keyword.get(kwlist, :plugs)) do
       Keyword.update!(kwlist, :plugs, fn plugs ->
@@ -159,7 +157,7 @@ defmodule SiteConfig do
           ll when is_list(ll) ->
             Enum.map(ll, fn name ->
               camel_name = name |> to_string() |> Macro.camelize()
-              Module.safe_concat(Plugin, camel_name)
+              Module.safe_concat(Plugins, camel_name)
             end)
             |> MapSet.new()
         end

@@ -1,11 +1,12 @@
 defmodule Service do
+  @compile [:bin_opt_info, :recv_opt_info]
   use TypeCheck
   alias Stampede, as: S
 
   @doc "return description of valid site config options"
   @callback site_config_schema() :: NimbleOptions.t()
   @doc "Is this service message a DM?"
-  @callback dm?(service_message_or_msg_struct :: any() | S.Msg.t()) :: boolean()
+  @callback dm?(service_message_or_msg_struct :: any() | S.MsgReceived.t()) :: boolean()
   @doc "Is this author considered privileged in this context?"
   @callback author_privileged?(server_id :: any(), author_id :: any()) :: boolean()
   @doc "Is this user the bot's user?"
@@ -13,14 +14,14 @@ defmodule Service do
   @doc "Is this message targeted at the bot in a service-specific way?"
   @callback at_bot?(
               cfg :: SiteConfig.t(),
-              message :: S.Msg.t()
+              message :: S.MsgReceived.t()
             ) :: boolean()
   @doc "Send a message on this service"
   @callback send_msg(destination :: any(), text :: TxtBlock.t(), opts :: keyword()) :: any()
   @doc "Log a safely caught plugin error. Often called from Plugin.get_top_response()"
   @callback log_plugin_error(
               cfg :: SiteConfig.t(),
-              message :: S.Msg.t(),
+              message :: S.MsgReceived.t(),
               error_info :: PluginCrashInfo.t()
             ) :: {:ok, formatted :: TxtBlock.t()}
   @doc "Report an uncaught error from the Erlang logger. Could have sensitive info for the bot host."
@@ -37,7 +38,7 @@ defmodule Service do
   @doc "How this service wants plugin errors to be displayed."
   @callback format_plugin_fail(
               cfg :: SiteConfig.t(),
-              msg :: S.Msg.t(),
+              msg :: S.MsgReceived.t(),
               error_info :: PluginCrashInfo.t()
             ) :: TxtBlock.t()
 

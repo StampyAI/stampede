@@ -1,0 +1,36 @@
+TYPE CHECKING MAKES PROCESSING TWICE AS SLOW
+##### With input 20 fast modules, 32 messages, 4 divisions #####
+Name                                     ips        average  deviation         median         99th %
+Typechecking                            0.29         3.42 s     ±3.95%         3.34 s         3.64 s
+Typecheck + no struct checks            0.47         2.12 s     ±7.62%         2.02 s         2.46 s
+No typechecking + struct checks         0.60         1.66 s     ±4.60%         1.62 s         1.84 s
+No typechecking + no struct checks      9.56      104.56 ms     ±2.29%      104.08 ms      116.36 ms
+
+MNESIA CONCURRENCY MAKES LITTLE DIFFERENCE
+##### With input 20 fast modules, 512 messages, 8 divisions #####
+Name                                     ips        average  deviation         median         99th %
+with concurrency                         1.19      840.46 ms     ±1.91%      835.33 ms      914.21 ms
+without concurrency                      1.18      845.20 ms     ±2.58%      836.34 ms      923.01 ms
+
+MNESIA COMPRESSION FOR INTERACTIONS IS PRETTY GOOD
+with compression:
+  Elixir.Stampede.Tables.Interactions: with 41984    records occupying 23285913 words of mem
+without compression:
+  Elixir.Stampede.Tables.Interactions: with 41984    records occupying 61680281 words of mem
+
+OVERHEAD FOR SENDING CFG+MSG TO NEW THREAD ISN'T A PROBLEM
+##### With input 20 fast modules, 512 messages, 8 divisions #####
+Name                                     ips        average  deviation         median         99th %
+Avoiding sending data through threads   1.19      839.05 ms     ±2.00%      835.25 ms      948.81 ms
+Copying cfg and msg to new thread       1.19      841.37 ms     ±1.47%      838.30 ms      891.12 ms
+Combine query/response into one func    1.18      844.46 ms     ±1.87%      837.42 ms      905.90 ms
+
+FOR PLUGIN MULTITHREADING, NO DIFFERENCE FOUND BETWEEN DIRECT Task.Async AND Task.Supervisor AND PartitionSupervisor
+(no stats)
+
+SYMBOLIC TRACEBACK LOGGING SAVES MEMORY
+IOLIST: 9728 records occupying 5428632  words of mem
+averaging 558 words per record
+
+SYMBOLIC: 10752 records occupying 2264216  words of mem
+averaging 210 words per record

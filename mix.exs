@@ -11,6 +11,12 @@ defmodule Stampede.MixProject do
       dialyzer: dialyzer(),
       preferred_cli_env: [release: :prod, test: :test],
       aliases: [test: "test --no-start"],
+      # Appears to not work at all
+      erlc_options: [
+        strong_validation: true,
+        recv_opt_info: true,
+        bin_opt_info: true
+      ],
 
       # Docs
       name: "Stampede",
@@ -28,7 +34,7 @@ defmodule Stampede.MixProject do
   def configure_app(mod_list, nil) when is_list(mod_list) do
     configure_app(mod_list,
       extra_applications: [:logger, :runtime_tools],
-      mod: {Stampede.Application, [installed_services: []]},
+      mod: {Stampede.Application, [installed_services: [:dummy]]},
       included_applications: []
     )
   end
@@ -53,12 +59,11 @@ defmodule Stampede.MixProject do
   end
 
   def configure_app([], config_acc) when is_list(config_acc), do: config_acc
-  # Run "mix help compile.app" to learn about applications.
+
   def application do
     configure_app([:discord])
   end
 
-  # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
       # Checking
@@ -78,7 +83,15 @@ defmodule Stampede.MixProject do
       {:stream_data, "~> 0.5.0"},
 
       # Benchmarking
-      {:benchee, "~> 1.1", runtime: false, only: :dev},
+      {:benchee, "~> 1.1", runtime: false, only: :bench},
+
+      # profiling
+      # {:eflambe, ">= 0.0.0", only: :dev},
+      {:eflambe, ">= 0.0.0"},
+      {:sweet_xml, ">= 0.0.0"},
+
+      # Fast arrays
+      {:arrays_aja, "~> 0.2.0"},
 
       # SERVICES
       # {:nostrum, "~> 0.8.0", runtime: false},
