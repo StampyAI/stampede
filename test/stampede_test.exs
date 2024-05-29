@@ -126,6 +126,11 @@ defmodule StampedeTest do
       assert String.starts_with?(r.text, "Called back with")
     end
 
+    test "plugin with failing callback", s do
+      r = D.send_msg(s.id, :t1, :u1, "!callback fail")
+      assert String.starts_with?(r.text, @confused_response)
+    end
+
     test "plugin timeout", s do
       r = D.send_msg(s.id, :t1, :u1, "!timeout")
       assert r.text == @confused_response

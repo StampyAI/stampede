@@ -40,6 +40,12 @@ defmodule Stampede.Traceback do
     ]
   end
 
+  def do_single_transform(:callback_called_and_declined) do
+    [
+      "\nTop response was a callback, so i called it. But it decided it had nothing to say."
+    ]
+  end
+
   def do_single_transform({:channel_lock_triggered, channel_id, m, f, text, why}) do
     [
       "Channel ",

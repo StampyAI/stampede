@@ -33,6 +33,7 @@ defmodule Plugin do
   alias Stampede, as: S
   alias S.{MsgReceived, ResponseToPost, InteractionForm}
   require InteractionForm
+  require Aja
   @first_response_timeout 500
 
   @doc """
@@ -90,6 +91,29 @@ defmodule Plugin do
 
   def loaded?(enabled) do
     MapSet.subset?(enabled, Plugin.ls())
+  end
+
+  def try_callback(response = %ResponseToPost{}, traceback) do
+    {m, f, a} = response.callback
+
+    followup_r =
+      apply(m, f, a)
+
+    new_tb =
+      Stampede.Traceback.append(
+        traceback,
+        if followup_r do
+          {:callback_called, followup_r.text, followup_r.why}
+        else
+          :callback_called_and_declined
+        end
+      )
+
+    if followup_r do
+      {followup_r, new_tb}
+    else
+      {nil, new_tb}
+    end
   end
 
   @type! job_result ::
@@ -261,28 +285,8 @@ defmodule Plugin do
 
       # we can't get a response until we run this callback
       # TODO: let callback decide to not respond, and fall back to the next highest priority response
-      %ResponseToPost{callback: {mod, fun, args}} ->
-        followup =
-          apply(mod, fun, args)
-
-        new_tb =
-          Stampede.Traceback.append(
-            traceback,
-            {:callback_called, followup.text, followup.why}
-          )
-
-        {:ok, iid} =
-          S.InteractionForm.new(
-            service: cfg.service,
-            plugin: chosen_response.origin_plug,
-            msg: msg,
-            response: followup,
-            channel_lock: followup.channel_lock,
-            traceback: new_tb
-          )
-          |> S.Interact.prepare_interaction!()
-
-        {followup, iid}
+      %ResponseToPost{callback: cb} ->
+        raise "Callback should have been done by now!"
     end
   end
 
@@ -373,21 +377,70 @@ defmodule Plugin do
     |> do_rr(nil, Aja.Vector.new())
   end
 
-  def do_rr([], chosen_response, traceback) do
-    %{
-      r: chosen_response,
-      tb: traceback
-    }
+  def do_rr([], possible_responses, traceback) do
+    cond do
+      possible_responses == nil ->
+        %{r: nil, tb: traceback}
+
+      possible_responses && Aja.vec_size(possible_responses) == 1 ->
+        %{r: Aja.Vector.at!(possible_responses, 0), tb: traceback}
+
+      true ->
+        # # DEBUG
+        # Aja.Vector.foldl(possible_responses, 0, fn
+        #   r = %ResponseToPost{}, acc ->
+        #     unless r.callback do
+        #       acc == 0 || raise "This should be the first callback"
+        #       acc + 1
+        #     else
+        #       acc == 0 || raise "There shouldn't be callbacks after a text post"
+        #       acc
+        #     end
+        #   other, _ ->
+        #     raise "Expected response, got #{other |> inspect(pretty: true)}"
+        # end)
+
+        {r, tb} =
+          Aja.Vector.foldl(possible_responses, {nil, traceback}, fn
+            current_r = %ResponseToPost{}, {nil, tb} ->
+              # response not yet chosen
+              if current_r.callback do
+                try_callback(current_r, tb)
+              else
+                {current_r, tb}
+              end
+
+            current_r = %ResponseToPost{}, {chosen_r = %ResponseToPost{}, tb} ->
+              # response already chosen
+              if chosen_r.confidence < current_r.confidence do
+                if current_r.callback do
+                  try_callback(current_r, tb)
+                else
+                  {current_r, tb}
+                end
+              else
+                {chosen_r, tb}
+              end
+
+            other, _ ->
+              raise "Should never happen. #{other |> inspect(pretty: true)}"
+          end)
+
+        %{
+          r: r,
+          tb: tb
+        }
+    end
   end
 
   def do_rr(
         [{plug, {:job_ok, nil}} | rest],
-        chosen_response,
+        possible_responses,
         traceback
       ) do
     do_rr(
       rest,
-      chosen_response,
+      possible_responses,
       S.Traceback.append(
         traceback,
         {:declined_to_answer, plug}
@@ -397,12 +450,12 @@ defmodule Plugin do
 
   def do_rr(
         [{plug, {:job_error, :timeout}} | rest],
-        chosen_response,
+        possible_responses,
         traceback
       ) do
     do_rr(
       rest,
-      chosen_response,
+      possible_responses,
       S.Traceback.append(
         traceback,
         {:timeout, plug}
@@ -411,8 +464,8 @@ defmodule Plugin do
   end
 
   def do_rr(
-        [{plug, {:job_ok, response}} | rest],
-        chosen_response,
+        [{plug, {:job_ok, response = %ResponseToPost{}}} | rest],
+        possible_responses,
         traceback
       ) do
     responded_log =
@@ -422,20 +475,34 @@ defmodule Plugin do
         {:replied_with_text, plug, response.confidence, response.text, response.why}
       end
 
-    # assuming first response is chosen response, meaning pre-sorted
-    if chosen_response == nil do
+    # assuming first response is highest priority response, meaning pre-sorted
+    if possible_responses == nil do
       do_rr(
         rest,
-        response,
+        Aja.vec([response]),
         S.Traceback.append(
           traceback,
           {:response_was_chosen, responded_log}
         )
       )
     else
+      # if response is a callback, we need an alternative should the callback fail.
+      # Keep saving responses until one isn't a callback, so we aren't left empty handed.
+      non_callback_available =
+        Aja.Vector.at!(possible_responses, -1)
+        |> Map.fetch!(:callback)
+        |> Kernel.===(nil)
+
+      updated_responses =
+        if non_callback_available do
+          possible_responses
+        else
+          Aja.Vector.append(possible_responses, response)
+        end
+
       do_rr(
         rest,
-        chosen_response,
+        updated_responses,
         S.Traceback.append(
           traceback,
           responded_log

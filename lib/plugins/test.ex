@@ -13,6 +13,7 @@ defmodule Plugins.Test do
     [
       {"ping", "pong!"},
       {"callback", "(shows callback replies work)"},
+      {"callback fail", "(shows callbacks can give up)"},
       {"a", "(shows channel locks work)"},
       {"timeout", "(shows that plugins which time out won't disrupt other plugins)"},
       {"raise", "(raises an error which should be reported)"},
@@ -51,6 +52,15 @@ defmodule Plugins.Test do
           callback: {__MODULE__, :callback_example, [num, msg.id]}
         )
 
+      "callback fail" ->
+        S.ResponseToPost.new(
+          confidence: 10,
+          text: nil,
+          origin_msg_id: msg.id,
+          why: ["They want to test callback fails."],
+          callback: {__MODULE__, :callback_example, [:fail, msg.id]}
+        )
+
       # test channel locks
       "a" ->
         S.ResponseToPost.new(
@@ -75,6 +85,15 @@ defmodule Plugins.Test do
       _ ->
         nil
     end
+  end
+
+  def callback_example(:fail, msg_id) do
+    S.ResponseToPost.new(
+      confidence: 0,
+      origin_msg_id: msg_id,
+      text: "THIS SHOULDNT BE SHOWN",
+      why: "Testing callbacks that fail"
+    )
   end
 
   def callback_example(num, msg_id) when is_number(num) do
