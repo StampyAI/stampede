@@ -283,8 +283,6 @@ defmodule Plugin do
 
         {chosen_response, iid}
 
-      # we can't get a response until we run this callback
-      # TODO: let callback decide to not respond, and fall back to the next highest priority response
       %ResponseToPost{callback: cb} ->
         raise "Callback should have been done by now!"
     end

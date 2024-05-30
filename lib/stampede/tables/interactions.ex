@@ -30,9 +30,6 @@ defmodule Stampede.Tables.Interactions do
       ]
     ]
 
-  # TODO: benchmarking.
-  # try write_concurrency and read_concurrency
-
   @spec! validate!(%__MODULE__{}) :: %__MODULE__{}
   def validate!(record) when is_struct(record, __MODULE__) do
     if S.Interact.id_exists?(record.id), do: raise("Interaction already recorded??")

@@ -35,9 +35,6 @@ defmodule Service.Dummy.Table do
 end
 
 defmodule Service.Dummy do
-  @moduledoc """
-  A fake service for local dev-side testing
-  """
   @compile [:bin_opt_info, :recv_opt_info]
   # TODO: this is not actually parallelized meaning it can't be used in benchmarks
   # Maybe it should be a supervisor with a process for each thread?
