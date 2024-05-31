@@ -170,12 +170,15 @@ defmodule SiteConfig do
   @doc "If prefix describes a Regex, compile it"
   def make_regex(kwlist, _schema) do
     if Keyword.has_key?(kwlist, :prefix) do
-      Keyword.update!(kwlist, :prefix, fn prefix ->
-        if String.starts_with?(prefix, "~r") do
-          Regex.compile!(prefix)
-        else
-          prefix
-        end
+      Keyword.update!(kwlist, :prefix, fn
+        prefix ->
+          case S.split_prefix(prefix, "~r/") do
+            {"~r/", rex} ->
+              Regex.compile!(rex)
+
+            {false, otherwise} ->
+              otherwise
+          end
       end)
     else
       kwlist

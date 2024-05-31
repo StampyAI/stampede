@@ -134,12 +134,25 @@ defmodule Stampede do
     end
   end
 
+  def split_prefix(text, prefix) when is_struct(prefix, Regex) and is_binary(text) do
+    case Regex.split(prefix, text, include_captures: true, capture: :first, trim: true) do
+      [p, b] ->
+        {p, b}
+
+      [^text] ->
+        {false, text}
+
+      [] ->
+        {false, text}
+    end
+  end
+
   def split_prefix(text, prefix) when is_binary(prefix) and is_binary(text) do
     case text do
       <<^prefix::binary-size(floor(bit_size(prefix) / 8)), _::binary>> ->
         {
           binary_part(text, 0, byte_size(prefix)),
-          binary_part(text, byte_size(prefix), byte_size(text) - 1)
+          binary_part(text, byte_size(prefix), byte_size(text) - byte_size(prefix))
         }
 
       not_prefixed ->
@@ -181,6 +194,7 @@ defmodule Stampede do
     end)
   end
 
+  @doc "Although it may seem like you could split with direct binary accesses, this wouldn't handle unicode characters"
   def text_chunk_regex(len) when is_integer(len) and len > 0 do
     Regex.compile!("(.{1,#{len}})", "us")
   end

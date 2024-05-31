@@ -30,6 +30,18 @@ defmodule StampedeStatelessTest do
   describe "stateless functions" do
     test "split_prefix text" do
       assert {"!", "ping"} == S.split_prefix("!ping", "!")
+      assert {false, "ping"} == S.split_prefix("ping", "!")
+    end
+
+    test "SiteConfig.make_regex() test" do
+      r_binary = "~r/[Ss]\(,\)? "
+      [prefix: rex] = SiteConfig.make_regex([prefix: r_binary], nil)
+      assert Regex.source(rex) == String.slice(r_binary, 3, String.length(r_binary) - 3)
+      assert {"S, ", "ping"} == S.split_prefix("S, ping", rex)
+      assert {"S ", "ping"} == S.split_prefix("S ping", rex)
+      assert {"s, ", "ping"} == S.split_prefix("s, ping", rex)
+      assert {false, "s,, ping"} == S.split_prefix("s,, ping", rex)
+      assert {false, "ping"} == S.split_prefix("ping", rex)
     end
 
     test "Plugin.is_bot_invoked?" do
