@@ -77,8 +77,10 @@ defmodule TxtBlock do
     end
   end
 
-  @spec! plain_indent_io(S.str_list(), String.t() | non_neg_integer(), nil | {:bm, any()}) :: S.str_list()
+  @spec! plain_indent_io(S.str_list(), String.t() | non_neg_integer(), nil | {:bm, any()}) ::
+           S.str_list()
   def plain_indent_io(str, n, bp \\ nil)
+
   def plain_indent_io(str, n, bp) when is_integer(n),
     do: str |> plain_indent_io(String.duplicate(" ", n), bp)
 
