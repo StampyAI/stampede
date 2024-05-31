@@ -77,16 +77,19 @@ defmodule TxtBlock do
     end
   end
 
-  @spec! plain_indent_io(S.str_list(), String.t() | non_neg_integer()) :: S.str_list()
-  def plain_indent_io(str, n) when is_integer(n),
-    do: str |> plain_indent_io(String.duplicate(" ", n))
+  @spec! plain_indent_io(S.str_list(), String.t() | non_neg_integer(), nil | {:bm, any()}) :: S.str_list()
+  def plain_indent_io(str, n, bp \\ nil)
+  def plain_indent_io(str, n, bp) when is_integer(n),
+    do: str |> plain_indent_io(String.duplicate(" ", n), bp)
 
-  def plain_indent_io(str, prefix) when is_binary(prefix) do
-    # TODO: use :re so no split needed
+  def plain_indent_io(str, prefix, bp) when is_binary(prefix) do
     IO.iodata_to_binary(str)
-    |> String.split("\n", trim: true)
+    # TODO: this is being recompiled every time. figure out how to precompile binary patterns without needing application state
+    |> String.split(bp || bp_newline(), trim: true)
     |> Enum.flat_map(&[prefix, &1, "\n"])
   end
+
+  def bp_newline(), do: :binary.compile_pattern("\n")
 end
 
 defmodule TxtBlock.Debugging do

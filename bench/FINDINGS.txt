@@ -34,3 +34,6 @@ averaging 558 words per record
 
 SYMBOLIC: 10752 records occupying 2264216  words of mem
 averaging 210 words per record
+
+STRING.SPLIT IDENTICAL TO :binary.split()
+GIVING STRING.SPLIT A PRECOMPILED PATTERN HELPS THE SPEED

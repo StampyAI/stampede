@@ -9,7 +9,7 @@ defmodule Stampede.MixProject do
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       dialyzer: dialyzer(),
-      preferred_cli_env: [release: :prod, test: :test],
+      preferred_cli_env: [release: :prod, compile: :prod, test: :test],
       aliases: [test: "test --no-start"],
       # Appears to not work at all
       erlc_options: [
