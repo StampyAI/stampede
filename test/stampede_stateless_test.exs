@@ -4,6 +4,7 @@ defmodule StampedeStatelessTest do
   require Plugin
   alias Stampede, as: S
   require S.MsgReceived
+  import AssertValue
   doctest Stampede
 
   @dummy_cfg """
@@ -29,19 +30,19 @@ defmodule StampedeStatelessTest do
 
   describe "stateless functions" do
     test "split_prefix text" do
-      assert {"!", "ping"} == S.split_prefix("!ping", "!")
-      assert {false, "ping"} == S.split_prefix("ping", "!")
+      assert_value S.split_prefix("!ping", "!") == {"!", "ping"}
+      assert_value {false, "ping"} == S.split_prefix("ping", "!")
     end
 
     test "SiteConfig.make_regex() test" do
       r_binary = "~r/[Ss]\(,\)? "
       [prefix: rex] = SiteConfig.make_regex([prefix: r_binary], nil)
       assert Regex.source(rex) == String.slice(r_binary, 3, String.length(r_binary) - 3)
-      assert {"S, ", "ping"} == S.split_prefix("S, ping", rex)
-      assert {"S ", "ping"} == S.split_prefix("S ping", rex)
-      assert {"s, ", "ping"} == S.split_prefix("s, ping", rex)
-      assert {false, "s,, ping"} == S.split_prefix("s,, ping", rex)
-      assert {false, "ping"} == S.split_prefix("ping", rex)
+      assert_value S.split_prefix("S, ping", rex) == {"S, ", "ping"}
+      assert_value S.split_prefix("S ping", rex) == {"S ", "ping"}
+      assert_value S.split_prefix("s, ping", rex) == {"s, ", "ping"}
+      assert_value S.split_prefix("s,, ping", rex) == {false, "s,, ping"}
+      assert_value S.split_prefix("ping", rex) == {false, "ping"}
     end
 
     test "Plugin.is_bot_invoked?" do
@@ -337,7 +338,36 @@ defmodule StampedeStatelessTest do
         TxtBlock.Debugging.all_formats_example()
         |> TxtBlock.to_binary(Service.Dummy)
 
-      assert processed == TxtBlock.Md.Debugging.all_formats_processed()
+      assert_value processed == """
+                   Testing formats.
+
+                   *Italicized*
+
+                   Quoted
+                   > Quoted line 1
+                   > Quoted line 2
+
+                   ```
+                   source(1)
+                   source(2)
+                   ```
+
+                   Inline source quote `foobar`
+
+                   ><> school
+                   ><> of
+                   ><> fishies
+
+                   Dotted list
+                   - Item 1
+                   - Item 2
+                   - Item 3
+
+                   Numbered list
+                   1. Item 1
+                   2. *Nested Italics Item 2*
+                   3. Item 3
+                   """
     end
   end
 
@@ -346,7 +376,8 @@ defmodule StampedeStatelessTest do
       tlist =
         [{Plugins.Test, {:job_ok, nil}}]
 
-      assert match?(%{r: nil, tb: _}, Plugin.resolve_responses(tlist))
+      assert_value Plugin.resolve_responses(tlist) |> inspect(pretty: true) ==
+                     "%{r: nil, tb: vec([declined_to_answer: Plugins.Test])}"
     end
 
     test "default response" do
@@ -367,9 +398,23 @@ defmodule StampedeStatelessTest do
 
       result = Plugin.resolve_responses(tlist)
 
-      assert match?(%{r: %Stampede.ResponseToPost{}, tb: _}, Plugin.resolve_responses(tlist)) &&
-               result.r.confidence == 1 &&
-               result.r.origin_plug == Plugins.Sentience
+      assert_value Plugin.resolve_responses(tlist) |> inspect(pretty: true) == """
+                   %{
+                     r: %Stampede.ResponseToPost{
+                       confidence: 1,
+                       text: {:italics, \"confused beeping\"},
+                       origin_plug: Plugins.Sentience,
+                       origin_msg_id: 49,
+                       why: [\"I didn't have any better ideas.\"],
+                       callback: nil,
+                       channel_lock: false
+                     },
+                     tb: vec([
+                       response_was_chosen: {:replied_with_text, Plugins.Sentience, 1,
+                        {:italics, \"confused beeping\"}, [\"I didn't have any better ideas.\"]}
+                     ])
+                   }<NOEOL>
+                   """
     end
   end
 end

@@ -83,6 +83,9 @@ config :nostrum,
 config :mnesia,
   dir: ~c".mnesia/#{Mix.env()}/#{node()}"
 
+# Avoid timeouts while waiting for user input in assert_value
+config :ex_unit, timeout: :infinity
+
 for config <- "./*.secret.exs" |> Path.expand(__DIR__) |> Path.wildcard() do
   import_config config
 end
