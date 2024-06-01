@@ -78,7 +78,6 @@ defmodule Stampede.MixProject do
       # must be started before use, see test/test_helper.exs
       {:assert_value, "~> 0.10.4", only: [:test, :dev]},
 
-
       # RUNTIME TYPE CHECKING
       # https://hexdocs.pm/type_check/readme.html
       {:type_check, "~> 0.13.5"},

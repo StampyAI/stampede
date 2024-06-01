@@ -31,7 +31,7 @@ defmodule StampedeStatelessTest do
   describe "stateless functions" do
     test "split_prefix text" do
       assert_value S.split_prefix("!ping", "!") == {"!", "ping"}
-      assert_value {false, "ping"} == S.split_prefix("ping", "!")
+      assert_value S.split_prefix("ping", "!") == {false, "ping"}
     end
 
     test "SiteConfig.make_regex() test" do
