@@ -3,6 +3,7 @@ defmodule StampedeTest do
   import ExUnit.CaptureLog
   alias Stampede, as: S
   alias Service.Dummy, as: D
+  import AssertValue
   doctest Stampede
 
   @confused_response S.confused_response() |> TxtBlock.to_binary(Service.Dummy)
@@ -13,16 +14,14 @@ defmodule StampedeTest do
     error_channel_id: error
     prefix: "!"
     plugs:
-      - Test
       - Sentience
-      - Why
   """
   @dummy_cfg_verified %{
     service: Service.Dummy,
     server_id: :testing,
     error_channel_id: :error,
     prefix: "!",
-    plugs: MapSet.new([Plugins.Test, Plugins.Sentience, Plugins.Why]),
+    plugs: MapSet.new([Plugins.Sentience]),
     dm_handler: false,
     filename: :"test SiteConfig load_all",
     vip_ids: MapSet.new([:server]),
@@ -46,7 +45,8 @@ defmodule StampedeTest do
     id = context.test
 
     if Map.get(context, :dummy, false) do
-      :ok = D.new_server(id, MapSet.new([Plugins.Test, Plugins.Sentience, Plugins.Why]))
+      :ok =
+        D.new_server(id, MapSet.new([Plugins.Test, Plugins.Sentience, Plugins.Why, Plugins.Help]))
     end
 
     %{id: id}
@@ -307,6 +307,22 @@ defmodule StampedeTest do
 
       decisions = S.Interact.clean_interactions_logic([old_locked_int, new_int], dummy_get_lock)
       assert decisions == [{{:delete, 2468}, {:unset, :chan_c}}]
+    end
+  end
+
+  describe "Help plugin" do
+    @describetag :dummy
+    test "basic help", s do
+      assert_value D.ask_bot(s.id, :t1, :u1, "!help") == %Stampede.ResponseToPost{
+                     confidence: 10,
+                     text:
+                       "Here are the available plugins! Learn about any of them with `help [plugin]`\n\n- Elixir.Plugins.Help\n- Elixir.Plugins.Sentience\n- Elixir.Plugins.Test\n- Elixir.Plugins.Why\n",
+                     origin_plug: Plugins.Help,
+                     origin_msg_id: 74,
+                     why: ["They pinged so I ponged!"],
+                     callback: nil,
+                     channel_lock: false
+                   }
     end
   end
 end
