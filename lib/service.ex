@@ -20,19 +20,14 @@ defmodule Service do
               message :: S.MsgReceived.t()
             ) :: boolean()
   @doc "Send a message on this service"
-  @callback send_msg(destination :: any(), text :: TxtBlock.t(), opts :: keyword()) :: any()
+  @callback send_msg(destination :: any(), text :: TxtBlock.t(), opts :: keyword()) ::
+              {:ok, any()} | {:error, any()}
   @doc "Log a safely caught plugin error. Often called from Plugin.get_top_response()"
   @callback log_plugin_error(
               cfg :: SiteConfig.t(),
               message :: S.MsgReceived.t(),
               error_info :: PluginCrashInfo.t()
             ) :: {:ok, formatted :: TxtBlock.t()}
-  @doc "Report an uncaught error from the Erlang logger. Could have sensitive info for the bot host."
-  @callback log_serious_error(
-              log_msg ::
-                {level :: Stampede.log_level(), _gl :: any(),
-                 {module :: Logger, message :: any(), _timestamp :: any(), _metadata :: any()}}
-            ) :: :ok
   @doc "Site configs have been updated and the service should be updated"
   @callback reload_configs() :: :ok | {:error, any()}
 
@@ -68,6 +63,42 @@ defmodule Service do
     end
   end
 
+  @doc "Report an uncaught error from the Erlang logger. Could have sensitive info for the bot host."
+  @spec! log_serious_error(
+           log_msg ::
+             {level :: Stampede.log_level(), _gl :: any(),
+              {module :: Logger, message :: any(), _timestamp :: any(), _metadata :: any()}}
+         ) :: :ok
+  def log_serious_error(_log_msg = {level, _gl, {Logger, message, _timestamp, metadata}}) do
+    unless metadata[:stampede_already_logged] do
+      try do
+        {error_service, channel_id} = Application.fetch_env!(:stampede, :error_log_destination)
+
+        log = [
+          "Erlang-level error ",
+          inspect(level),
+          "\n",
+          {:source_block, message}
+          |> TxtBlock.to_str_list(Service.Discord)
+        ]
+
+        _ = Service.send_msg(log, channel_id, error_service)
+      catch
+        t, e ->
+          IO.puts(:stderr, [
+            """
+            ERROR: Logging serious error to Discord failed. We have no option, and resending would probably cause an infinite loop.
+
+            Here's the error:
+            """,
+            S.pp({t, e})
+          ])
+      end
+    end
+
+    :ok
+  end
+
   # service polymorphism basically
   @spec! apply_service_function(SiteConfig.t() | atom(), atom(), list()) :: any()
   def apply_service_function(cfg, func_name, args)
@@ -82,6 +113,7 @@ defmodule Service do
   end
 
   # Some common functions make more sense being abbreviated here
+  # Usually rearranging the arguments for better piping
 
   # TODO: move this into service-generic Stampede.Logger
   def txt_format(blk, type, :logger),
@@ -89,4 +121,8 @@ defmodule Service do
 
   def txt_format(blk, type, cfg_or_service),
     do: __MODULE__.apply_service_function(cfg_or_service, :txt_format, [blk, type])
+
+  def send_msg(msg, channel_id, error_service) do
+    apply_service_function(error_service, :send_msg, [channel_id, msg])
+  end
 end

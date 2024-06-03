@@ -36,7 +36,7 @@ defmodule StampedeTest do
           installed_services: [:dummy],
           services: [:dummy],
           log_to_file: false,
-          serious_error_channel_service: :disabled,
+          log_post_serious_errors: false,
           clear_state: true
         )
     }
@@ -55,8 +55,8 @@ defmodule StampedeTest do
   describe "dummy server" do
     @describetag :dummy
     test "ping", s do
-      assert nil == D.send_msg(s.id, :t1, :u1, "no response")
-      assert "pong!" == D.send_msg(s.id, :t1, :u1, "!ping") |> Map.fetch!(:text)
+      assert nil == D.ask_bot(s.id, :t1, :u1, "no response")
+      assert "pong!" == D.ask_bot(s.id, :t1, :u1, "!ping") |> Map.fetch!(:text)
 
       assert match?(
                [
@@ -69,10 +69,10 @@ defmodule StampedeTest do
     end
 
     test "ignores messages from other servers", s do
-      nil = D.send_msg(s.id, :t1, :nope, "nada")
-      nil = D.send_msg(s.id, :t1, :abc, "def")
-      assert "pong!" == D.send_msg(s.id, :t1, :u1, "!ping") |> Map.fetch!(:text)
-      assert nil == D.send_msg(:shouldnt_exist, :t1, :u1, "!ping")
+      nil = D.ask_bot(s.id, :t1, :nope, "nada")
+      nil = D.ask_bot(s.id, :t1, :abc, "def")
+      assert "pong!" == D.ask_bot(s.id, :t1, :u1, "!ping") |> Map.fetch!(:text)
+      assert nil == D.ask_bot(:shouldnt_exist, :t1, :u1, "!ping")
 
       assert match?(
                [
@@ -88,7 +88,7 @@ defmodule StampedeTest do
     test "plugin raising", s do
       {result, log} =
         with_log(fn ->
-          D.send_msg(s.id, :t1, :u1, "!raise")
+          D.ask_bot(s.id, :t1, :u1, "!raise")
         end)
 
       assert match?(%{text: @confused_response}, result)
@@ -106,7 +106,7 @@ defmodule StampedeTest do
     end
 
     test "plugin throwing", s do
-      {result, log} = with_log(fn -> D.send_msg(s.id, :t1, :u1, "!throw") end)
+      {result, log} = with_log(fn -> D.ask_bot(s.id, :t1, :u1, "!throw") end)
       assert result.text == @confused_response
       assert String.contains?(log, "SillyThrow"), "SillyThrow not thrown"
 
@@ -122,17 +122,17 @@ defmodule StampedeTest do
     end
 
     test "plugin with callback", s do
-      r = D.send_msg(s.id, :t1, :u1, "!callback")
+      r = D.ask_bot(s.id, :t1, :u1, "!callback")
       assert String.starts_with?(r.text, "Called back with")
     end
 
     test "plugin with failing callback", s do
-      r = D.send_msg(s.id, :t1, :u1, "!callback fail")
+      r = D.ask_bot(s.id, :t1, :u1, "!callback fail")
       assert String.starts_with?(r.text, @confused_response)
     end
 
     test "plugin timeout", s do
-      r = D.send_msg(s.id, :t1, :u1, "!timeout")
+      r = D.ask_bot(s.id, :t1, :u1, "!timeout")
       assert r.text == @confused_response
     end
 
@@ -140,29 +140,29 @@ defmodule StampedeTest do
       uname = :admin
 
       assert "locked in on #{uname} awaiting b" ==
-               D.send_msg(s.id, :t1, uname, "!a") |> Map.fetch!(:text)
+               D.ask_bot(s.id, :t1, uname, "!a") |> Map.fetch!(:text)
 
-      assert "b response. awaiting c" == D.send_msg(s.id, :t1, uname, "b") |> Map.fetch!(:text)
+      assert "b response. awaiting c" == D.ask_bot(s.id, :t1, uname, "b") |> Map.fetch!(:text)
 
       assert "c response. interaction done!" ==
-               D.send_msg(s.id, :t1, uname, "c") |> Map.fetch!(:text)
+               D.ask_bot(s.id, :t1, uname, "c") |> Map.fetch!(:text)
 
       assert "locked in on #{uname} awaiting b" ==
-               D.send_msg(s.id, :t1, uname, "!a") |> Map.fetch!(:text)
+               D.ask_bot(s.id, :t1, uname, "!a") |> Map.fetch!(:text)
 
       assert "lock broken by admin" ==
-               D.send_msg(s.id, :t1, uname, "interrupt") |> Map.fetch!(:text)
+               D.ask_bot(s.id, :t1, uname, "interrupt") |> Map.fetch!(:text)
 
       assert "locked in on #{uname} awaiting b" ==
-               D.send_msg(s.id, :t1, uname, "!a") |> Map.fetch!(:text)
+               D.ask_bot(s.id, :t1, uname, "!a") |> Map.fetch!(:text)
 
       assert "lock broken by admin" ==
-               D.send_msg(s.id, :t1, uname, "!command_interrupt") |> Map.fetch!(:text)
+               D.ask_bot(s.id, :t1, uname, "!command_interrupt") |> Map.fetch!(:text)
     end
 
     test "at_bot?", s do
       %{response: r, posted_msg_id: non_bot_id} =
-        D.send_msg(s.id, :t1, :u1, "!ping", return_id: true)
+        D.ask_bot(s.id, :t1, :u1, "!ping", return_id: true)
 
       assert r.text == "pong!"
 
@@ -170,10 +170,10 @@ defmodule StampedeTest do
         D.channel_history(s.id, :t1)
         |> Enum.at(-1)
 
-      r2 = D.send_msg(s.id, :t1, :u1, "ping", ref: id)
+      r2 = D.ask_bot(s.id, :t1, :u1, "ping", ref: id)
       assert r2 && r2.text == "pong!", "bot not responding to being tagged"
 
-      r3 = D.send_msg(s.id, :t1, :u1, "ping", ref: non_bot_id)
+      r3 = D.ask_bot(s.id, :t1, :u1, "ping", ref: non_bot_id)
       assert r3 == nil, "bot responded to tag of someone else's message"
     end
   end
@@ -181,7 +181,7 @@ defmodule StampedeTest do
   describe "dummy server channels" do
     @describetag :dummy
     test "one message", s do
-      D.send_msg(s.id, :t1, :u1, "lol")
+      D.ask_bot(s.id, :t1, :u1, "lol")
 
       assert match?(
                [{_, {:u1, "lol", nil}}],
@@ -196,7 +196,7 @@ defmodule StampedeTest do
           {:t1, :u1, "#{x}"}
         end)
         |> Enum.reduce([], fn {a, u, m}, lst ->
-          D.send_msg(s.id, a, u, m)
+          D.ask_bot(s.id, a, u, m)
           [{u, m, nil} | lst]
         end)
         |> Enum.reverse()
@@ -230,7 +230,7 @@ defmodule StampedeTest do
     @describetag :dummy
     test "interaction is logged (direct database check)", s do
       %{bot_response_msg_id: bot_response_msg_id} =
-        D.send_msg(s.id, :t1, :u1, "!ping", return_id: true)
+        D.ask_bot(s.id, :t1, :u1, "!ping", return_id: true)
 
       :timer.sleep(100)
       # check interaction was logged, without Why plugin
@@ -240,18 +240,18 @@ defmodule StampedeTest do
 
     test "Why plugin returns trace from database", s do
       %{bot_response_msg_id: bot_response_msg_id} =
-        D.send_msg(s.id, :t1, :u1, "!ping", return_id: true)
+        D.ask_bot(s.id, :t1, :u1, "!ping", return_id: true)
 
       :timer.sleep(100)
 
-      D.send_msg(s.id, :t1, :u1, "!Why did you say that, specifically?", ref: bot_response_msg_id)
+      D.ask_bot(s.id, :t1, :u1, "!Why did you say that, specifically?", ref: bot_response_msg_id)
       |> Map.fetch!(:text)
       |> Plugins.Why.Debugging.probably_a_traceback()
       |> assert("couldn't find traceback, maybe regex needs update?")
     end
 
     test "Why plugin returns error on bad ID", s do
-      D.send_msg(s.id, :t1, :u1, "!Why did you say that, specifically?",
+      D.ask_bot(s.id, :t1, :u1, "!Why did you say that, specifically?",
         ref: {s.id, :t1, :system, 9999}
       )
       |> Map.fetch!(:text)

@@ -24,22 +24,22 @@ defmodule Stampede.Application do
       config_dir: [
         type: :string,
         default: "./Sites",
-        doc: "read from :stampede/:config_dir"
+        doc: "Will be read from :stampede/:config_dir if unset"
       ],
       log_to_file: [
         type: :boolean,
         default: true,
         doc: "enable file logging"
       ],
-      serious_error_channel_service: [
-        type: {:or, [:atom, nil]},
-        default: nil,
-        doc: "What service should handle serious errors?"
+      log_post_serious_errors: [
+        type: :boolean,
+        default: true,
+        doc: "enable posting serious errors to the channel specified in :error_log_destination"
       ],
       clear_state: [
         type: :boolean,
         default: false,
-        doc: "clear tables associated with this environment"
+        doc: "clear tables associated with this compilation environment"
       ]
     )
   end
@@ -62,16 +62,6 @@ defmodule Stampede.Application do
       |> Keyword.update!(:config_dir, fn dir ->
         dir <> "_#{Stampede.compilation_environment()}"
       end)
-      |> Keyword.update!(
-        :serious_error_channel_service,
-        fn setting ->
-          if setting == nil do
-            Application.get_env(:stampede, :serious_error_channel_service, nil)
-          else
-            setting
-          end
-        end
-      )
       # ensure our transformation went correctly
       |> NimbleOptions.validate!(startup_schema())
 
@@ -80,20 +70,28 @@ defmodule Stampede.Application do
     :ok = S.Tables.init(startup_args)
 
     _ =
-      case startup_args[:serious_error_channel_service] do
-        nil ->
-          Logger.error("No :serious_error_channel_service configured")
+      if startup_args[:log_post_serious_errors] do
+        case Application.get_env(:stampede, :error_log_destination, :unset) do
+          {error_service, channel_id} ->
+            {:ok, _} = LoggerBackends.add(Stampede.Logger)
 
-        :disabled ->
-          Logger.info(":serious_error_channel_service disabled")
+            Logger.debug(fn ->
+              [
+                "Errors will be logged to ",
+                error_service |> inspect(),
+                " at destination ",
+                channel_id |> inspect()
+              ]
+            end)
 
-        :discord ->
-          Logger.info("Discord handling :serious_error_channel_service")
-          {:ok, _} = LoggerBackends.add(Service.Discord.Logger)
+          :unset ->
+            Logger.error("No :error_log_destination configured")
 
-        # :ok = :logger.add_handler(:error_man, Service.Discord.Logger, [])
-        other ->
-          Logger.error("Unknown :serious_error_channel_service #{inspect(other)}")
+          other ->
+            raise "Unknown :error_log_destination  #{inspect(other, pretty: true)}"
+        end
+      else
+        Logger.info(":error_log_destination is false, not posting errors to anywhere")
       end
 
     # TODO: move activation into service modules themselves

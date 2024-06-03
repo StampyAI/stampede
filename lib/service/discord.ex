@@ -199,40 +199,6 @@ defmodule Service.Discord do
   end
 
   @impl Service
-  def log_serious_error({level, _gl, {Logger, message, _timestamp, metadata}}) do
-    if not metadata[:stampede_already_logged] do
-      try do
-        # TODO: disable if Discord not connected/working
-        IO.puts("log_serious_error recieved by Discord")
-        channel_id = Application.fetch_env!(:stampede, :serious_error_channel_id)
-
-        log = [
-          "Erlang-level error ",
-          inspect(level),
-          "\n",
-          message
-          |> TxtBlock.to_str_list(Service.Discord)
-          |> Service.Discord.txt_format(:source_block)
-        ]
-
-        _ = send_msg(channel_id, log)
-      catch
-        t, e ->
-          IO.puts([
-            """
-            ERROR: Logging serious error to Discord failed. We have no option, and resending would probably cause an infinite loop.
-
-            Here's the error:
-            """,
-            S.pp({t, e})
-          ])
-      end
-    end
-
-    :ok
-  end
-
-  @impl Service
   def reload_configs() do
     GenServer.call(__MODULE__.Handler, :reload_configs)
   end
@@ -441,63 +407,4 @@ defmodule Service.Discord.Consumer do
   # Default event handler, if you don't include this, your consumer WILL crash if
   # you don't have a method definition for each event type.
   def handle_event(_event), do: :noop
-end
-
-defmodule Service.Discord.Logger do
-  @doc """
-  Listens for global errors raised from Erlang's logger system. If an error gets thrown in this module or children it would cause an infinite loop.
-
-  """
-
-  # TODO: turn into service-generic Stampede.Logger
-
-  use TypeCheck
-  @behaviour :gen_event
-  # alias Stampede, as: S
-  @type! logger_state :: Keyword.t()
-
-  def start_link() do
-    :gen_event.start_link({:local, __MODULE__})
-  end
-
-  @impl :gen_event
-  @spec! init(any()) :: {:ok, logger_state()}
-  def init(_) do
-    backend_env = [level: Application.get_env(:logger, __MODULE__, :warning)]
-    {:ok, backend_env}
-  end
-
-  @impl :gen_event
-  @spec! handle_event(any(), logger_state()) :: {:ok, logger_state()}
-  def handle_event(log_msg = {level, gl, {Logger, _message, _timestamp, _metadata}}, state)
-      when node(gl) == node() do
-    _ =
-      case Logger.compare_levels(level, state[:level]) do
-        :lt ->
-          nil
-
-        _ ->
-          try do
-            Service.Discord.log_serious_error(log_msg)
-          catch
-            _type, _error ->
-              # NOTE: give up. what are we gonna do, throw another error?
-              :nothing
-          end
-      end
-
-    {:ok, state}
-  end
-
-  # NOTE: mandatory default handler, removing will crash
-  def handle_event({_, gl, {_, _, _, _}}, state)
-      when node(gl) != node(),
-      do: {:ok, state}
-
-  def handle_event(_, state), do: {:ok, state}
-
-  @impl :gen_event
-  def handle_call({:configure, options}, state) do
-    {:ok, :ok, Keyword.merge(state, options)}
-  end
 end

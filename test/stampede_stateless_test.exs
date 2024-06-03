@@ -70,7 +70,7 @@ defmodule StampedeStatelessTest do
 
       assert not Plugin.is_bot_invoked(msg_defaults)
 
-      for [cfg, msg] <- inputs do
+      for [_cfg, msg] <- inputs do
         assert Plugin.is_bot_invoked(msg)
       end
     end
@@ -395,8 +395,6 @@ defmodule StampedeStatelessTest do
               channel_lock: false
             }}}
         ]
-
-      result = Plugin.resolve_responses(tlist)
 
       assert_value Plugin.resolve_responses(tlist) |> inspect(pretty: true) == """
                    %{

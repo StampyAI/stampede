@@ -283,7 +283,7 @@ defmodule Plugin do
 
         {chosen_response, iid}
 
-      %ResponseToPost{callback: cb} ->
+      %ResponseToPost{callback: _cb} ->
         raise "Callback should have been done by now!"
     end
   end

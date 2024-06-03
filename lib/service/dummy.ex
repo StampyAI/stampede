@@ -68,9 +68,9 @@ defmodule Service.Dummy do
   @type! msg_tuple_incoming ::
            {server_id :: dummy_server_id(), channel :: dummy_channel_id(),
             user :: dummy_user_id(), body :: msg_content(), ref :: msg_reference()}
-  @typep! channel :: list(msg_tuple())
+  @type! channel :: list(msg_tuple())
   # multiple channels
-  @typep! channel_buffers :: %{dummy_channel_id() => channel()} | %{}
+  @type! channel_buffers :: %{dummy_channel_id() => channel()} | %{}
 
   defstruct!(
     servers: _ :: MapSet.t(atom()),
@@ -127,12 +127,8 @@ defmodule Service.Dummy do
     GenServer.start_link(__MODULE__, cfg_overrides, name: __MODULE__)
   end
 
-  @impl Service
-  def send_msg({server_id, channel, user}, text, opts \\ []),
-    do: send_msg(server_id, channel, user, text, opts)
-
-  # BUG: why does Dialyzer not acknowledge unwrapped nil and ResponseToPost?
-  @spec! send_msg(
+  @doc "dev-facing option for getting bot responses"
+  @spec! ask_bot(
            dummy_server_id(),
            dummy_channel_id(),
            dummy_user_id(),
@@ -146,13 +142,35 @@ defmodule Service.Dummy do
            }
            | nil
            | ResponseToPost.t()
+  def ask_bot(server_id, channel, user, text, opts \\ []) do
+    formatted_text =
+      TxtBlock.to_binary(text, __MODULE__)
+
+    GenServer.call(
+      __MODULE__,
+      {:ask_bot, {server_id, channel, user, formatted_text, opts[:ref]}, opts}
+    )
+  end
+
+  @impl Service
+  def send_msg({server_id, channel, user}, text, opts \\ []),
+    do: send_msg(server_id, channel, user, text, opts)
+
+  # BUG: why does Dialyzer not acknowledge unwrapped nil and ResponseToPost?
+  @spec! send_msg(
+           dummy_server_id(),
+           dummy_channel_id(),
+           dummy_user_id(),
+           msg_content() | TxtBlock.t(),
+           keyword()
+         ) :: {:ok, nil}
   def send_msg(server_id, channel, user, text, opts \\ []) do
     formatted_text =
       TxtBlock.to_binary(text, __MODULE__)
 
     GenServer.call(
       __MODULE__,
-      {:add_msg, {server_id, channel, user, formatted_text, opts[:ref]}, opts}
+      {:add_msg, {server_id, channel, user, formatted_text, opts[:ref]}}
     )
   end
 
@@ -202,10 +220,6 @@ defmodule Service.Dummy do
 
     {:ok, formatted}
   end
-
-  # TODO
-  @impl Service
-  def log_serious_error(_), do: :ok
 
   def into_msg({id, server_id, channel, user, body, ref}) do
     MsgReceived.new(
@@ -312,7 +326,24 @@ defmodule Service.Dummy do
 
   @impl GenServer
   def handle_call(
-        {:add_msg, msg_tuple = {server_id, channel, _user, _text, _ref}, opts},
+        {:add_msg, msg_tuple = {server_id, _channel, _user, _text, _ref}},
+        _from,
+        state
+      ) do
+    if server_id not in state.servers do
+      # ignore unconfigured server
+      {:reply, {:ok, nil}, state}
+    else
+      %{
+        new_state: new_state_1
+      } = do_add_new_msg(msg_tuple, state)
+
+      {:reply, {:ok, nil}, new_state_1}
+    end
+  end
+
+  def handle_call(
+        {:ask_bot, msg_tuple = {server_id, channel, _user, _text, _ref}, opts},
         _from,
         state
       ) do
