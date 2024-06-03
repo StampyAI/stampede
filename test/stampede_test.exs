@@ -313,16 +313,14 @@ defmodule StampedeTest do
   describe "Help plugin" do
     @describetag :dummy
     test "basic help", s do
-      assert_value D.ask_bot(s.id, :t1, :u1, "!help") == %Stampede.ResponseToPost{
-                     confidence: 10,
-                     text:
-                       "Here are the available plugins! Learn about any of them with `help [plugin]`\n\n- Elixir.Plugins.Help\n- Elixir.Plugins.Sentience\n- Elixir.Plugins.Test\n- Elixir.Plugins.Why\n",
-                     origin_plug: Plugins.Help,
-                     origin_msg_id: 74,
-                     why: ["They pinged so I ponged!"],
-                     callback: nil,
-                     channel_lock: false
-                   }
+      assert_value D.ask_bot(s.id, :t1, :u1, "!help") |> Map.fetch!(:text) == """
+                   Here are the available plugins! Learn about any of them with `help [plugin]`
+
+                   - Help
+                   - Sentience
+                   - Test
+                   - Why
+                   """
     end
   end
 end

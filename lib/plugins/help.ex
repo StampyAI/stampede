@@ -33,7 +33,7 @@ defmodule Plugins.Help do
             "Here are the available plugins! Learn about any of them with ",
             {:source, "help [plugin]"},
             "\n\n",
-            {{:list, :dotted}, cfg.plugs |> Enum.map(&to_string/1)}
+            {{:list, :dotted}, cfg.plugs |> SiteConfig.trim_plugin_names()}
           ]
 
         S.ResponseToPost.new(
@@ -42,6 +42,9 @@ defmodule Plugins.Help do
           origin_msg_id: msg.id,
           why: ["They pinged so I ponged!"]
         )
+
+      _ ->
+        nil
     end
   end
 end

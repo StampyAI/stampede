@@ -309,4 +309,19 @@ defmodule SiteConfig do
       {service, dupe_checked}
     end)
   end
+
+  def trim_plugin_name(plug) do
+    plug
+    |> Atom.to_string()
+    |> S.split_prefix("Elixir.Plugins.")
+    |> then(fn {status, string} ->
+      if status != false, do: string, else: raise("should have trimmed " <> Atom.to_string(plug))
+    end)
+  end
+
+  def trim_plugin_names(:all),
+    do: Plugin.ls() |> trim_plugin_names()
+
+  def trim_plugin_names(plist),
+    do: Enum.map(plist, &trim_plugin_name/1)
 end
