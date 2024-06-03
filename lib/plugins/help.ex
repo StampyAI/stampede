@@ -42,6 +42,7 @@ defmodule Plugins.Help do
           origin_msg_id: msg.id,
           why: ["They pinged so I ponged!"]
         )
+
       _ ->
         nil
     end

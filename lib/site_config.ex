@@ -314,7 +314,9 @@ defmodule SiteConfig do
     plug
     |> Atom.to_string()
     |> S.split_prefix("Elixir.Plugins.")
-    |> then(fn {status, string} -> if status != false, do: string, else: raise("should have trimmed " <> Atom.to_string(plug)) end)
+    |> then(fn {status, string} ->
+      if status != false, do: string, else: raise("should have trimmed " <> Atom.to_string(plug))
+    end)
   end
 
   def trim_plugin_names(:all),
