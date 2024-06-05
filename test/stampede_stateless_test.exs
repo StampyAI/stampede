@@ -34,15 +34,14 @@ defmodule StampedeStatelessTest do
       assert_value S.split_prefix("ping", "!") == {false, "ping"}
     end
 
-    test "SiteConfig.make_regex() test" do
-      r_binary = "~r/[Ss]\(,\)? "
-      [prefix: rex] = SiteConfig.make_regex([prefix: r_binary], nil)
-      assert Regex.source(rex) == String.slice(r_binary, 3, String.length(r_binary) - 3)
-      assert_value S.split_prefix("S, ping", rex) == {"S, ", "ping"}
-      assert_value S.split_prefix("S ping", rex) == {"S ", "ping"}
-      assert_value S.split_prefix("s, ping", rex) == {"s, ", "ping"}
-      assert_value S.split_prefix("s,, ping", rex) == {false, "s,, ping"}
-      assert_value S.split_prefix("ping", rex) == {false, "ping"}
+    test "split_prefix binary list test" do
+      bl = ["S, ", "S ", "s, ", "s "]
+
+      assert_value S.split_prefix("S, ping", bl) == {"S, ", "ping"}
+      assert_value S.split_prefix("S ping", bl) == {"S ", "ping"}
+      assert_value S.split_prefix("s, ping", bl) == {"s, ", "ping"}
+      assert_value S.split_prefix("s,, ping", bl) == {false, "s,, ping"}
+      assert_value S.split_prefix("ping", bl) == {false, "ping"}
     end
 
     test "Plugin.is_bot_invoked?" do
@@ -58,7 +57,7 @@ defmodule StampedeStatelessTest do
         [
           [%{}, %{at_bot?: true}],
           [%{}, %{dm?: true}],
-          [%{}, %{prefix: "something"}]
+          [%{}, %{prefix: {"!", "ping"}}]
         ]
         |> Enum.map(fn
           [cfg_overrides, msg_overrides] ->

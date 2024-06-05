@@ -15,15 +15,18 @@ defmodule StampedeTest do
     prefix: "!"
     plugs:
       - Sentience
+      - Test
+      - Why
+      - Help
   """
   @dummy_cfg_verified %{
     service: Service.Dummy,
     server_id: :testing,
     error_channel_id: :error,
     prefix: "!",
-    plugs: MapSet.new([Plugins.Sentience]),
+    plugs: MapSet.new([Plugins.Test, Plugins.Sentience, Plugins.Why, Plugins.Help]),
     dm_handler: false,
-    filename: :"test SiteConfig load_all",
+    filename: "test SiteConfig load_all",
     vip_ids: MapSet.new([:server]),
     bot_is_loud: false
   }
@@ -44,9 +47,13 @@ defmodule StampedeTest do
   setup context do
     id = context.test
 
-    if Map.get(context, :dummy, false) do
-      :ok =
-        D.new_server(id, MapSet.new([Plugins.Test, Plugins.Sentience, Plugins.Why, Plugins.Help]))
+    if context[:dummy] do
+      @dummy_cfg_verified
+      |> Map.to_list()
+      |> Keyword.put(:server_id, id)
+      |> Keyword.put(:filename, id |> Atom.to_string())
+      |> Keyword.merge(context[:cfg_overrides] || [])
+      |> D.new_server()
     end
 
     %{id: id}
@@ -175,6 +182,17 @@ defmodule StampedeTest do
 
       r3 = D.ask_bot(s.id, :t1, :u1, "ping", ref: non_bot_id)
       assert r3 == nil, "bot responded to tag of someone else's message"
+    end
+
+    @tag cfg_overrides: [prefix: ["a ", "b "]]
+    test "multi-prefixes", s do
+      r = D.ask_bot(s.id, :t1, :u1, "a ping")
+
+      assert r.text == "pong!"
+
+      r = D.ask_bot(s.id, :t1, :u1, "b ping")
+
+      assert r.text == "pong!"
     end
   end
 

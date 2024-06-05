@@ -94,10 +94,6 @@ defmodule Service.Dummy do
                 default: :error,
                 type: :atom
               ],
-              prefix: [
-                default: "!",
-                type: S.ntc(Regex.t() | String.t())
-              ],
               plugs: [
                 default: ["Test", "Sentience"],
                 type: {:custom, SiteConfig, :real_plugins, []}

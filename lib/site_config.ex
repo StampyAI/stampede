@@ -53,7 +53,7 @@ defmodule SiteConfig do
     ],
     prefix: [
       default: "!",
-      type: S.ntc(Regex.t() | String.t()),
+      type: {:or, [:string, {:list, :string}]},
       doc: "What prefix should users put on messages to have them responded to?"
     ],
     plugs: [
@@ -70,6 +70,11 @@ defmodule SiteConfig do
       default: false,
       type: :boolean,
       doc: "Can this bot send messages when not explicitly tagged?"
+    ],
+    filename: [
+      type: :string,
+      required: false,
+      doc: "File this config was loaded from"
     ]
   ]
   @mapset_keys [:vip_ids]
@@ -121,7 +126,6 @@ defmodule SiteConfig do
 
     transforms = [
       &concat_plugs/2,
-      &make_regex/2,
       make_mapsets(@mapset_keys),
       fn kwlist, _ ->
         Keyword.update!(kwlist, :service, &S.service_atom_to_name(&1))
@@ -167,26 +171,8 @@ defmodule SiteConfig do
     end
   end
 
-  @doc "If prefix describes a Regex, compile it"
-  def make_regex(kwlist, _schema) do
-    if Keyword.has_key?(kwlist, :prefix) do
-      Keyword.update!(kwlist, :prefix, fn
-        prefix ->
-          case S.split_prefix(prefix, "~r/") do
-            {"~r/", rex} ->
-              Regex.compile!(rex)
-
-            {false, otherwise} ->
-              otherwise
-          end
-      end)
-    else
-      kwlist
-    end
-  end
-
   @doc "For the given keys, make a function that will replace the enumerables at those keys with MapSets"
-  @spec! make_mapsets(list(atom())) :: (keyword(), any() -> keyword())
+  @spec! make_mapsets(list(atom()) | %MapSet{}) :: (keyword(), any() -> keyword())
   def make_mapsets(keys) do
     fn kwlist, _schema ->
       Enum.reduce(keys, kwlist, fn key, acc ->
@@ -196,6 +182,9 @@ defmodule SiteConfig do
 
           enum when is_list(enum) or enum == [] ->
             Keyword.update!(acc, key, fn enum -> MapSet.new(enum) end)
+
+          ms when is_struct(ms, MapSet) ->
+            acc
         end
       end)
     end
@@ -226,7 +215,7 @@ defmodule SiteConfig do
 
     Path.wildcard(target_dir <> "/*")
     |> Enum.reduce(Map.new(), fn path, service_map ->
-      site_name = String.to_atom(Path.basename(path, ".yml"))
+      site_name = Path.basename(path, ".yml")
       # IO.puts("add #{site_name} at #{path} to #{S.pp(service_map)}") # DEBUG
       config =
         load(path)
