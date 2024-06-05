@@ -196,6 +196,39 @@ defmodule Stampede.CfgTable do
     S.reload_service(cfg)
   end
 
+  # TODO: test
+  def hot_modify_cfg(service, cfg_id, to_update) when is_map(to_update) do
+    schema = Service.apply_service_function(service, :site_config_schema, [])
+
+    try_with_table(fn table ->
+      table
+      |> Map.update!(__MODULE__, fn service_cfgs ->
+        Map.update!(service_cfgs, cfg_id, fn cfg ->
+          for {key, new_value} <- to_update do
+            [
+              "|",
+              key |> inspect(),
+              ":  ",
+              Map.get(cfg, key, "unset") |> inspect(),
+              " -> ",
+              new_value |> inspect(),
+              "|\n"
+            ]
+          end
+          |> then(&["| key | old key | new key |\n" | &1])
+          |> Logger.info()
+
+          Map.merge(cfg, to_update)
+          |> Map.to_list()
+          |> SiteConfig.validate!(schema)
+        end)
+      end)
+      |> table_load()
+    end)
+
+    :ok
+  end
+
   @impl GenServer
   def handle_call({:reload_cfgs, new_dir}, _from, state = %{config_dir: _config_dir}) do
     :ok = publish_terms(new_dir)
