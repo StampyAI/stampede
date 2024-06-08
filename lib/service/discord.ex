@@ -183,7 +183,7 @@ defmodule Service.Discord do
       " in plugin ",
       inspect(p),
       ":\n\n",
-      {:source_block, [S.pp(e), "\n", S.pp(st)]}
+      {:source_block, [Exception.format_banner(t, e, st)]}
     ]
   end
 

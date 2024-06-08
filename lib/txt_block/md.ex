@@ -57,4 +57,12 @@ defmodule TxtBlock.Md do
       "*"
     ]
   end
+
+  def format(txt, :bold) do
+    [
+      "**",
+      txt,
+      "**"
+    ]
+  end
 end

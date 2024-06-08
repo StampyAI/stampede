@@ -334,10 +334,11 @@ defmodule StampedeTest do
       assert_value D.ask_bot(s.id, :t1, :u1, "!help") |> Map.fetch!(:text) == """
                    Here are the available plugins! Learn about any of them with `help [plugin]`
 
-                   - Help
-                   - Sentience
-                   - Test
-                   - Why
+                   - **Help**:  Describes how the bot can be used. You're using it right now!
+                   - **Sentience**:  This plugin only responds when Stampede was specifically requested, but all other plugins failed.
+                   - **Test**:  A set of functions for testing Stampede functionality.
+                   - **Why**:  Explains the bot's reasoning for posting a particular message, if it remembers it. Summoned with \"why did you say that?\" for a short summary. Remember to identify the message you want; on Discord, this is the \"reply\" function. If you want a full traceback, ask with \"specifically\".
+
                    """
     end
   end

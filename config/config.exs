@@ -41,6 +41,7 @@ config :logger, :console,
   metadata: stampede_metadata ++ [:mfa]
 
 config :logger,
+  truncate: :infinity,
   handle_otp_reports: true,
   # this will spam a lot of messages
   handle_sasl_reports: false,

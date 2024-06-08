@@ -340,7 +340,7 @@ defmodule StampedeStatelessTest do
       assert_value processed == """
                    Testing formats.
 
-                   *Italicized*
+                   *Italicized* and **bolded**
 
                    Quoted
                    > Quoted line 1

@@ -22,6 +22,7 @@ defmodule TxtBlock do
            | {:indent, pos_integer() | String.t()}
            | {:list, :dotted | :numbered}
            | :italics
+           | :bold
   @type! t :: [] | nonempty_list(lazy(t())) | String.t() | lazy(block)
 
   @spec! to_binary(t(), module()) :: String.t()
@@ -102,6 +103,8 @@ defmodule TxtBlock.Debugging do
     [
       "Testing formats.\n\n",
       {:italics, "Italicized"},
+      " and ",
+      {:bold, "bolded"},
       "\n\n",
       "Quoted\n",
       {:quote_block, "Quoted line 1\nQuoted line 2\n"},

@@ -33,7 +33,19 @@ defmodule Plugins.Help do
             "Here are the available plugins! Learn about any of them with ",
             {:source, "help [plugin]"},
             "\n\n",
-            {{:list, :dotted}, cfg.plugs |> SiteConfig.trim_plugin_names()}
+            {{:list, :dotted},
+             cfg.plugs
+             |> Enum.map(fn
+               plug ->
+                 s = SiteConfig.trim_plugin_name(plug)
+
+                 [
+                   {:bold, s},
+                   ":  ",
+                   plug.description()
+                 ]
+                 |> List.flatten()
+             end)}
           ]
 
         S.ResponseToPost.new(
