@@ -1,8 +1,10 @@
 # Stampede
 
-Stampede is a chat bot backend meant to serve multiple servers and services simultaneously, choosing its response between multiple competing plugins to choose the most relevant response. It focuses on supporting a conversational style, and can use LLMs, but will prefer to answer questions from databases if possible.
+Stampede is in a very early state and may drastically change. It doesn't have releases yet but we try to keep changes in the `dev` branch until it runs and passes tests.
 
-Stampede is in a very early state and may drastically change. It is a sequel to the [Stampy](https://github.com/StampyAI/stampy) Discord bot.
+Stampede is a chat bot backend meant to serve *multiple servers and services simultaneously*, choosing its response between multiple competing plugins to give the most relevant response. It focuses on supporting a conversational style, and can use LLMs, but will prefer to answer using human-made code. (Wikipedia, Q&A databases, etc)
+
+It is a sequel to the [Stampy](https://github.com/StampyAI/stampy) Discord bot.
 
 ## Use
 
