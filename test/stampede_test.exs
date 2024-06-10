@@ -330,8 +330,15 @@ defmodule StampedeTest do
 
   describe "Help plugin" do
     @describetag :dummy
-    test "basic help", s do
-      assert_value D.ask_bot(s.id, :t1, :u1, "!help") |> Map.fetch!(:text) == """
+    test "parsing" do
+      assert :list_plugins == Plugins.Help.summon_type("help")
+      assert :list_plugins == Plugins.Help.summon_type("list plugin")
+      assert :list_plugins == Plugins.Help.summon_type("list plugins")
+      assert {:specific, "Why"} == Plugins.Help.summon_type("help Why")
+    end
+
+    test "responses", s do
+      assert_value D.ask_bot(s.id, :t1, :u1, "!list plugins") |> Map.fetch!(:text) == """
                    Here are the available plugins! Learn about any of them with `help [plugin]`
 
                    - **Help**:  Describes how the bot can be used. You're using it right now!
@@ -339,6 +346,17 @@ defmodule StampedeTest do
                    - **Test**:  A set of functions for testing Stampede functionality.
                    - **Why**:  Explains the bot's reasoning for posting a particular message, if it remembers it. Summoned with \"why did you say that?\" for a short summary. Remember to identify the message you want; on Discord, this is the \"reply\" function. If you want a full traceback, ask with \"specifically\".
 
+                   """
+
+      assert_value D.ask_bot(s.id, :t1, :u1, "!help why") |> Map.fetch!(:text) == """
+                   Explains the bot's reasoning for posting a particular message, if it remembers it. Summoned with \"why did you say that?\" for a short summary. Remember to identify the message you want; on Discord, this is the \"reply\" function. If you want a full traceback, ask with \"specifically\".
+                   Full regex: `[Ww]h(?:(?:y did)|(?:at made)) you say th(?:(?:at)|(?:is))(?P<specific>,? specifically)?`
+
+                   Usage:
+                   - Magic phrase: `(why did/what made) you say (that/this)[, specifically][?]`
+                   - !why did you say that? (tagging bot message)(reason for posting this message)
+                   - !what made you say that, specifically? (tagging bot message)(full traceback of the creation of this message)
+                   - !why did you say this (tagging unknown message)Couldn't find an interaction for message \"some_msg_id\".
                    """
     end
   end

@@ -50,6 +50,7 @@ defmodule Plugin do
 
   @callback usage() :: usage_tuples()
   @callback description() :: TxtBlock.t()
+  @callback description_long() :: TxtBlock.t()
 
   defguard is_bot_invoked(msg)
            when msg.at_bot? or msg.dm? or msg.prefix != false
@@ -59,7 +60,12 @@ defmodule Plugin do
 
   defmacro __using__(_opts \\ []) do
     quote do
-      @behaviour unquote(__MODULE__)
+      @behaviour Plugin
+
+      @impl Plugin
+      def description_long(), do: description()
+
+      defoverridable description_long: 0
     end
   end
 
@@ -522,5 +528,20 @@ defmodule Plugin do
         {:plugin_errored, plug, val}
       )
     )
+  end
+
+  @spec! decorate_usage(SiteConfig.t(), module()) :: TxtBlock.t()
+  def decorate_usage(cfg, plugin) do
+    {{:list, :dotted},
+     Enum.map(plugin.usage(), fn
+       {prompt, response} ->
+         [
+           SiteConfig.example_prefix(cfg) <> prompt,
+           response
+         ]
+
+       other ->
+         TypeCheck.conforms!(other, TxtBlock.t())
+     end)}
   end
 end

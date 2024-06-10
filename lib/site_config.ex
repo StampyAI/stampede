@@ -313,4 +313,14 @@ defmodule SiteConfig do
 
   def trim_plugin_names(plist),
     do: Enum.map(plist, &trim_plugin_name/1)
+
+  def example_prefix(cfg) do
+    case cfg.prefix do
+      [car | _cdr] ->
+        car
+
+      otherwise ->
+        otherwise
+    end
+  end
 end

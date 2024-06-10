@@ -26,8 +26,8 @@ defmodule Plugins.Help do
   def respond(_cfg, msg) when not Plugin.is_bot_invoked(msg), do: nil
 
   def respond(cfg, msg) when Plugin.is_bot_invoked(msg) do
-    case msg.body do
-      "help" ->
+    case summon_type(msg.body) do
+      :list_plugins ->
         txt =
           [
             "Here are the available plugins! Learn about any of them with ",
@@ -55,8 +55,53 @@ defmodule Plugins.Help do
           why: ["They pinged so I ponged!"]
         )
 
-      _ ->
+      {:specific, requested_name} ->
+        downcase = requested_name |> String.downcase()
+
+        Enum.find(cfg.plugs, nil, fn full_atom ->
+          downcase == full_atom |> SiteConfig.trim_plugin_name() |> String.downcase()
+        end)
+        |> case do
+          nil ->
+            S.ResponseToPost.new(
+              confidence: 10,
+              text: [
+                "Couldn't find a module named #{requested_name}. Possible modules: ",
+                Enum.map(Plugin.ls(), &inspect/1) |> Enum.intersperse(", ")
+              ],
+              origin_msg_id: msg.id,
+              why: ["They asked for a module that didn't exist."]
+            )
+
+          found ->
+            S.ResponseToPost.new(
+              confidence: 10,
+              text: [
+                found.description_long(),
+                "\n\nUsage:\n",
+                Plugin.decorate_usage(cfg, found)
+              ],
+              origin_msg_id: msg.id,
+              why: ["They asked for help with a module."]
+            )
+        end
+
+      nil ->
         nil
+    end
+  end
+
+  def summon_type(body) do
+    if Regex.match?(~r/^(help$|list plugin(s)?)/, body) do
+      :list_plugins
+    else
+      case Regex.run(~r/^help (\w+)/, body, capture: :all_but_first) do
+        [plug] ->
+          {:specific, plug}
+
+        nil ->
+          nil
+      end
     end
   end
 end
