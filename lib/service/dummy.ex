@@ -193,7 +193,8 @@ defmodule Service.Dummy do
       " in plugin ",
       inspect(p),
       ":\n\n",
-      {:source_block, [Exception.format_banner(t, e, st)]}
+      {:source_block, [Exception.format(t, e, st)]}
+      # BUG: can't handle colored text like TypeCheck failures
     ]
   end
 
