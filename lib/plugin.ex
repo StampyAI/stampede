@@ -83,11 +83,7 @@ defmodule Plugin do
     S.find_submodules(Plugins)
     |> Enum.reduce(MapSet.new(), fn
       mod, acc ->
-        b =
-          mod.__info__(:attributes)
-          |> Keyword.get(:behaviour, [])
-
-        if Plugin in b do
+        if valid?(mod) do
           MapSet.put(acc, mod)
         else
           acc
