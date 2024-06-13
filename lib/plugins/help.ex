@@ -37,18 +37,18 @@ defmodule Plugins.Help do
             {:source, "help [plugin]"},
             "\n\n",
             {{:list, :dotted},
-              plugs
-              |> Enum.map(fn
-                plug ->
-                  s = SiteConfig.trim_plugin_name(plug)
+             plugs
+             |> Enum.map(fn
+               plug ->
+                 s = SiteConfig.trim_plugin_name(plug)
 
-                  [
-                    {:bold, s},
-                    ":  ",
-                    plug.description()
-                  ]
-                  |> List.flatten()
-              end)}
+                 [
+                   {:bold, s},
+                   ":  ",
+                   plug.description()
+                 ]
+                 |> List.flatten()
+             end)}
           ]
 
         S.ResponseToPost.new(

@@ -532,11 +532,11 @@ defmodule Plugin do
      Enum.map(plugin.usage(), fn
        {prompt, response} ->
          [
-            {:source, SiteConfig.example_prefix(cfg) <> prompt},
-            " ",
-            {:bold, "<>"},
-            " ",
-            {:source, response}
+           {:source, SiteConfig.example_prefix(cfg) <> prompt},
+           " ",
+           {:bold, "<>"},
+           " ",
+           {:source, response}
          ]
 
        other ->
