@@ -540,7 +540,11 @@ defmodule Plugin do
          ]
 
        other ->
-         TypeCheck.conforms!(other, TxtBlock.t())
+         if S.enable_typechecking?() do
+           TypeCheck.conforms!(other, TxtBlock.t())
+         else
+           other
+         end
      end)}
   end
 end

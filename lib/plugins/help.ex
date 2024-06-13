@@ -38,6 +38,7 @@ defmodule Plugins.Help do
             "\n\n",
             {{:list, :dotted},
              plugs
+             |> Enum.sort()
              |> Enum.map(fn
                plug ->
                  s = SiteConfig.trim_plugin_name(plug)
