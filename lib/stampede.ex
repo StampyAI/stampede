@@ -160,6 +160,25 @@ defmodule Stampede do
     end
   end
 
+  def split_prefix(text, prefixes) when is_list(prefixes) and is_binary(text) do
+    prefixes
+    |> Enum.reduce(nil, fn
+      _, {s, b} ->
+        {s, b}
+
+      p, nil ->
+        {s, b} = split_prefix(text, p)
+        if s, do: {s, b}, else: nil
+    end)
+    |> then(fn
+      nil ->
+        {false, text}
+
+      {s, b} ->
+        {s, b}
+    end)
+  end
+
   @spec! if_then(any(), any(), (any() -> any())) :: any()
   def if_then(value, condition, func) do
     if condition do

@@ -94,10 +94,6 @@ defmodule Service.Dummy do
                 default: :error,
                 type: :atom
               ],
-              prefix: [
-                default: "!",
-                type: S.ntc(Regex.t() | String.t())
-              ],
               plugs: [
                 default: ["Test", "Sentience"],
                 type: {:custom, SiteConfig, :real_plugins, []}
@@ -197,7 +193,8 @@ defmodule Service.Dummy do
       " in plugin ",
       inspect(p),
       ":\n\n",
-      {:source_block, [S.pp(e), "\n", S.pp(st)]}
+      {:source_block, [Exception.format(t, e, st)]}
+      # BUG: can't handle colored text like TypeCheck failures
     ]
   end
 

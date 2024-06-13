@@ -29,9 +29,15 @@ defmodule Plugins.Why do
   def description() do
     """
     Explains the bot's reasoning for posting a particular message, if it remembers it. Summoned with "why did you say that?" for a short summary. Remember to identify the message you want; on Discord, this is the "reply" function. If you want a full traceback, ask with "specifically".
-
-    Full regex: #{at_module_regex() |> Regex.source()}
     """
+  end
+
+  def description_long() do
+    [
+      description(),
+      "Full regex: ",
+      {:source, at_module_regex() |> Regex.source()}
+    ]
   end
 
   @impl Plugin

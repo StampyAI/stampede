@@ -37,3 +37,11 @@ averaging 210 words per record
 
 STRING.SPLIT IDENTICAL TO :binary.split()
 GIVING STRING.SPLIT A PRECOMPILED PATTERN HELPS THE SPEED
+
+BINARY MATCHING FROM PREMADE LIST IS FASTER THAN REGEX
+##### With input 128 prefixed strings #####
+Name                                     ips        average  deviation         median         99th %
+Single-case Binary match split       79.90 K       12.52 Î¼s   Â±408.49%        9.52 Î¼s       27.70 Î¼s
+Binary match split                   25.46 K       39.28 Î¼s   Â±177.42%       32.96 Î¼s      143.95 Î¼s
+Single-case Regex split               5.94 K      168.27 Î¼s   Â±213.75%      152.29 Î¼s      198.49 Î¼s
+Regex split                           3.32 K      300.76 Î¼s    Â±76.96%      286.42 Î¼s      340.08 Î¼s

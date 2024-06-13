@@ -183,7 +183,8 @@ defmodule Service.Discord do
       " in plugin ",
       inspect(p),
       ":\n\n",
-      {:source_block, [S.pp(e), "\n", S.pp(st)]}
+      {:source_block, [Exception.format(t, e, st)]}
+      # BUG: can't handle colored text like TypeCheck failures
     ]
   end
 

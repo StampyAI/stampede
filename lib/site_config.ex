@@ -53,7 +53,7 @@ defmodule SiteConfig do
     ],
     prefix: [
       default: "!",
-      type: S.ntc(Regex.t() | String.t()),
+      type: {:or, [:string, {:list, :string}]},
       doc: "What prefix should users put on messages to have them responded to?"
     ],
     plugs: [
@@ -70,6 +70,11 @@ defmodule SiteConfig do
       default: false,
       type: :boolean,
       doc: "Can this bot send messages when not explicitly tagged?"
+    ],
+    filename: [
+      type: :string,
+      required: false,
+      doc: "File this config was loaded from"
     ]
   ]
   @mapset_keys [:vip_ids]
@@ -94,6 +99,17 @@ defmodule SiteConfig do
     do: S.service_atom_to_name(atom) |> apply(:site_config_schema, [])
 
   def fetch!(cfg, key) when is_map_key(cfg, key), do: Map.fetch!(cfg, key)
+
+  @doc "return all plugs that this site expects"
+  def get_plugs(:all), do: Plugin.ls()
+
+  def get_plugs(cfg) when not is_struct(cfg, MapSet),
+    do: fetch!(cfg, :plugs) |> get_plugs()
+
+  def get_plugs(plugs) do
+    {:ok, plugs} = real_plugins(plugs)
+    plugs
+  end
 
   @doc "Verify that explicitly listed plugins actually exist"
   def real_plugins(:all), do: {:ok, :all}
@@ -121,7 +137,6 @@ defmodule SiteConfig do
 
     transforms = [
       &concat_plugs/2,
-      &make_regex/2,
       make_mapsets(@mapset_keys),
       fn kwlist, _ ->
         Keyword.update!(kwlist, :service, &S.service_atom_to_name(&1))
@@ -167,26 +182,8 @@ defmodule SiteConfig do
     end
   end
 
-  @doc "If prefix describes a Regex, compile it"
-  def make_regex(kwlist, _schema) do
-    if Keyword.has_key?(kwlist, :prefix) do
-      Keyword.update!(kwlist, :prefix, fn
-        prefix ->
-          case S.split_prefix(prefix, "~r/") do
-            {"~r/", rex} ->
-              Regex.compile!(rex)
-
-            {false, otherwise} ->
-              otherwise
-          end
-      end)
-    else
-      kwlist
-    end
-  end
-
   @doc "For the given keys, make a function that will replace the enumerables at those keys with MapSets"
-  @spec! make_mapsets(list(atom())) :: (keyword(), any() -> keyword())
+  @spec! make_mapsets(list(atom()) | %MapSet{}) :: (keyword(), any() -> keyword())
   def make_mapsets(keys) do
     fn kwlist, _schema ->
       Enum.reduce(keys, kwlist, fn key, acc ->
@@ -196,6 +193,9 @@ defmodule SiteConfig do
 
           enum when is_list(enum) or enum == [] ->
             Keyword.update!(acc, key, fn enum -> MapSet.new(enum) end)
+
+          ms when is_struct(ms, MapSet) ->
+            acc
         end
       end)
     end
@@ -226,7 +226,7 @@ defmodule SiteConfig do
 
     Path.wildcard(target_dir <> "/*")
     |> Enum.reduce(Map.new(), fn path, service_map ->
-      site_name = String.to_atom(Path.basename(path, ".yml"))
+      site_name = Path.basename(path, ".yml")
       # IO.puts("add #{site_name} at #{path} to #{S.pp(service_map)}") # DEBUG
       config =
         load(path)
@@ -308,5 +308,30 @@ defmodule SiteConfig do
 
       {service, dupe_checked}
     end)
+  end
+
+  def trim_plugin_name(plug) do
+    plug
+    |> Atom.to_string()
+    |> S.split_prefix("Elixir.Plugins.")
+    |> then(fn {status, string} ->
+      if status != false, do: string, else: raise("should have trimmed " <> Atom.to_string(plug))
+    end)
+  end
+
+  def trim_plugin_names(:all),
+    do: Plugin.ls() |> trim_plugin_names()
+
+  def trim_plugin_names(plist),
+    do: Enum.map(plist, &trim_plugin_name/1)
+
+  def example_prefix(cfg) do
+    case cfg.prefix do
+      [car | _cdr] ->
+        car
+
+      otherwise ->
+        otherwise
+    end
   end
 end
