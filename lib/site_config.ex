@@ -100,6 +100,17 @@ defmodule SiteConfig do
 
   def fetch!(cfg, key) when is_map_key(cfg, key), do: Map.fetch!(cfg, key)
 
+  @doc "return all plugs that this site expects"
+  def get_plugs(:all), do: Plugin.ls()
+
+  def get_plugs(cfg) when not is_struct(cfg, MapSet),
+    do: fetch!(cfg, :plugs) |> get_plugs()
+
+  def get_plugs(plugs) do
+    {:ok, plugs} = real_plugins(plugs)
+    plugs
+  end
+
   @doc "Verify that explicitly listed plugins actually exist"
   def real_plugins(:all), do: {:ok, :all}
 

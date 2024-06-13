@@ -354,9 +354,9 @@ defmodule StampedeTest do
 
                    Usage:
                    - Magic phrase: `(why did/what made) you say (that/this)[, specifically][?]`
-                   - !why did you say that? (tagging bot message)(reason for posting this message)
-                   - !what made you say that, specifically? (tagging bot message)(full traceback of the creation of this message)
-                   - !why did you say this (tagging unknown message)Couldn't find an interaction for message \"some_msg_id\".
+                   - `!why did you say that? (tagging bot message)` **<>** `(reason for posting this message)`
+                   - `!what made you say that, specifically? (tagging bot message)` **<>** `(full traceback of the creation of this message)`
+                   - `!why did you say this (tagging unknown message)` **<>** `Couldn't find an interaction for message \"some_msg_id\".`
                    """
     end
   end

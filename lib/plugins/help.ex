@@ -26,6 +26,9 @@ defmodule Plugins.Help do
   def respond(_cfg, msg) when not Plugin.is_bot_invoked(msg), do: nil
 
   def respond(cfg, msg) when Plugin.is_bot_invoked(msg) do
+    plugs =
+      SiteConfig.get_plugs(cfg)
+
     case summon_type(msg.body) do
       :list_plugins ->
         txt =
@@ -34,18 +37,18 @@ defmodule Plugins.Help do
             {:source, "help [plugin]"},
             "\n\n",
             {{:list, :dotted},
-             cfg.plugs
-             |> Enum.map(fn
-               plug ->
-                 s = SiteConfig.trim_plugin_name(plug)
+              plugs
+              |> Enum.map(fn
+                plug ->
+                  s = SiteConfig.trim_plugin_name(plug)
 
-                 [
-                   {:bold, s},
-                   ":  ",
-                   plug.description()
-                 ]
-                 |> List.flatten()
-             end)}
+                  [
+                    {:bold, s},
+                    ":  ",
+                    plug.description()
+                  ]
+                  |> List.flatten()
+              end)}
           ]
 
         S.ResponseToPost.new(
@@ -58,7 +61,7 @@ defmodule Plugins.Help do
       {:specific, requested_name} ->
         downcase = requested_name |> String.downcase()
 
-        Enum.find(cfg.plugs, nil, fn full_atom ->
+        Enum.find(plugs, nil, fn full_atom ->
           downcase == full_atom |> SiteConfig.trim_plugin_name() |> String.downcase()
         end)
         |> case do
