@@ -3,8 +3,8 @@ with pkgs;
 let
   # define packages to install with special handling for OSX
   inputs = [
-    elixir_1_15
-    (elixir-ls.override { elixir = elixir_1_15; })
+    elixir
+    elixir-ls
     libyaml
     libyaml.dev
   ];

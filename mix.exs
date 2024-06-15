@@ -5,7 +5,7 @@ defmodule Stampede.MixProject do
     [
       app: :stampede,
       version: "0.1.1-dev",
-      elixir: "~> 1.15",
+      elixir: "~> 1.16",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       dialyzer: dialyzer(),
