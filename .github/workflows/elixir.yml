@@ -24,20 +24,24 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
-    - name: Set up Elixir
-      uses: erlef/setup-beam@v1.17.6
-      with:
-        elixir-version: '1.16.3' # [Required] Define the Elixir version
-        otp-version: '25.0'      # [Required] Define the Erlang/OTP version
+    - uses: actions/checkout@v4
+    - uses: DeterminateSystems/nix-installer-action@main
+    - uses: DeterminateSystems/magic-nix-cache-action@main
+    - uses: DeterminateSystems/flake-checker-action@main
     - name: Restore dependencies cache
       uses: actions/cache@v3
       with:
         path: deps
         key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
         restore-keys: ${{ runner.os }}-mix-
+    - name: install mix
+      run: nix develop -c mix local.hex
+    - name: Run flakes check
+      run: |
+        nix flake check
+        nix develop -c echo OK
     - name: Install dependencies
-      run: mix deps.get
+      run: nix develop -c mix deps.get
     # - name: Run Credo
     #   run: mix credo --strict
     # - name: Retrieve PLT Cache
@@ -54,8 +58,8 @@ jobs:
     # - name: Run dialyzer
     #   run: mix dialyzer --no-check --halt-exit-status
     - name: Check Formatting
-      run: mix format --check-formatted
+      run: nix develop -c mix format --check-formatted
     - name: Run tests
-      run: mix test
+      run: nix develop -c mix test
     # - name: Build docs
     #   run: mix docs

@@ -1,12 +1,14 @@
 { pkgs ? import <nixpkgs> {} }:
-with pkgs;
 let
+  erl = with pkgs; beam.packages.erlang_26;
+  ex = erl.elixir_1_16;
+
   # define packages to install with special handling for OSX
   inputs = [
-    elixir
-    elixir-ls
-    libyaml
-    libyaml.dev
+    ex
+    (erl.elixir-ls.override { elixir = ex; })
+    pkgs.libyaml
+    pkgs.libyaml.dev
   ];
 
   # define shell startup command
@@ -24,7 +26,7 @@ let
     #alias pip="PIP_PREFIX='$(pwd)/_build/pip_packages' \pip"
     #export PYTHONPATH="$(pwd)/_build/pip_packages/lib/python3.7/site-packages:$PYTHONPATH"
 
-in mkShell {
+in pkgs.mkShell {
   buildInputs = inputs;
   shellHook = hooks;
 }
