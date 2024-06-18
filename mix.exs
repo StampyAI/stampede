@@ -96,8 +96,8 @@ defmodule Stampede.MixProject do
       {:arrays_aja, "~> 0.2.0"},
 
       # SERVICES
-      # {:nostrum, "~> 0.8.0", runtime: false},
-      {:nostrum, github: "Kraigie/nostrum", runtime: false},
+      {:nostrum, "~> 0.9.1", runtime: false},
+      # {:nostrum, github: "Kraigie/nostrum", runtime: false},
 
       # For catching Erlang errors and sending to services
       {:logger_backends, "~> 1.0"},
