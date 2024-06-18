@@ -290,20 +290,20 @@ defmodule Plugin do
     end
   end
 
+  # def benchmark_get_top_response(cfg, msg) do
+  #   ef_opts = [
+  #     {:output_directory, "./eflame/"},
+  #     {:output_format, :svg},
+  #     :value,
+  #     {:return, :value}
+  #   ]
+
+  #   :eflambe.apply({__MODULE__, :do_get_top_response, [cfg, msg]}, ef_opts)
+  # end
+
   @doc "Poll all enabled plugins and choose the most relevant one."
   @spec! get_top_response(SiteConfig.t(), MsgReceived.t()) ::
            nil | {response :: ResponseToPost.t(), interaction_id :: S.interaction_id()}
-  def ashfhfdn_get_top_response(cfg, msg) do
-    ef_opts = [
-      {:output_directory, "./eflame/"},
-      {:output_format, :svg},
-      :value,
-      {:return, :value}
-    ]
-
-    :eflambe.apply({__MODULE__, :do_get_top_response, [cfg, msg]}, ef_opts)
-  end
-
   def get_top_response(cfg, msg = %S.MsgReceived{}) do
     case S.Interact.channel_locked?(msg.channel_id) do
       {{m, f, args_without_msg}, _plugin, _iid} ->
