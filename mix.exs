@@ -135,7 +135,9 @@ defmodule Stampede.MixProject do
         :no_improper_lists
       ],
       plt_core_path: "priv/plts",
-      plt_file: {:no_warn, "priv/plts/dialyzer.plt"}
+      plt_file: {:no_warn, "priv/plts/dialyzer.plt"},
+      # NOTE: Nostrum for some reason doesn't give type info without explicitly demanding it
+      plt_add_apps: [:nostrum]
     ]
   end
 end
