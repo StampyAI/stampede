@@ -24,38 +24,42 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
-    - name: Set up Elixir
-      uses: erlef/setup-beam@61e01a43a562a89bfc54c7f9a378ff67b03e4a21 # v1.16.0
-      with:
-        elixir-version: '1.15.5' # [Required] Define the Elixir version
-        otp-version: '26.0'      # [Required] Define the Erlang/OTP version
+    - uses: actions/checkout@v4
+    - uses: DeterminateSystems/nix-installer-action@main
+    - uses: DeterminateSystems/magic-nix-cache-action@main
+    - uses: DeterminateSystems/flake-checker-action@main
     - name: Restore dependencies cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: deps
         key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
         restore-keys: ${{ runner.os }}-mix-
+    - name: install mix
+      run: nix develop -c mix local.hex
+    - name: Run flakes check
+      run: |
+        nix flake check
+        nix develop -c echo OK
     - name: Install dependencies
-      run: mix deps.get
+      run: nix develop -c mix deps.get
     # - name: Run Credo
     #   run: mix credo --strict
-    # - name: Retrieve PLT Cache
-    #   uses: actions/cache@v1
-    #   id: plt-cache
-    #   with:
-    #     path: priv/plts
-    #     key: ${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-plts-${{ hashFiles(format('{0}{1}', github.workspace, '/mix.lock')) }}
-    # - name: Create PLTs
-    #   if: steps.plt-cache.outputs.cache-hit != 'true'
-    #   run: |
-    #     mkdir -p priv/plts
-    #     mix dialyzer --plt
-    # - name: Run dialyzer
-    #   run: mix dialyzer --no-check --halt-exit-status
+    - name: Retrieve PLT Cache
+      uses: actions/cache@v4
+      id: plt-cache
+      with:
+        path: priv/plts
+        key: ${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-plts-${{ hashFiles(format('{0}{1}', github.workspace, '/mix.lock')) }}
+    - name: Create PLTs
+      if: steps.plt-cache.outputs.cache-hit != 'true'
+      run: |
+        mkdir -p priv/plts
+        nix develop -c mix dialyzer --plt
+    - name: Run dialyzer
+      run: nix develop -c mix dialyzer --no-check --halt-exit-status
     - name: Check Formatting
-      run: mix format --check-formatted
+      run: nix develop -c mix format --check-formatted
     - name: Run tests
-      run: mix test
+      run: nix develop -c mix test
     # - name: Build docs
     #   run: mix docs

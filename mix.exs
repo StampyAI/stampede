@@ -5,7 +5,7 @@ defmodule Stampede.MixProject do
     [
       app: :stampede,
       version: "0.1.1-dev",
-      elixir: "~> 1.15",
+      elixir: "~> 1.16",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       dialyzer: dialyzer(),
@@ -69,7 +69,7 @@ defmodule Stampede.MixProject do
       # Checking
       {:ex_check, "~> 0.16.0", only: [:dev], runtime: false},
       {:credo, ">= 0.0.0", only: [:dev], runtime: false},
-      {:dialyxir, ">= 0.0.0", only: [:dev], runtime: false},
+      {:dialyxir, ">= 0.0.0", only: [:dev, :test], runtime: false},
       {:doctor, ">= 0.0.0", only: [:dev], runtime: false},
       {:ex_doc, ">= 0.0.0", only: [:dev], runtime: false},
       {:gettext, ">= 0.0.0", only: [:dev], runtime: false},
@@ -135,7 +135,9 @@ defmodule Stampede.MixProject do
         :no_improper_lists
       ],
       plt_core_path: "priv/plts",
-      plt_file: {:no_warn, "priv/plts/dialyzer.plt"}
+      plt_file: {:no_warn, "priv/plts/dialyzer.plt"},
+      # NOTE: Nostrum for some reason doesn't give type info without explicitly demanding it
+      plt_add_apps: [:nostrum]
     ]
   end
 end
