@@ -1,4 +1,4 @@
-defmodule Service.Dummy.Table do
+defmodule Services.Dummy.Table do
   @moduledoc false
   @compile [:bin_opt_info, :recv_opt_info]
   use TypeCheck
@@ -34,7 +34,7 @@ defmodule Service.Dummy.Table do
   end
 end
 
-defmodule Service.Dummy do
+defmodule Services.Dummy do
   @compile [:bin_opt_info, :recv_opt_info]
   # TODO: this is not actually parallelized meaning it can't be used in benchmarks
   # Maybe it should be a supervisor with a process for each thread?
@@ -42,7 +42,7 @@ defmodule Service.Dummy do
   use GenServer
   use TypeCheck
   use TypeCheck.Defstruct
-  alias Service.Dummy
+  alias Services.Dummy
   alias Stampede, as: S
   require S
   alias S.{MsgReceived, ResponseToPost}
@@ -83,8 +83,8 @@ defmodule Service.Dummy do
   @schema NimbleOptions.new!(
             SiteConfig.merge_custom_schema(
               service: [
-                default: Service.Dummy,
-                type: {:in, [Service.Dummy]}
+                default: Services.Dummy,
+                type: {:in, [Services.Dummy]}
               ],
               server_id: [
                 required: true,
@@ -172,8 +172,8 @@ defmodule Service.Dummy do
 
   @impl Service
   def format_plugin_fail(
-        _cfg = %{service: Service.Dummy},
-        msg = %{service: Service.Dummy},
+        _cfg = %{service: Services.Dummy},
+        msg = %{service: Services.Dummy},
         %{plugin: p, type: t, error: e, stacktrace: st}
       ) do
     error_type =
@@ -317,7 +317,7 @@ defmodule Service.Dummy do
   @spec! init(Keyword.t()) :: {:ok, %__MODULE__{}}
   def init(_) do
     # Service.register_logger(registry, __MODULE__, self())
-    :ok = S.Tables.ensure_tables_exist([Service.Dummy.Table])
+    :ok = S.Tables.ensure_tables_exist([Services.Dummy.Table])
     {:ok, update_state()}
   end
 
@@ -366,7 +366,7 @@ defmodule Service.Dummy do
             binary_response =
               response
               |> Map.update!(:text, fn blk ->
-                TxtBlock.to_binary(blk, Service.Dummy)
+                TxtBlock.to_binary(blk, Services.Dummy)
               end)
 
             %{new_state: new_state_2, posted_msg_id: bot_response_msg_id} =

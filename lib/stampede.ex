@@ -83,8 +83,8 @@ defmodule Stampede do
   @spec! services() :: map(service_name(), module())
   def services(),
     do: %{
-      discord: Service.Discord,
-      dummy: Service.Dummy
+      discord: Services.Discord,
+      dummy: Services.Dummy
     }
 
   def service_atom_to_name(atom) do

@@ -85,7 +85,11 @@ config :mnesia,
   dir: ~c".mnesia/#{Mix.env()}/#{node()}"
 
 # Avoid timeouts while waiting for user input in assert_value
-config :ex_unit, timeout: :infinity
+config :ex_unit,
+  timeout: :infinity
+
+# By default, Nostrum requires ffmpeg to use voice.
+config :nostrum, :ffmpeg, false
 
 for config <- "./*.secret.exs" |> Path.expand(__DIR__) |> Path.wildcard() do
   import_config config

@@ -2,11 +2,11 @@ defmodule StampedeTest do
   use ExUnit.Case, async: true
   import ExUnit.CaptureLog
   alias Stampede, as: S
-  alias Service.Dummy, as: D
+  alias Services.Dummy, as: D
   import AssertValue
   doctest Stampede
 
-  @confused_response S.confused_response() |> TxtBlock.to_binary(Service.Dummy)
+  @confused_response S.confused_response() |> TxtBlock.to_binary(Services.Dummy)
 
   @dummy_cfg """
     service: dummy
@@ -20,7 +20,7 @@ defmodule StampedeTest do
       - Help
   """
   @dummy_cfg_verified %{
-    service: Service.Dummy,
+    service: Services.Dummy,
     server_id: :testing,
     error_channel_id: :error,
     prefix: "!",
@@ -237,7 +237,7 @@ defmodule StampedeTest do
 
       newtable =
         SiteConfig.load_all(s.tmp_dir)
-        |> Map.fetch!(Service.Dummy)
+        |> Map.fetch!(Services.Dummy)
         |> Map.fetch!(:testing)
 
       assert newtable == @dummy_cfg_verified

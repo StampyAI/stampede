@@ -79,7 +79,7 @@ defmodule Service do
           inspect(level),
           "\n",
           {:source_block, message}
-          |> TxtBlock.to_str_list(Service.Discord)
+          |> TxtBlock.to_str_list(Services.Discord)
         ]
 
         _ = Service.send_msg(log, channel_id, error_service)
@@ -89,9 +89,9 @@ defmodule Service do
             """
             ERROR: Logging serious error to Discord failed. We have no option, and resending would probably cause an infinite loop.
 
-            Here's the error:
+            Here's how we failed:
             """,
-            S.pp({t, e})
+            Exception.format(t, e, __STACKTRACE__)
           ])
       end
     end

@@ -6,7 +6,7 @@ defmodule SiteConfig do
   A configuration usually starts as a YAML file on-disk. It is then:
   - read into an Erlang term
   - validated with NimbleOptions (simultaneously handling defaults and type-checking)
-  - some transformations are done; for example, turning atoms referring to services and plugins into their proper names ("discord" into Elixir.Service.Discord, "why" into Elixir.Plugins.Why).
+  - some transformations are done; for example, turning atoms referring to services and plugins into their proper names ("discord" into Elixir.Services.Discord, "why" into Elixir.Plugins.Why).
   - turned into a SiteConfig struct (internally a map)
   - Given to Stampede.CfgTable which handles storage of the configs and keeping services up-to-date.
 
@@ -33,7 +33,7 @@ defmodule SiteConfig do
       required: true,
       type: :atom,
       doc:
-        "Which service does your server reside on? Affects what config options are valid. A basic atom which becomes the module name, i.e. :discord -> Service.Discord"
+        "Which service does your server reside on? Affects what config options are valid. A basic atom which becomes the module name, i.e. :discord -> Services.Discord"
     ],
     server_id: [
       required: true,

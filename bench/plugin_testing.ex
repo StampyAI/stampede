@@ -159,7 +159,7 @@ defmodule T do
               error_channel_id: :errors,
               plugs: mods
             ],
-            Service.Dummy.site_config_schema()
+            Services.Dummy.site_config_schema()
           )
 
         user_id =
@@ -183,7 +183,7 @@ defmodule T do
                 author_id: user_id,
                 channel_id: channel_id,
                 id: msg_id,
-                service: Service.Dummy
+                service: Services.Dummy
               )
               |> S.MsgReceived.add_context(cfg)
 
@@ -194,7 +194,7 @@ defmodule T do
                 author_id: user_id,
                 channel_id: channel_id,
                 id: msg_id,
-                service: Service.Dummy
+                service: Services.Dummy
               )
               |> S.MsgReceived.add_context(cfg)
           end
@@ -214,7 +214,7 @@ defmodule T do
               error_channel_id: :errors,
               plugs: mods
             ],
-            Service.Dummy.site_config_schema()
+            Services.Dummy.site_config_schema()
           )
 
         user_id =
@@ -236,7 +236,7 @@ defmodule T do
                   author_id: user_id,
                   channel_id: channel_id,
                   id: i,
-                  service: Service.Dummy
+                  service: Services.Dummy
                 )
                 |> S.MsgReceived.add_context(cfg),
                 i + 1
@@ -250,7 +250,7 @@ defmodule T do
                   author_id: user_id,
                   channel_id: channel_id,
                   id: i,
-                  service: Service.Dummy
+                  service: Services.Dummy
                 )
                 |> S.MsgReceived.add_context(cfg),
                 i + 1

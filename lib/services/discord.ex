@@ -1,4 +1,4 @@
-defmodule Service.Discord do
+defmodule Services.Discord do
   @compile [:bin_opt_info, :recv_opt_info]
   alias Stampede, as: S
   alias S.{MsgReceived}
@@ -163,7 +163,7 @@ defmodule Service.Discord do
   @impl Service
   def format_plugin_fail(
         _cfg,
-        msg = %{service: Service.Discord},
+        msg = %{service: Services.Discord},
         %PluginCrashInfo{plugin: p, type: t, error: e, stacktrace: st}
       ) do
     error_type =
@@ -237,7 +237,7 @@ defmodule Service.Discord do
   end
 end
 
-defmodule Service.Discord.Handler do
+defmodule Services.Discord.Handler do
   @moduledoc false
   @compile [:bin_opt_info, :recv_opt_info]
   use TypeCheck
@@ -247,7 +247,7 @@ defmodule Service.Discord.Handler do
   alias Stampede, as: S
   alias S.{ResponseToPost, MsgReceived}
   require MsgReceived
-  alias Service.Discord
+  alias Services.Discord
 
   @typep! vips :: S.CfgTable.vips()
 
@@ -263,7 +263,7 @@ defmodule Service.Discord.Handler do
          ) ::
            boolean()
   def vip_in_this_context?(vips, nil, author_id),
-    do: S.vip_in_this_context?(vips, S.make_dm_tuple(Service.Discord), author_id)
+    do: S.vip_in_this_context?(vips, S.make_dm_tuple(Services.Discord), author_id)
 
   def vip_in_this_context?(vips, server_id, author_id),
     do: S.vip_in_this_context?(vips, server_id, author_id)
@@ -334,7 +334,7 @@ defmodule Service.Discord.Handler do
                 discord_msg.author |> Nostrum.Struct.User.full_name() |> inspect(),
                 "\n",
                 "Message:\n",
-                {:quote_block, discord_msg.content} |> TxtBlock.to_str_list(Service.Discord)
+                {:quote_block, discord_msg.content} |> TxtBlock.to_str_list(Services.Discord)
               ]
             end)
           end
@@ -356,7 +356,7 @@ defmodule Service.Discord.Handler do
 
   defp do_msg_create(discord_msg) do
     our_cfg =
-      S.CfgTable.get_cfg!(Discord, discord_msg.guild_id || S.make_dm_tuple(Service.Discord))
+      S.CfgTable.get_cfg!(Discord, discord_msg.guild_id || S.make_dm_tuple(Services.Discord))
 
     inciting_msg_with_context =
       discord_msg
@@ -378,7 +378,7 @@ defmodule Service.Discord.Handler do
   end
 end
 
-defmodule Service.Discord.Consumer do
+defmodule Services.Discord.Consumer do
   @compile [:bin_opt_info, :recv_opt_info]
   @moduledoc """
   Handles Nostrum's business while passing off jobs to Handler
@@ -396,7 +396,7 @@ defmodule Service.Discord.Consumer do
             raise "aw nah"
           end
 
-          GenServer.cast(Service.Discord.Handler, {:MESSAGE_CREATE, msg})
+          GenServer.cast(Services.Discord.Handler, {:MESSAGE_CREATE, msg})
 
         other ->
           Task.start_link(__MODULE__, :handle_event, [other])

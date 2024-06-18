@@ -220,7 +220,7 @@ defmodule Stampede.Interact do
           "why:\n",
           {{:indent, 4}, rec.response.why}
         ]
-        |> TxtBlock.to_binary(Service.Dummy)
+        |> TxtBlock.to_binary(Services.Dummy)
       ]
     end)
   end

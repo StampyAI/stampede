@@ -18,7 +18,7 @@ defmodule StampedeStatelessTest do
       - Sentience
   """
   @dummy_cfg_verified %{
-    service: Service.Dummy,
+    service: Services.Dummy,
     server_id: :testing,
     error_channel_id: :error,
     prefix: "!",
@@ -216,14 +216,14 @@ defmodule StampedeStatelessTest do
     test "do_vips_configured" do
       result =
         %{
-          Service.Dummy => %{
+          Services.Dummy => %{
             foo: %{
               server_id: :foo,
               vip_ids: MapSet.new([:bar, :baz])
             }
           }
         }
-        |> S.CfgTable.do_vips_configured(Service.Dummy)
+        |> S.CfgTable.do_vips_configured(Services.Dummy)
 
       assert result == %{foo: MapSet.new([:bar, :baz])}
     end
@@ -234,8 +234,8 @@ defmodule StampedeStatelessTest do
       input = [[[], []], [["f"], ["o", "o"]], ["b", ["a"], "r"]]
       wanted = ["f", "o", "o", "b", "a", "r"]
 
-      assert wanted == TxtBlock.to_str_list(input, Service.Dummy)
-      assert "lol" == TxtBlock.to_str_list([[[[[], [[[["lol"], []]]]]]]], Service.Dummy)
+      assert wanted == TxtBlock.to_str_list(input, Services.Dummy)
+      assert "lol" == TxtBlock.to_str_list([[[[[], [[[["lol"], []]]]]]]], Services.Dummy)
     end
 
     test "source block" do
@@ -249,13 +249,13 @@ defmodule StampedeStatelessTest do
       one =
         TxtBlock.to_binary(
           {:source_block, "foo\n"},
-          Service.Dummy
+          Services.Dummy
         )
 
       two =
         TxtBlock.to_binary(
           {:source_block, [["f"], [], "o", [["o"], "\n"]]},
-          Service.Dummy
+          Services.Dummy
         )
 
       assert one == correct
@@ -268,13 +268,13 @@ defmodule StampedeStatelessTest do
       one =
         TxtBlock.to_binary(
           {:source, "foo"},
-          Service.Dummy
+          Services.Dummy
         )
 
       two =
         TxtBlock.to_binary(
           {:source, [["f"], [], "o", [["o"]]]},
-          Service.Dummy
+          Services.Dummy
         )
 
       assert one == correct
@@ -287,13 +287,13 @@ defmodule StampedeStatelessTest do
       one =
         TxtBlock.to_binary(
           {:quote_block, "foo\nbar"},
-          Service.Dummy
+          Services.Dummy
         )
 
       two =
         TxtBlock.to_binary(
           {:quote_block, [["f"], [], "o", [["o"]], ["\n", "bar"]]},
-          Service.Dummy
+          Services.Dummy
         )
 
       assert one == correct
@@ -306,13 +306,13 @@ defmodule StampedeStatelessTest do
       one =
         TxtBlock.to_binary(
           {{:indent, "  "}, "foo\nbar"},
-          Service.Dummy
+          Services.Dummy
         )
 
       two =
         TxtBlock.to_binary(
           {{:indent, 2}, [["f"], [], "o", [["o"]], ["\n", "bar"]]},
-          Service.Dummy
+          Services.Dummy
         )
 
       assert one == correct
@@ -329,13 +329,13 @@ defmodule StampedeStatelessTest do
         3. 3 *bar*
         """
 
-      assert correct == TxtBlock.to_binary(one, Service.Dummy)
+      assert correct == TxtBlock.to_binary(one, Services.Dummy)
     end
 
     test "Markdown" do
       processed =
         TxtBlock.Debugging.all_formats_example()
-        |> TxtBlock.to_binary(Service.Dummy)
+        |> TxtBlock.to_binary(Services.Dummy)
 
       assert_value processed == """
                    Testing formats.
