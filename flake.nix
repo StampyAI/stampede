@@ -30,7 +30,7 @@
         # Git pre-push checks
         pc-hooks = git-hooks.lib.${system}.run {
           # only run on push and directly calling `pre-commit` in the shell
-          default_stages = ["manual" "push"];
+          default_stages = ["manual" "push" "pre-merge-commit"];
           src = ./.;
           hooks = {
             check-merge-conflicts.enable = true;
@@ -54,6 +54,8 @@
               enable = true;
               name = "mix-test";
               entry = "${ex}/bin/mix test";
+              files = "\\.exs?$";
+              types = ["text"];
               pass_filenames = false;
               require_serial = true;
             };
@@ -61,6 +63,8 @@
               enable = true;
               name = "mix-format";
               entry = "${ex}/bin/mix format --check-formatted";
+              files = "\\.exs?$";
+              types = ["text"];
               pass_filenames = false;
               require_serial = true;
             };
