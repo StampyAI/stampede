@@ -16,7 +16,7 @@ permissions:
   contents: read
 jobs:
   pre_job:
-    name: check for duplicate checkers
+    name: check for duplicate tasks
     # continue-on-error: true # Uncomment once integration is finished
     runs-on: ubuntu-latest
     # Map a step output to a job output
