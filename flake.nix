@@ -43,7 +43,7 @@
 
             # NOTE: useful but lots of deps:
             actionlint.enable = true;
-            yamllint.enable = true;
+            yamlfmt.enable = true;
             deadnix.enable = true;
 
             dialyzer = {
