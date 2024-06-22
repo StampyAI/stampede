@@ -46,7 +46,7 @@
             alejandra = enable_on_commit;
             flake-checker.enable = true;
 
-            # NOTE: useful but lots of deps:
+            # NOTE: disable to reduce deps
             actionlint = enable_on_commit;
             yamlfmt = enable_on_commit;
             deadnix.enable = true;
