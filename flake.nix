@@ -32,18 +32,23 @@
           # only run on push and directly calling `pre-commit` in the shell
           default_stages = ["manual" "push" "pre-merge-commit"];
           src = ./.;
-          hooks = {
+          hooks = let
+            enable_on_commit = {
+              enable = true;
+              stages = ["manual" "push" "pre-merge-commit" "pre-commit"];
+            };
+          in {
             check-merge-conflicts.enable = true;
             check-vcs-permalinks.enable = true;
-            editorconfig-checker.enable = true;
+            editorconfig-checker = enable_on_commit;
             # TODO: tagref
 
-            alejandra.enable = true;
+            alejandra = enable_on_commit;
             flake-checker.enable = true;
 
             # NOTE: useful but lots of deps:
-            actionlint.enable = true;
-            yamlfmt.enable = true;
+            actionlint = enable_on_commit;
+            yamlfmt = enable_on_commit;
             deadnix.enable = true;
 
             dialyzer = {
@@ -67,6 +72,7 @@
               types = ["text"];
               pass_filenames = false;
               require_serial = true;
+              stages = ["manual" "push" "pre-merge-commit" "pre-commit"];
             };
           };
         };
