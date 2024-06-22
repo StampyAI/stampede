@@ -28,10 +28,11 @@ jobs:
         with:
           paths_ignore: '["**.md", "docs/**"]'
           cancel_others: true
-  cache_deps:
-    name: Get and cache dependencies
+  run_checks:
+    name: Run checks
     runs-on: ubuntu-latest
     needs: dupe_check
+    if: needs.dupe_check.outputs.should_skip != 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: DeterminateSystems/nix-installer-action@main
@@ -59,33 +60,7 @@ jobs:
           nix develop -c mix local.hex --force
           nix develop -c mix deps.get
           nix develop -c mix dialyzer --plt
-          nix develop -c sh -c "MIX_ENV=test mix compile"
-  build:
-    needs:
-      - dupe_check
-      - cache_deps
-    if: needs.dupe_check.outputs.should_skip != 'true'
-    name: Build and test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: DeterminateSystems/nix-installer-action@main
-      - uses: DeterminateSystems/magic-nix-cache-action@main
-      - uses: DeterminateSystems/flake-checker-action@main
-      - name: Restore dependencies cache
-        id: deps-cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            deps
-            _build
-            priv/plts
-            .nix-mix
-            .nix-hex
-          key: ${{ runner.os }}-mix-${{ hashFiles(format('{0}{1}', github.workspace, '/flake.*')) }}-${{ hashFiles(format('{0}{1}', github.workspace, '/mix.*')) }}
-          restore-keys: |
-            ${{ runner.os }}-mix-${{ hashFiles(format('{0}{1}', github.workspace, '/flake.*')) }}
-            ${{ runner.os }}-mix-
+          nix develop -c mix compile
       - name: Run pre-commit checks
         run: |
           nix develop -c pre-commit run --show-diff-on-failure --hook-stage=pre-merge-commit --color=always --all-files
