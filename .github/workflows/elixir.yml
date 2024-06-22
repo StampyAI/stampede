@@ -55,7 +55,7 @@ jobs:
       - name: Build dependencies
         if: steps.deps-cache.outputs.cache-hit != 'true'
         run: |
-          nix flake check
+          # nix flake check # BUG: https://github.com/cachix/git-hooks.nix/issues/466
           mkdir -p priv/plts
           nix develop -c mix local.hex --force
           nix develop -c mix deps.get
