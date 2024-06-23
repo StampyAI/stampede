@@ -32,6 +32,7 @@ defmodule StampedeStatelessTest do
     test "split_prefix text" do
       assert_value S.split_prefix("!ping", "!") == {"!", "ping"}
       assert_value S.split_prefix("ping", "!") == {false, "ping"}
+      assert_value S.split_prefix("!", "!") == {false, "!"}
     end
 
     test "split_prefix binary list test" do
@@ -42,6 +43,7 @@ defmodule StampedeStatelessTest do
       assert_value S.split_prefix("s, ping", bl) == {"s, ", "ping"}
       assert_value S.split_prefix("s,, ping", bl) == {false, "s,, ping"}
       assert_value S.split_prefix("ping", bl) == {false, "ping"}
+      assert_value S.split_prefix("s, ", bl) == {false, "s, "}
     end
 
     test "Plugin.is_bot_invoked?" do

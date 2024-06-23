@@ -148,18 +148,27 @@ defmodule Stampede do
 
   def split_prefix(text, prefix) when is_binary(prefix) and is_binary(text) do
     case text do
+      # don't match prefix without message
+      <<^prefix::binary-size(floor(bit_size(prefix) / 8)), ""::binary>> ->
+        {false, text}
+
+      # don't match prefix without message
+      <<^prefix::binary-size(floor(bit_size(prefix) / 8)), " "::binary>> ->
+        {false, text}
+
       <<^prefix::binary-size(floor(bit_size(prefix) / 8)), _::binary>> ->
         {
           binary_part(text, 0, byte_size(prefix)),
           binary_part(text, byte_size(prefix), byte_size(text) - byte_size(prefix))
         }
 
-      not_prefixed ->
-        {false, not_prefixed}
+      _ ->
+        {false, text}
     end
   end
 
   def split_prefix(text, prefixes) when is_list(prefixes) and is_binary(text) do
+    # NOTE: returns at first match, meaning shorter prefixes can mutilate long ones if they come first
     prefixes
     |> Enum.reduce(nil, fn
       _, {s, b} ->
