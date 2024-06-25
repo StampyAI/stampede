@@ -102,7 +102,7 @@ defmodule Stampede do
         |> List.to_string()
         |> String.starts_with?(to_string(module_name) <> ".")
         |> if do
-          MapSet.put(acc, List.to_atom(name))
+          MapSet.put(acc, List.to_existing_atom(name))
         else
           acc
         end

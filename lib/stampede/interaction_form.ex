@@ -9,7 +9,6 @@ defmodule Stampede.InteractionForm do
   use TypeCheck.Defstruct
 
   defstruct!(
-    # TODO: rename to "chosen_plugin"
     plugin: _ :: any(),
     service: _ :: atom(),
     msg: _ :: MsgReceived.t(),
