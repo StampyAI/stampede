@@ -49,6 +49,10 @@
             # NOTE: disable to reduce deps
             actionlint = enable_on_commit;
             yamlfmt = enable_on_commit;
+            convco = {
+              enable = true;
+              stages = ["manual" "pre-commit"];
+            };
             deadnix.enable = true;
 
             dialyzer = {
