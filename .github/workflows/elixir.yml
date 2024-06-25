@@ -4,77 +4,78 @@
 # documentation.
 
 name: Elixir CI
-
 env:
   MIX_ENV: test
-
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
-
+    branches: ["main"]
 permissions:
   actions: write
   contents: read
-
 jobs:
-  pre_job:
-    name: check for duplicate checkers
+  dupe_check:
+    name: check for duplicate tasks
     # continue-on-error: true # Uncomment once integration is finished
     runs-on: ubuntu-latest
     # Map a step output to a job output
     outputs:
       should_skip: ${{ steps.skip_check.outputs.should_skip }}
     steps:
-    - id: skip_check
-      uses: fkirc/skip-duplicate-actions@v5
-      with:
-        paths_ignore: '["**.md", "docs/**"]'
-        cancel_others: true
-
-  build:
-    needs: pre_job
-    if: needs.pre_job.outputs.should_skip != 'true'
-    name: Build and test
+      - id: skip_check
+        uses: fkirc/skip-duplicate-actions@v5
+        with:
+          paths_ignore: '["**.md", "docs/**"]'
+          cancel_others: true
+  run_checks:
+    name: Run checks
     runs-on: ubuntu-latest
+    needs: dupe_check
+    if: needs.dupe_check.outputs.should_skip != 'true'
     steps:
-    - uses: actions/checkout@v4
-    - uses: DeterminateSystems/nix-installer-action@main
-    - uses: DeterminateSystems/magic-nix-cache-action@main
-    - uses: DeterminateSystems/flake-checker-action@main
-    - name: Restore dependencies cache
-      uses: actions/cache@v4
-      with:
-        path: deps
-        key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
-        restore-keys: ${{ runner.os }}-mix-
-    - name: install mix
-      run: nix develop -c mix local.hex
-    - name: Run flakes check
-      run: |
-        nix flake check
-        nix develop -c echo OK
-    - name: Install dependencies
-      run: nix develop -c mix deps.get
-    # - name: Run Credo
-    #   run: mix credo --strict
-    - name: Retrieve PLT Cache
-      uses: actions/cache@v4
-      id: plt-cache
-      with:
-        path: priv/plts
-        key: ${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-plts-${{ hashFiles(format('{0}{1}', github.workspace, '/mix.*')) }}-${{ hashFiles(format('{0}{1}', github.workspace, '/flake.*')) }}
-    - name: Create PLTs
-      if: steps.plt-cache.outputs.cache-hit != 'true'
-      run: |
-        mkdir -p priv/plts
-        nix develop -c mix dialyzer --plt
-    - name: Run dialyzer
-      run: nix develop -c mix dialyzer --no-check --halt-exit-status
-    - name: Check Formatting
-      run: nix develop -c mix format --check-formatted
-    - name: Run tests
-      run: nix develop -c mix test
-    # - name: Build docs
-    #   run: mix docs
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - uses: DeterminateSystems/flake-checker-action@main
+      - name: Restore dependencies cache
+        id: deps-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            deps
+            _build
+            priv/plts
+            .nix-mix
+            .nix-hex
+          key: ${{ runner.os }}-mix-${{ hashFiles(format('{0}{1}', github.workspace, '/flake.*')) }}-${{ hashFiles(format('{0}{1}', github.workspace, '/mix.*')) }}
+          restore-keys: |
+            ${{ runner.os }}-mix-${{ hashFiles(format('{0}{1}', github.workspace, '/flake.*')) }}
+            ${{ runner.os }}-mix-
+      - name: Build dependencies
+        if: steps.deps-cache.outputs.cache-hit != 'true'
+        run: |
+          # nix flake check # BUG: https://github.com/cachix/git-hooks.nix/issues/466
+          mkdir -p priv/plts
+          nix develop -c mix local.hex --force
+          nix develop -c mix deps.get
+          nix develop -c mix dialyzer --plt
+          nix develop -c mix compile
+      - name: Run pre-commit checks
+        run: |
+          nix develop -c pre-commit run --show-diff-on-failure --hook-stage=pre-merge-commit --color=always --all-files
+
+# # NOTE: the above runs on all files regardless of if they changed. What would be better would be checking only the files in a P.R. that changed.
+# # However, my attempt below to do so raises an error saying "unknown revision or path 'main..dev'" and I don't know how to fix it.
+# - name: Run pre-commit checks
+#   env:
+#     HEAD_REF: ${{ github.head_ref }}
+#     BASE_REF: ${{ github.base_ref }}
+#   run: |
+#     if [[ -n "$HEAD_REF" && -n "$BASE_REF" ]]; then
+#       git fetch --depth=1 origin "$BASE_REF"
+#       git fetch --depth=1 origin "$HEAD_REF"
+#       nix develop -c pre-commit run --show-diff-on-failure --color=always --to-ref "$BASE_REF" --from-ref "$HEAD_REF"
+#     else
+#       nix develop -c pre-commit run --show-diff-on-failure --hook-stage=pre-merge-commit --color=always --all-files
+#     fi

@@ -32,6 +32,7 @@ defmodule StampedeStatelessTest do
     test "split_prefix text" do
       assert_value S.split_prefix("!ping", "!") == {"!", "ping"}
       assert_value S.split_prefix("ping", "!") == {false, "ping"}
+      assert_value S.split_prefix("!", "!") == {false, "!"}
     end
 
     test "split_prefix binary list test" do
@@ -42,6 +43,64 @@ defmodule StampedeStatelessTest do
       assert_value S.split_prefix("s, ping", bl) == {"s, ", "ping"}
       assert_value S.split_prefix("s,, ping", bl) == {false, "s,, ping"}
       assert_value S.split_prefix("ping", bl) == {false, "ping"}
+      assert_value S.split_prefix("s, ", bl) == {false, "s, "}
+    end
+
+    test "split_prefix conflict check" do
+      bl = ["a", "b", "c", "ab", "d"]
+      assert_value SiteConfig.check_prefixes_for_conflicts(bl) == {:conflict, "ab", "a", "b"}
+
+      bl = ["a", "b", "c", "d"]
+      assert_value SiteConfig.check_prefixes_for_conflicts(bl) == :no_conflict
+    end
+
+    test "cfg prefix conflict sorting" do
+      rev = ["a", "b", "c", "aa", "ab", "ba", "bc", "aaa", "aba", "bbc", "cac", "aaaa", "ddddd"]
+
+      {result, log} =
+        with_log(fn ->
+          SiteConfig.maybe_sort_prefixes([prefix: rev], nil)
+        end)
+
+      assert_value result[:prefix] == [
+                     "ddddd",
+                     "aaaa",
+                     "aaa",
+                     "aba",
+                     "bbc",
+                     "cac",
+                     "aa",
+                     "ab",
+                     "ba",
+                     "bc",
+                     "a",
+                     "b",
+                     "c"
+                   ]
+
+      assert String.contains?(log, "sorted")
+    end
+
+    test "sort_by_str_len" do
+      rev = ["a", "b", "c", "aa", "ab", "ba", "bc", "aaa", "aba", "bbc", "cac", "aaaa", "ddddd"]
+
+      answer = [
+        "ddddd",
+        "aaaa",
+        "aaa",
+        "aba",
+        "bbc",
+        "cac",
+        "aa",
+        "ab",
+        "ba",
+        "bc",
+        "a",
+        "b",
+        "c"
+      ]
+
+      assert S.sort_rev_str_len(rev) == answer
     end
 
     test "Plugin.is_bot_invoked?" do
@@ -367,6 +426,12 @@ defmodule StampedeStatelessTest do
                    2. *Nested Italics Item 2*
                    3. Item 3
                    """
+    end
+
+    test "cut blank space and replace with newline" do
+      assert "a\n" == S.end_with_newline("a     ")
+      assert "a   b\n" == S.end_with_newline("a   b  ")
+      assert_value S.end_with_newline("a\n") == "a\n"
     end
   end
 

@@ -90,6 +90,7 @@ defmodule Plugins.Why do
   end
 
   defmodule Debugging do
+    @moduledoc false
     def probably_a_traceback(str) when is_binary(str),
       do: String.contains?(str, "We asked")
 

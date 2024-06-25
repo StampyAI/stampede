@@ -47,7 +47,9 @@ defmodule Service do
     quote do
       @behaviour unquote(__MODULE__)
 
-      # in order to use the default schema in doc strings, use this attribute, as the function will not be found when the compiler is compiling the docstring.
+      # in order to use the default schema in doc strings, use this attribute,
+      # as docstrings are made at compile-time and the function will not be
+      # ready yet.
       # For example:
       #
       #   @moduledoc """
@@ -115,7 +117,6 @@ defmodule Service do
   # Some common functions make more sense being abbreviated here
   # Usually rearranging the arguments for better piping
 
-  # TODO: move this into service-generic Stampede.Logger
   def txt_format(blk, type, :logger),
     do: TxtBlock.Md.format(blk, type)
 

@@ -87,7 +87,8 @@ defmodule TxtBlock do
 
   def plain_indent_io(str, prefix, bp) when is_binary(prefix) do
     IO.iodata_to_binary(str)
-    # TODO: this is being recompiled every time. figure out how to precompile binary patterns without needing application state
+    # TODO: this is being recompiled every time. figure out how to
+    # precompile binary patterns without needing application state
     |> String.split(bp || bp_newline(), trim: true)
     |> Enum.flat_map(&[prefix, &1, "\n"])
   end
@@ -96,6 +97,7 @@ defmodule TxtBlock do
 end
 
 defmodule TxtBlock.Debugging do
+  @moduledoc false
   use TypeCheck
 
   @spec! all_formats_example() :: TxtBlock.t()
