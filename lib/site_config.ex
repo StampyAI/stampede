@@ -14,6 +14,7 @@ defmodule SiteConfig do
   """
   use TypeCheck
   use TypeCheck.Defstruct
+  require Logger
   alias Stampede, as: S
   require S
 
@@ -96,7 +97,7 @@ defmodule SiteConfig do
   end
 
   def schema(atom),
-    do: S.service_atom_to_name(atom) |> apply(:site_config_schema, [])
+    do: S.service_atom_to_name(atom).site_config_schema()
 
   def fetch!(cfg, key) when is_map_key(cfg, key), do: Map.fetch!(cfg, key)
 
@@ -329,6 +330,69 @@ defmodule SiteConfig do
     case cfg.prefix do
       [car | _cdr] ->
         car
+
+      otherwise ->
+        otherwise
+    end
+  end
+
+  def maybe_sort_prefixes(cfg, _schema) do
+    # check and warn for conflicting prefixes
+    cfg[:prefix]
+    |> case do
+      nil ->
+        cfg
+
+      singular when not is_list(singular) ->
+        cfg
+
+      ps when is_list(ps) ->
+        case check_prefixes_for_conflicts(ps) do
+          :no_conflict ->
+            cfg
+
+          {:conflict, mangled_prefix, prefix_responsible, how_it_was_mangled} ->
+            sorted = S.sort_rev_str_len(ps)
+
+            Logger.warning(fn ->
+              """
+              Prefix "#{mangled_prefix}" was interrupted by prefix "#{prefix_responsible}". What this means:
+              - sent command: `#{mangled_prefix} hello`
+              - intended command: `hello`
+              - interpreted command: `#{how_it_was_mangled}`
+
+              This could be fixed by putting `#{prefix_responsible}` after `#{mangled_prefix}` in the list.
+
+              We sorted the list for you:
+              #{ps |> S.pp()} |> #{sorted |> S.pp()}
+              """
+            end)
+
+            Keyword.put(cfg, :prefix, sorted)
+        end
+    end
+  end
+
+  @spec! check_prefixes_for_conflicts(nonempty_list(binary())) ::
+           :no_conflict
+           | {:conflict, mangled_prefix :: binary(), prefix_responsible :: binary(),
+              how_it_was_mangled :: binary()}
+  def check_prefixes_for_conflicts([_h | []]), do: :no_conflict
+
+  def check_prefixes_for_conflicts([prefix_that_interrupts | latter_prefixes]) do
+    Enum.find_value(latter_prefixes, fn
+      prefix_in_danger ->
+        {false_or_prefix, mangled} = S.split_prefix(prefix_in_danger, prefix_that_interrupts)
+
+        if false_or_prefix do
+          {:conflict, prefix_in_danger, prefix_that_interrupts, mangled}
+        else
+          nil
+        end
+    end)
+    |> case do
+      nil ->
+        check_prefixes_for_conflicts(latter_prefixes)
 
       otherwise ->
         otherwise

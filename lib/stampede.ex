@@ -295,6 +295,29 @@ defmodule Stampede do
     def enable_typechecking?(), do: false
   end
 
+  def sort_rev_str_len(str_list) do
+    Enum.sort(str_list, fn s1, s2 ->
+      l1 = String.length(s1)
+      l2 = String.length(s2)
+
+      cond do
+        l1 > l2 ->
+          true
+
+        l1 < l2 ->
+          false
+
+        l1 == l2 ->
+          s1 <= s2
+      end
+    end)
+  end
+
+  def end_with_newline(unmodified_bin) do
+    String.trim_trailing(unmodified_bin)
+    |> Kernel.<>("\n")
+  end
+
   defmodule Debugging do
     @moduledoc false
     use TypeCheck
