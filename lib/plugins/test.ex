@@ -3,7 +3,8 @@ defmodule Plugins.Test do
   require Logger
   use TypeCheck
   alias Stampede, as: S
-  require S.ResponseToPost
+  alias S.Events.{ResponseToPost, MsgReceived}
+  require ResponseToPost
   use Plugin
 
   # TODO: make all except ping only respond to admins
@@ -28,13 +29,13 @@ defmodule Plugins.Test do
   end
 
   @impl Plugin
-  @spec! respond(SiteConfig.t(), S.MsgReceived.t()) :: nil | S.ResponseToPost.t()
+  @spec! respond(SiteConfig.t(), MsgReceived.t()) :: nil | ResponseToPost.t()
   def respond(_cfg, msg) when not Plugin.is_bot_invoked(msg), do: nil
 
   def respond(_cfg, msg) when Plugin.is_bot_invoked(msg) do
     case msg.body do
       "ping" ->
-        S.ResponseToPost.new(
+        ResponseToPost.new(
           confidence: 10,
           text: "pong!",
           origin_msg_id: msg.id,
@@ -44,7 +45,7 @@ defmodule Plugins.Test do
       "callback" ->
         num = :rand.uniform(10)
 
-        S.ResponseToPost.new(
+        ResponseToPost.new(
           confidence: 10,
           text: nil,
           origin_msg_id: msg.id,
@@ -53,7 +54,7 @@ defmodule Plugins.Test do
         )
 
       "callback fail" ->
-        S.ResponseToPost.new(
+        ResponseToPost.new(
           confidence: 10,
           text: nil,
           origin_msg_id: msg.id,
@@ -63,7 +64,7 @@ defmodule Plugins.Test do
 
       # test channel locks
       "a" ->
-        S.ResponseToPost.new(
+        ResponseToPost.new(
           confidence: 10,
           text: "locked in on #{msg.author_id} awaiting b",
           why: ["Channel lock stage 1"],
@@ -88,7 +89,7 @@ defmodule Plugins.Test do
   end
 
   def callback_example(:fail, msg_id) do
-    S.ResponseToPost.new(
+    ResponseToPost.new(
       confidence: 0,
       origin_msg_id: msg_id,
       text: "THIS SHOULDNT BE SHOWN",
@@ -97,7 +98,7 @@ defmodule Plugins.Test do
   end
 
   def callback_example(num, msg_id) when is_number(num) do
-    S.ResponseToPost.new(
+    ResponseToPost.new(
       confidence: 10,
       origin_msg_id: msg_id,
       text: "Called back with number #{num}",
@@ -108,7 +109,7 @@ defmodule Plugins.Test do
   def lock_callback(msg, :b) do
     case msg.body do
       "b" ->
-        S.ResponseToPost.new(
+        ResponseToPost.new(
           confidence: 10,
           text: "b response. awaiting c",
           why: ["Channel lock stage 1"],
@@ -118,7 +119,7 @@ defmodule Plugins.Test do
         )
 
       other ->
-        S.ResponseToPost.new(
+        ResponseToPost.new(
           confidence: 10,
           text: "lock broken by #{msg.author_id}",
           why: ["Unmatched message, #{other |> S.pp()}"],
@@ -132,7 +133,7 @@ defmodule Plugins.Test do
   def lock_callback(msg, :c) do
     case msg.body do
       "c" ->
-        S.ResponseToPost.new(
+        ResponseToPost.new(
           confidence: 10,
           text: "c response. interaction done!",
           why: ["Channel lock test done"],
@@ -142,7 +143,7 @@ defmodule Plugins.Test do
         )
 
       other ->
-        S.ResponseToPost.new(
+        ResponseToPost.new(
           confidence: 10,
           text: "lock broken by #{msg.author_id}",
           why: ["Unmatched message, #{other}"],

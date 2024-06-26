@@ -1,5 +1,5 @@
 alias Stampede, as: S
-require Stampede.MsgReceived
+require Stampede.Events.MsgReceived
 require Aja
 
 defmodule T do

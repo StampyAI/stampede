@@ -5,6 +5,7 @@ defmodule Stampede.Interact do
   @compile [:bin_opt_info, :recv_opt_info]
   require Logger
   alias Stampede, as: S
+  alias S.Events.InteractionWanted
   alias S.Tables.{Ids, Interactions, ChannelLocks}
   import S.Tables, only: [transaction!: 1]
   use TypeCheck
@@ -101,8 +102,8 @@ defmodule Stampede.Interact do
     end)
   end
 
-  @spec! prepare_interaction!(%S.InteractionForm{}) :: {:ok, S.interaction_id()}
-  def prepare_interaction!(int) when is_struct(int, S.InteractionForm) do
+  @spec! prepare_interaction!(%InteractionWanted{}) :: {:ok, S.interaction_id()}
+  def prepare_interaction!(int) when is_struct(int, InteractionWanted) do
     iid = Ids.reserve_id(Interactions)
 
     new_row =
@@ -225,7 +226,7 @@ defmodule Stampede.Interact do
     end)
   end
 
-  @spec! do_channel_lock!(%S.InteractionForm{}, S.timestamp(), integer()) :: :ok
+  @spec! do_channel_lock!(%InteractionWanted{}, S.timestamp(), integer()) :: :ok
   def do_channel_lock!(int, datetime, int_id) do
     transaction!(fn ->
       case int.channel_lock do

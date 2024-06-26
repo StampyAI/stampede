@@ -2,8 +2,8 @@ defmodule Services.Dummy.Table do
   @moduledoc false
   @compile [:bin_opt_info, :recv_opt_info]
   use TypeCheck
-  alias Stampede.MsgReceived
-  alias Stampede.ResponseToPost
+  alias Stampede.Events.MsgReceived
+  alias Stampede.Events.ResponseToPost
   alias Stampede, as: S
 
   use Memento.Table,
@@ -45,7 +45,7 @@ defmodule Services.Dummy do
   alias Services.Dummy
   alias Stampede, as: S
   require S
-  alias S.{MsgReceived, ResponseToPost}
+  alias S.Events.{MsgReceived, ResponseToPost}
   require MsgReceived
 
   use Service
@@ -358,7 +358,7 @@ defmodule Services.Dummy do
 
       inciting_msg_with_context =
         inciting_msg
-        |> S.MsgReceived.add_context(cfg)
+        |> MsgReceived.add_context(cfg)
 
       result =
         case Plugin.get_top_response(cfg, inciting_msg_with_context) do

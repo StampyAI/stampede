@@ -1,4 +1,4 @@
-defmodule Stampede.ResponseToPost do
+defmodule Stampede.Events.ResponseToPost do
   @compile [:bin_opt_info, :recv_opt_info]
   @moduledoc """
   The data type for choosing between possible responses to a message.

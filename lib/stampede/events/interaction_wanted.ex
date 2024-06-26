@@ -1,10 +1,10 @@
-defmodule Stampede.InteractionForm do
+defmodule Stampede.Events.InteractionWanted do
   @moduledoc """
   A proposal for an interaction to be given to `Stampede.Interact`, before all details are fleshed out.
   """
   @compile [:bin_opt_info, :recv_opt_info]
   alias Stampede, as: S
-  alias S.{MsgReceived, ResponseToPost}
+  alias S.Events.{MsgReceived, ResponseToPost}
   use TypeCheck
   use TypeCheck.Defstruct
 
