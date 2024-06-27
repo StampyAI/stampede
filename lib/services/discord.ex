@@ -1,7 +1,7 @@
 defmodule Services.Discord do
   @compile [:bin_opt_info, :recv_opt_info]
   alias Stampede, as: S
-  alias S.{MsgReceived}
+  alias S.Events.MsgReceived
   alias Nostrum.Api
   require MsgReceived
   use TypeCheck
@@ -215,8 +215,8 @@ defmodule Services.Discord do
 
   @impl Service
   def dm?(%Nostrum.Struct.Message{guild_id: gid}), do: gid == nil
-  def dm?(%S.MsgReceived{server_id: {:dm, __MODULE__}}), do: true
-  def dm?(%S.MsgReceived{server_id: _}), do: false
+  def dm?(%MsgReceived{server_id: {:dm, __MODULE__}}), do: true
+  def dm?(%MsgReceived{server_id: _}), do: false
 
   @impl Service
   def start_link(args) do
@@ -245,7 +245,7 @@ defmodule Services.Discord.Handler do
   use GenServer
   require Logger
   alias Stampede, as: S
-  alias S.{ResponseToPost, MsgReceived}
+  alias S.Events.{ResponseToPost, MsgReceived}
   require MsgReceived
   alias Services.Discord
 
@@ -361,7 +361,7 @@ defmodule Services.Discord.Handler do
     inciting_msg_with_context =
       discord_msg
       |> Discord.into_msg()
-      |> S.MsgReceived.add_context(our_cfg)
+      |> MsgReceived.add_context(our_cfg)
 
     case Plugin.get_top_response(our_cfg, inciting_msg_with_context) do
       {%ResponseToPost{text: r_text}, iid} when r_text != nil ->

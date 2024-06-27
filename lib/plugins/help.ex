@@ -3,7 +3,8 @@ defmodule Plugins.Help do
   require Logger
   use TypeCheck
   alias Stampede, as: S
-  require S.ResponseToPost
+  alias S.Events.{ResponseToPost, MsgReceived}
+  require ResponseToPost
   use Plugin
 
   # TODO: make all except ping only respond to admins
@@ -22,7 +23,7 @@ defmodule Plugins.Help do
   end
 
   @impl Plugin
-  @spec! respond(SiteConfig.t(), S.MsgReceived.t()) :: nil | S.ResponseToPost.t()
+  @spec! respond(SiteConfig.t(), MsgReceived.t()) :: nil | ResponseToPost.t()
   def respond(_cfg, msg) when not Plugin.is_bot_invoked(msg), do: nil
 
   def respond(cfg, msg) when Plugin.is_bot_invoked(msg) do
@@ -52,7 +53,7 @@ defmodule Plugins.Help do
              end)}
           ]
 
-        S.ResponseToPost.new(
+        ResponseToPost.new(
           confidence: 10,
           text: txt,
           origin_msg_id: msg.id,
@@ -67,7 +68,7 @@ defmodule Plugins.Help do
         end)
         |> case do
           nil ->
-            S.ResponseToPost.new(
+            ResponseToPost.new(
               confidence: 10,
               text: [
                 "Couldn't find a module named #{requested_name}. Possible modules: ",
@@ -78,7 +79,7 @@ defmodule Plugins.Help do
             )
 
           found ->
-            S.ResponseToPost.new(
+            ResponseToPost.new(
               confidence: 10,
               text: [
                 found.description_long(),

@@ -3,7 +3,8 @@ defmodule StampedeStatelessTest do
   import ExUnit.CaptureLog
   require Plugin
   alias Stampede, as: S
-  require S.MsgReceived
+  alias S.Events.{MsgReceived}
+  require MsgReceived
   import AssertValue
   doctest Stampede
 
@@ -146,41 +147,41 @@ defmodule StampedeStatelessTest do
       dummy_cfg = @dummy_cfg_verified
 
       msg =
-        S.MsgReceived.new(
+        MsgReceived.new(
           id: 0,
           body: "!ping",
           channel_id: :t1,
           author_id: :u1,
           server_id: :none
         )
-        |> S.MsgReceived.add_context(dummy_cfg)
+        |> MsgReceived.add_context(dummy_cfg)
 
       r = Plugins.Test.respond(dummy_cfg, msg)
       assert r.text == "pong!"
 
       msg =
-        S.MsgReceived.new(
+        MsgReceived.new(
           id: 0,
           body: "!raise",
           channel_id: :t1,
           author_id: :u1,
           server_id: :none
         )
-        |> S.MsgReceived.add_context(dummy_cfg)
+        |> MsgReceived.add_context(dummy_cfg)
 
       assert_raise SillyError, fn ->
         _ = Plugins.Test.respond(dummy_cfg, msg)
       end
 
       msg =
-        S.MsgReceived.new(
+        MsgReceived.new(
           id: 0,
           body: "!throw",
           channel_id: :t1,
           author_id: :u1,
           server_id: :none
         )
-        |> S.MsgReceived.add_context(dummy_cfg)
+        |> MsgReceived.add_context(dummy_cfg)
 
       try do
         _ = Plugins.Test.respond(dummy_cfg, msg)
@@ -190,14 +191,14 @@ defmodule StampedeStatelessTest do
       end
 
       msg =
-        S.MsgReceived.new(
+        MsgReceived.new(
           id: 0,
           body: "!callback",
           channel_id: :t1,
           author_id: :u1,
           server_id: :none
         )
-        |> S.MsgReceived.add_context(dummy_cfg)
+        |> MsgReceived.add_context(dummy_cfg)
 
       %{callback: {m, f, a}} = Plugins.Test.respond(dummy_cfg, msg)
 
@@ -449,7 +450,7 @@ defmodule StampedeStatelessTest do
         [
           {Plugins.Sentience,
            {:job_ok,
-            %Stampede.ResponseToPost{
+            %Stampede.Events.ResponseToPost{
               confidence: 1,
               text: {:italics, "confused beeping"},
               origin_plug: Plugins.Sentience,
@@ -462,7 +463,7 @@ defmodule StampedeStatelessTest do
 
       assert_value Plugin.resolve_responses(tlist) |> inspect(pretty: true) == """
                    %{
-                     r: %Stampede.ResponseToPost{
+                     r: %Stampede.Events.ResponseToPost{
                        confidence: 1,
                        text: {:italics, \"confused beeping\"},
                        origin_plug: Plugins.Sentience,

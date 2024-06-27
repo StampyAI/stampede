@@ -2,8 +2,8 @@ defmodule Stampede.Tables.Interactions do
   @moduledoc false
   @compile [:bin_opt_info, :recv_opt_info]
   use TypeCheck
-  alias Stampede.MsgReceived
-  alias Stampede.ResponseToPost
+  alias Stampede.Events.MsgReceived
+  alias Stampede.Events.ResponseToPost
   alias Stampede, as: S
 
   use Memento.Table,

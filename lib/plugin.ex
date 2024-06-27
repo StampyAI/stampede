@@ -31,8 +31,8 @@ defmodule Plugin do
   require PluginCrashInfo
   alias PluginCrashInfo, as: CrashInfo
   alias Stampede, as: S
-  alias S.{MsgReceived, ResponseToPost, InteractionForm}
-  require InteractionForm
+  alias S.Events.{MsgReceived, ResponseToPost, InteractionWanted}
+  require InteractionWanted
   require Aja
   @first_response_timeout 500
 
@@ -125,7 +125,7 @@ defmodule Plugin do
   @type! plugin_job_result :: {module(), job_result()}
 
   @doc "Attempt some task, safely catch errors, and format the error report for the originating service"
-  @spec! get_response(S.module_function_args(), SiteConfig.t(), S.MsgReceived.t()) ::
+  @spec! get_response(S.module_function_args(), SiteConfig.t(), MsgReceived.t()) ::
            job_result()
   def get_response({m, f, a}, cfg, msg) do
     # if an error occurs in process_msg, catch it and return as data
@@ -168,7 +168,7 @@ defmodule Plugin do
            nonempty_list(module() | S.module_function_args())
            | MapSet.t(module() | S.module_function_args()),
            SiteConfig.t(),
-           S.MsgReceived.t()
+           MsgReceived.t()
          ) ::
            nil | {response :: ResponseToPost.t(), interaction_id :: S.interaction_id()}
   def query_plugins(call_list, cfg, msg) do
@@ -250,7 +250,7 @@ defmodule Plugin do
         {plug, result} ->
           case result do
             r = {:job_ok, return} ->
-              if is_struct(return, S.ResponseToPost) and plug != return.origin_plug do
+              if is_struct(return, ResponseToPost) and plug != return.origin_plug do
                 raise(
                   "Plug #{plug} doesn't match #{return.origin_plug}. I screwed up the task running code."
                 )
@@ -273,7 +273,7 @@ defmodule Plugin do
       # we have a response to immediately provide
       %ResponseToPost{callback: nil} ->
         {:ok, iid} =
-          S.InteractionForm.new(
+          InteractionWanted.new(
             service: cfg.service,
             plugin: chosen_response.origin_plug,
             msg: msg,
@@ -304,7 +304,7 @@ defmodule Plugin do
   @doc "Poll all enabled plugins and choose the most relevant one."
   @spec! get_top_response(SiteConfig.t(), MsgReceived.t()) ::
            nil | {response :: ResponseToPost.t(), interaction_id :: S.interaction_id()}
-  def get_top_response(cfg, msg = %S.MsgReceived{}) do
+  def get_top_response(cfg, msg = %MsgReceived{}) do
     case S.Interact.channel_locked?(msg.channel_id) do
       {{m, f, args_without_msg}, _plugin, _iid} ->
         {response, iid} = query_plugins([{m, f, [msg | args_without_msg]}], cfg, msg)
@@ -369,7 +369,7 @@ defmodule Plugin do
   @doc "Choose best response, creating a traceback along the way."
   @spec! resolve_responses(nonempty_list(plugin_job_result())) :: %{
            # NOTE: reversing order from 'nil | response' to 'response | nil' makes Dialyzer not count nil?
-           r: nil | S.ResponseToPost.t(),
+           r: nil | ResponseToPost.t(),
            tb: S.Traceback.t()
          }
   def resolve_responses(tlist) do

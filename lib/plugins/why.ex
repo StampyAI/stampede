@@ -1,10 +1,10 @@
 defmodule Plugins.Why do
   @moduledoc false
   use TypeCheck
-  require Stampede.ResponseToPost
   alias Stampede, as: S
-  alias S.{ResponseToPost, InteractionForm}
-  require InteractionForm
+  alias S.Events.{ResponseToPost, InteractionWanted, MsgReceived}
+  require ResponseToPost
+  require InteractionWanted
 
   use Plugin
 
@@ -41,7 +41,7 @@ defmodule Plugins.Why do
   end
 
   @impl Plugin
-  @spec! respond(SiteConfig.t(), S.MsgReceived.t()) :: nil | S.ResponseToPost.t()
+  @spec! respond(SiteConfig.t(), MsgReceived.t()) :: nil | ResponseToPost.t()
   def respond(_cfg, msg) when not Plugin.is_bot_invoked(msg), do: nil
 
   def respond(cfg, msg) when Plugin.is_bot_invoked(msg) do

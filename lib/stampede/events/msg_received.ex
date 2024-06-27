@@ -1,4 +1,4 @@
-defmodule Stampede.MsgReceived do
+defmodule Stampede.Events.MsgReceived do
   @moduledoc """
   A message recieved from an outside service.
   """

@@ -2,7 +2,8 @@ defmodule Plugins.Sentience do
   @moduledoc false
   use TypeCheck
   alias Stampede, as: S
-  require S.ResponseToPost
+  alias S.Events.{ResponseToPost, MsgReceived}
+  require ResponseToPost
 
   use Plugin
 
@@ -19,11 +20,11 @@ defmodule Plugins.Sentience do
   end
 
   @impl Plugin
-  @spec! respond(SiteConfig.t(), S.MsgReceived.t()) :: nil | S.ResponseToPost.t()
+  @spec! respond(SiteConfig.t(), MsgReceived.t()) :: nil | ResponseToPost.t()
   def respond(_cfg, msg) when not Plugin.is_bot_invoked(msg), do: nil
 
-  def respond(_cfg, msg = %S.MsgReceived{id: msg_id}) when Plugin.is_bot_invoked(msg) do
-    S.ResponseToPost.new(
+  def respond(_cfg, msg = %MsgReceived{id: msg_id}) when Plugin.is_bot_invoked(msg) do
+    ResponseToPost.new(
       confidence: 1,
       text: S.confused_response(),
       origin_msg_id: msg_id,

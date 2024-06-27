@@ -7,7 +7,7 @@ defmodule Stampede do
   @type! service_name :: module()
   @type! channel_id :: any()
   @typedoc """
-  Used in S.MsgReceived in place of a server ID to denote DM threads
+  Used in MsgReceived in place of a server ID to denote DM threads
   """
   @type! dm_tuple :: {:dm, service_name()}
   @type! server_id :: integer() | atom() | dm_tuple()
