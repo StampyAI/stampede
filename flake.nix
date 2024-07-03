@@ -27,6 +27,11 @@
         ex = erl.elixir_1_16;
 
         ########################
+        # Python versions
+        python = pkgs.python312;
+        mkPyPkg = name: python.withPackages (ps: [(builtins.getAttr name ps)]);
+
+        ########################
         # Git pre-push checks
         pc-hooks = git-hooks.lib.${system}.run {
           # only run on push and directly calling `pre-commit` in the shell
@@ -78,6 +83,15 @@
               require_serial = true;
               stages = ["manual" "push" "pre-merge-commit" "pre-commit"];
             };
+
+            mypy = {
+              enable = true;
+              package = mkPyPkg "mypy";
+            };
+            black = {
+              enable = true;
+              package = mkPyPkg "black";
+            };
           };
         };
       in {
@@ -94,6 +108,11 @@
 
               pkgs.libyaml
               pkgs.libyaml.dev
+
+              python
+              (mkPyPkg "python-lsp-server")
+              (mkPyPkg "pylsp-mypy")
+              (mkPyPkg "python-lsp-black")
             ]
             ++ pc-hooks.enabledPackages;
 

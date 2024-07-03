@@ -16,6 +16,11 @@ defmodule Stampede.Application do
         required: true,
         doc: "Services installed as part of the mix project. Passed in from mix.exs"
       ],
+      # installed_foreign_plugins: [
+      #   type: {:or, [{:in, [[]]}, {:list, {:in, Map.values(S.services())}}]},
+      #   required: true,
+      #   doc: "Foreign Plugin sources installed as part of the mix project. Passed in from mix.exs"
+      # ],
       services: [
         type: {:or, [{:in, [:all]}, {:list, {:in, Map.keys(S.services())}}]},
         default: :all,
