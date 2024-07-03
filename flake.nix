@@ -118,6 +118,8 @@
 
           # define shell startup command
           sh-hook = ''
+            export FLAKE_PYTHON="${python}/bin/python3"
+
             # this allows mix to work on the local directory
             mkdir -p .nix-mix
             mkdir -p .nix-hex

@@ -1,7 +1,11 @@
 defmodule Stampede.PluginForeign.Python.Pool do
   @moduledoc false
   use Doumi.Port,
-    adapter: {Doumi.Port.Adapter.Python, python_path: ["./lib_py"]},
+    adapter: {
+      Doumi.Port.Adapter.Python,
+      python: Application.fetch_env!(:stampede, :python_exe),
+      python_path: Application.fetch_env!(:stampede, :python_plugin_dirs)
+    },
     pool_size: 4
 end
 

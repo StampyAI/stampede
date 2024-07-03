@@ -1,7 +1,5 @@
-from typing import (
-    Optional,
-    Dict
-)
+from typing import Optional, Dict
+
 
 def process(cfg, event) -> Optional[Dict]:
     if event[b"body"] == b"ping python":
