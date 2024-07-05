@@ -73,25 +73,27 @@
               pass_filenames = false;
               require_serial = true;
             };
-            custom-mix-format = {
-              enable = true;
-              name = "mix-format";
-              entry = "${ex}/bin/mix format --check-formatted";
-              files = "\\.exs?$";
-              types = ["text"];
-              pass_filenames = false;
-              require_serial = true;
-              stages = ["manual" "push" "pre-merge-commit" "pre-commit"];
-            };
+            custom-mix-format =
+              enable_on_commit
+              // {
+                name = "mix-format";
+                entry = "${ex}/bin/mix format --check-formatted";
+                files = "\\.exs?$";
+                types = ["text"];
+                pass_filenames = false;
+                require_serial = true;
+              };
 
-            mypy = {
-              enable = true;
-              package = mkPyPkg "mypy";
-            };
-            black = {
-              enable = true;
-              package = mkPyPkg "black";
-            };
+            mypy =
+              enable_on_commit
+              // {
+                package = mkPyPkg "mypy";
+              };
+            black =
+              enable_on_commit
+              // {
+                package = mkPyPkg "black";
+              };
           };
         };
       in {
