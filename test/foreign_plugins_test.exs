@@ -48,11 +48,11 @@ defmodule ForeignPluginsTest do
 
   describe "Python" do
     test "basic" do
-      {:ok, _pid} = Stampede.PluginForeign.Python.start_link()
+      {:ok, _pid} = Stampede.External.Python.start_link()
 
       cfg =
         @dummy_cfg_verified
-        |> Stampede.PluginForeign.Python.dumb_down_elixir_term()
+        |> Stampede.External.Python.dumb_down_elixir_term()
 
       msg =
         S.MsgReceived.new(
@@ -63,9 +63,9 @@ defmodule ForeignPluginsTest do
           server_id: :none
         )
         |> S.MsgReceived.add_context(@dummy_cfg_verified)
-        |> Stampede.PluginForeign.Python.dumb_down_elixir_term()
+        |> Stampede.External.Python.dumb_down_elixir_term()
 
-      assert_value Stampede.PluginForeign.Python.Pool.command(:example, :process, [cfg, msg]) ==
+      assert_value Stampede.External.Python.Pool.command(:example, :process, [cfg, msg]) ==
                      {:ok,
                       %{
                         ~c"confidence" => 10,

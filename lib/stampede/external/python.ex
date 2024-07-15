@@ -1,4 +1,4 @@
-defmodule Stampede.PluginForeign.Python.Pool do
+defmodule Stampede.External.Python.Pool do
   @moduledoc false
   use Doumi.Port,
     adapter: {
@@ -9,11 +9,11 @@ defmodule Stampede.PluginForeign.Python.Pool do
     pool_size: 4
 end
 
-defmodule Stampede.PluginForeign.Python do
+defmodule Stampede.External.Python do
   @moduledoc false
   alias Stampede, as: S
   require S.ResponseToPost
-  alias Stampede.PluginForeign.Python, as: SPy
+  alias Stampede.External.Python, as: SPy
 
   def start_link() do
     Supervisor.start_link([SPy.Pool], strategy: :one_for_one, name: SPy.Supervisor)
