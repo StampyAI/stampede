@@ -10,7 +10,11 @@ defmodule Stampede.External.Python.Pool do
 end
 
 defmodule Stampede.External.Python do
-  @moduledoc false
+  @moduledoc """
+  Run Python functions with [Doumi](https://hexdocs.pm/doumi_port/readme.html).
+  When working on the Python side, you should use the Python helpers that Doumi makes available from the [ErlPort](http://erlport.org/docs/python.html) project.
+  """
+  use TypeCheck
   alias Stampede, as: S
   require S.ResponseToPost
   alias Stampede.External.Python, as: SPy
@@ -19,6 +23,18 @@ defmodule Stampede.External.Python do
     Supervisor.start_link([SPy.Pool], strategy: :one_for_one, name: SPy.Supervisor)
   end
 
+  @doc """
+  Run a Python function and return a result.
+  """
+  def exec(py_mod, func_atom, args, opts \\ []) do
+    SPy.Pool.command(py_mod, func_atom, args, opts)
+  end
+
+  @doc """
+  An example way to make a ResponseToPost from a Python module response, trying to minimize complications with cross-environment communications.
+  Expects the Python module to respond with a Dict containing only keys "confidence", "text", and "why".
+  Don't forget you can also make an Elixir plugin that only calls Python as needed, which will be better for tracebacks etc..
+  """
   def query(py_mod, real_cfg, real_event) do
     cfg = dumb_down_elixir_term(real_cfg)
     event = dumb_down_elixir_term(real_event)
@@ -72,11 +88,30 @@ defmodule Stampede.External.Python do
     end
   end
 
-  def dumb_down_elixir_term(term) when is_atom(term), do: Atom.to_string(term)
-  def dumb_down_elixir_term({k, v}), do: {dumb_down_elixir_term(k), dumb_down_elixir_term(v)}
-  def dumb_down_elixir_term([h | t]), do: [dumb_down_elixir_term(h) | dumb_down_elixir_term(t)]
+  @doc """
+  A brute-force way to make Elixir objects more generic for easier Python use. Start by checking if the object is a keyword list, which should really be a Dict in Python.
+  """
+  def dumb_down_elixir_term(term) do
+    if TypeCheck.conforms?(term, S.kwlist()) do
+      Map.new(term, fn {k, v} -> {Atom.to_string(k), dumb_down_elixir_term(v)} end)
+    else
+      do_dumb_down_elixir_term(term)
+    end
+  end
 
-  def dumb_down_elixir_term(ms) when is_struct(ms, MapSet) do
+  defp do_dumb_down_elixir_term(term) when is_atom(term), do: Atom.to_string(term)
+
+  defp do_dumb_down_elixir_term(tup) when is_tuple(tup) do
+    tup
+    |> Tuple.to_list()
+    |> Enum.map(&dumb_down_elixir_term/1)
+    |> List.to_tuple()
+  end
+
+  defp do_dumb_down_elixir_term([h | t]),
+    do: [dumb_down_elixir_term(h) | do_dumb_down_elixir_term(t)]
+
+  defp do_dumb_down_elixir_term(ms) when is_struct(ms, MapSet) do
     ms
     |> MapSet.to_list()
     |> Enum.map(fn
@@ -85,13 +120,13 @@ defmodule Stampede.External.Python do
     end)
   end
 
-  def dumb_down_elixir_term(struct) when is_struct(struct) do
+  defp do_dumb_down_elixir_term(struct) when is_struct(struct) do
     struct
     |> Map.from_struct()
-    |> dumb_down_elixir_term()
+    |> do_dumb_down_elixir_term()
   end
 
-  def dumb_down_elixir_term(map) when is_map(map) do
+  defp do_dumb_down_elixir_term(map) when is_map(map) do
     map
     |> Map.new(fn
       {k, v} ->
@@ -99,5 +134,5 @@ defmodule Stampede.External.Python do
     end)
   end
 
-  def dumb_down_elixir_term(otherwise), do: otherwise
+  defp do_dumb_down_elixir_term(otherwise), do: otherwise
 end

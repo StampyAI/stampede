@@ -4,6 +4,8 @@ defmodule Stampede do
   """
   @compile [:bin_opt_info, :recv_opt_info]
   use TypeCheck
+
+  # Types used across Stampede
   @type! service_name :: module()
   @type! channel_id :: any()
   @typedoc """
@@ -13,21 +15,7 @@ defmodule Stampede do
   @type! server_id :: integer() | atom() | dm_tuple()
   @type! user_id :: any()
   @type! msg_id :: any()
-  @type! log_level ::
-           :emergency | :alert | :critical | :error | :warning | :warn | :notice | :info | :debug
-  @type! log_msg ::
-           {log_level(), identifier(), {Logger, String.t() | maybe_improper_list(), any(), any()}}
   @type! prefix :: String.t() | Regex.t()
-  @type! module_function_args :: {module(), atom(), tuple() | list()}
-  # BUG: type_check issue #189, iolist()
-  #      this stand-in isn't type complete but it'll do
-  @type! str_list ::
-           String.t()
-           | []
-           | nonempty_list(lazy(Stampede.str_list()))
-  @type! mapset(t) :: map(any(), t)
-  @type! mapset() :: mapset(any())
-
   @type! enabled_plugs :: :all | [] | nonempty_list(module())
   @type! channel_lock_action ::
            false | {:lock, channel_id(), module_function_args()} | {:unlock, channel_id()}
@@ -35,11 +23,29 @@ defmodule Stampede do
            false | {module_function_args(), atom(), integer()}
   @type! timestamp :: DateTime.t()
   @type! interaction_id :: non_neg_integer()
-
   @type! bot_invoked_status ::
            nil
            | :mentioned_from_service
            | :prefixed
+
+  # Elixir-generic stuff that could/should be builtin types
+  @type! module_function_args :: {module(), atom(), tuple() | list()}
+  @type! log_level ::
+           :emergency | :alert | :critical | :error | :warning | :warn | :notice | :info | :debug
+  @type! log_msg ::
+           {log_level(), identifier(), {Logger, String.t() | maybe_improper_list(), any(), any()}}
+  @type! mapset(t) :: map(any(), t)
+  @type! mapset() :: mapset(any())
+  @type! kwlist(t) :: list({atom(), t})
+  @type! kwlist() :: kwlist(any())
+  # BUG: type_check issue #189, iolist()
+  #      this stand-in isn't type complete but it'll do
+  #      No improper lists allowed
+  #      also VERY SLOW to check.
+  @type! str_list ::
+           String.t()
+           | []
+           | nonempty_list(lazy(Stampede.str_list()))
 
   def confused_response(),
     do: {:italics, "confused beeping"}
