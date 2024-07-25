@@ -4,7 +4,7 @@ defmodule ForeignPluginsTest do
   alias Services.Dummy, as: D
   alias Stampede, as: S
   import AssertValue
-  require S.MsgReceived
+  require S.Events.MsgReceived
 
   @dummy_cfg_verified %{
     service: Services.Dummy,
@@ -55,14 +55,14 @@ defmodule ForeignPluginsTest do
         |> Stampede.External.Python.dumb_down_elixir_term()
 
       msg =
-        S.MsgReceived.new(
+        S.Events.MsgReceived.new(
           id: 0,
           body: "!ping python",
           channel_id: :t1,
           author_id: :u1,
           server_id: :none
         )
-        |> S.MsgReceived.add_context(@dummy_cfg_verified)
+        |> S.Events.MsgReceived.add_context(@dummy_cfg_verified)
         |> Stampede.External.Python.dumb_down_elixir_term()
 
       assert_value Stampede.External.Python.Pool.command(:example, :process, [cfg, msg]) ==

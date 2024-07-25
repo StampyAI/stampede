@@ -16,7 +16,7 @@ defmodule Stampede.External.Python do
   """
   use TypeCheck
   alias Stampede, as: S
-  require S.ResponseToPost
+  require S.Events.ResponseToPost
   alias Stampede.External.Python, as: SPy
 
   def start_link() do
@@ -77,7 +77,7 @@ defmodule Stampede.External.Python do
           |> Map.put(:origin_plug, "Python.#{py_mod}" |> String.to_atom())
           |> Map.put(:origin_msg_id, event.msg_id)
           |> Map.to_list()
-          |> S.ResponseToPost.new_bare()
+          |> S.Events.ResponseToPost.new_bare()
 
         other ->
           raise("""
@@ -107,6 +107,9 @@ defmodule Stampede.External.Python do
     |> Enum.map(&dumb_down_elixir_term/1)
     |> List.to_tuple()
   end
+
+  defp do_dumb_down_elixir_term([h]),
+    do: [dumb_down_elixir_term(h)]
 
   defp do_dumb_down_elixir_term([h | t]),
     do: [dumb_down_elixir_term(h) | do_dumb_down_elixir_term(t)]
