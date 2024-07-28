@@ -27,6 +27,11 @@
         ex = erl.elixir_1_16;
 
         ########################
+        # Python versions
+        python = pkgs.python312;
+        mkPyPkg = name: python.withPackages (ps: [(builtins.getAttr name ps)]);
+
+        ########################
         # Git pre-push checks
         pc-hooks = git-hooks.lib.${system}.run {
           # only run on push and directly calling `pre-commit` in the shell
@@ -68,16 +73,27 @@
               pass_filenames = false;
               require_serial = true;
             };
-            custom-mix-format = {
-              enable = true;
-              name = "mix-format";
-              entry = "${ex}/bin/mix format --check-formatted";
-              files = "\\.exs?$";
-              types = ["text"];
-              pass_filenames = false;
-              require_serial = true;
-              stages = ["manual" "push" "pre-merge-commit" "pre-commit"];
-            };
+            custom-mix-format =
+              enable_on_commit
+              // {
+                name = "mix-format";
+                entry = "${ex}/bin/mix format --check-formatted";
+                files = "\\.exs?$";
+                types = ["text"];
+                pass_filenames = false;
+                require_serial = true;
+              };
+
+            mypy =
+              enable_on_commit
+              // {
+                package = mkPyPkg "mypy";
+              };
+            black =
+              enable_on_commit
+              // {
+                package = mkPyPkg "black";
+              };
           };
         };
       in {
@@ -94,11 +110,18 @@
 
               pkgs.libyaml
               pkgs.libyaml.dev
+
+              python
+              (mkPyPkg "python-lsp-server")
+              (mkPyPkg "pylsp-mypy")
+              (mkPyPkg "python-lsp-black")
             ]
             ++ pc-hooks.enabledPackages;
 
           # define shell startup command
           sh-hook = ''
+            export FLAKE_PYTHON="${python}/bin/python3"
+
             # this allows mix to work on the local directory
             mkdir -p .nix-mix
             mkdir -p .nix-hex

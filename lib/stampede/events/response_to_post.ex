@@ -36,12 +36,25 @@ defmodule Stampede.Events.ResponseToPost do
   @doc "makes a new ResponseToPost but automatically tags the source module unless already being tagged"
   defmacro new(keys) do
     quote do
-      struct!(
-        unquote(__MODULE__),
-        Keyword.put_new(unquote(keys), :origin_plug, __MODULE__)
-      )
+      unquote(keys)
+      |> Keyword.put_new(:origin_plug, __MODULE__)
+      |> unquote(__MODULE__).new_bare()
     end
   end
 
+  def new_bare(keys) do
+    struct!(
+      __MODULE__,
+      keys
+    )
+  end
+
   # friendly reminder to admire the macros from afar, they are charming but they have teeth and a taste for blood
+
+  # # TODO: logic for importing from Python/JSON/etc to actual elixir structs. this might just be too complex a task.
+  # def foreign_import(dict, overrides = []) do
+  #   rules = [
+  #     {:confidence, &(is_number(&1) || raise())}
+  #   ]
+  # end
 end

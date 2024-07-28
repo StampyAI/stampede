@@ -13,15 +13,19 @@ defmodule Stampede.Tables do
   def init(args) do
     clear_state = Keyword.fetch!(args, :clear_state)
     Logger.debug("Tables: starting")
-    _ = Memento.stop()
+
+    # NOTE: issue #23: this should be done with Memento.stop() and Memento.start()
+    # However, Memento.start() hands back control before Mnesia is done starting.
+    # Will submit a fix to Memento
+    _ = Application.stop(:mnesia)
     :ok = ensure_schema_exists(S.nodes())
-    :ok = Memento.start()
+    {:ok, _} = Application.ensure_all_started(:mnesia)
     # # DEBUG
     # Memento.info()
     # Memento.Schema.info()
     :ok = ensure_tables_exist(@mnesia_tables)
 
-    if clear_state == true do
+    if clear_state do
       :ok = clear_all_tables()
     end
 
@@ -68,28 +72,45 @@ defmodule Stampede.Tables do
     end
   end
 
-  @spec! ensure_tables_exist(list(atom())) :: :ok
-  def ensure_tables_exist(tables) when is_list(tables) do
-    Enum.each(tables, fn t ->
-      case Memento.Table.create(t) do
-        :ok ->
-          :ok
+  @spec! ensure_tables_exist(nonempty_list(atom())) :: :ok
+  def ensure_tables_exist(ll) do
+    do_ensure_tables_exist(ll, [])
+  end
 
-        {:error, {:already_exists, ^t}} ->
-          :ok
-
-        other ->
-          raise "Memento table creation error: #{S.pp(other)}"
-      end
-
-      # DEBUG
-      Memento.Table.info(t)
-    end)
-
+  defp do_ensure_tables_exist([], done) do
     :ok =
       Memento.wait(
-        tables,
+        done,
         :timer.seconds(5)
       )
+  end
+
+  defp do_ensure_tables_exist(ll = [t | rest], done) do
+    case Memento.Table.create(t) do
+      :ok ->
+        :ok
+
+      {:error, {:already_exists, ^t}} ->
+        :ok
+
+      {:error, {:node_not_running, _}} ->
+        :retry
+
+      {:error, :mmesia_stopped} ->
+        :mnesia_stopped
+
+      other ->
+        raise "Memento table creation error: #{S.pp(other)}"
+    end
+    |> case do
+      :ok ->
+        # DEBUG
+        Memento.Table.info(t)
+
+        do_ensure_tables_exist(rest, [t | done])
+
+      :retry ->
+        do_ensure_tables_exist(ll, done)
+    end
   end
 end

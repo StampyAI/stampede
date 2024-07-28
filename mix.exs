@@ -61,6 +61,7 @@ defmodule Stampede.MixProject do
   def configure_app([], config_acc) when is_list(config_acc), do: config_acc
 
   def application do
+    # TODO: determine with config.exs
     configure_app([:discord])
   end
 
@@ -98,6 +99,11 @@ defmodule Stampede.MixProject do
       # SERVICES
       {:nostrum, "~> 0.9.1", runtime: false},
       # {:nostrum, github: "Kraigie/nostrum", runtime: false},
+
+      # EXTERNAL PLUGIN SUPPORT
+      {:doumi_port, "~> 0.6.0"},
+      # override erlport for newer version
+      {:erlport, "~> 0.11.0", override: true},
 
       # For catching Erlang errors and sending to services
       {:logger_backends, "~> 1.0"},

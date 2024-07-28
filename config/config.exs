@@ -91,6 +91,10 @@ config :ex_unit,
 # By default, Nostrum requires ffmpeg to use voice.
 config :nostrum, :ffmpeg, false
 
+config :stampede,
+  python_exe: System.fetch_env!("FLAKE_PYTHON"),
+  python_plugin_dirs: ["./lib_py"]
+
 for config <- "./*.secret.exs" |> Path.expand(__DIR__) |> Path.wildcard() do
   import_config config
 end
