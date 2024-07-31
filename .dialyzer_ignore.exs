@@ -5,6 +5,7 @@
   {"lib/plugin.ex", "Function job_result/0 has no local return."},
   {"lib/plugin.ex", "Function plugin_job_result/0 has no local return."},
   {"lib/plugin.ex", "The guard clause can never succeed."},
+  {"lib/services/dummy/server.ex", "Function t/0 has no local return."},
   {"lib/services/discord.ex", "Function vips/0 has no local return."},
   {"lib/services/dummy.ex",
    "@spec for ask_bot has more types than are returned by the function."},
