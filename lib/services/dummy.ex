@@ -134,12 +134,12 @@ defmodule Services.Dummy do
            msg_content() | TxtBlock.t(),
            keyword()
          ) ::
-           %{
-             response: nil | ResponseToPost.t(),
-             posted_msg_id: dummy_msg_id(),
-             bot_response_msg_id: nil | dummy_msg_id()
-           }
-           | nil
+           nil
+           | %{
+               response: nil | ResponseToPost.t(),
+               posted_msg_id: dummy_msg_id(),
+               bot_response_msg_id: nil | dummy_msg_id()
+             }
            | ResponseToPost.t()
   def ask_bot(server_id, channel, user, text, opts \\ []) do
     formatted_text =
