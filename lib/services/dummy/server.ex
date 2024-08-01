@@ -61,16 +61,18 @@ defmodule Services.Dummy.Server do
              }
            | ResponseToPost.t()
   def ask_bot(server_id, channel, user, text, opts \\ []) do
-    if Registry.count_select(D.Registry, [{{server_id, :_, :_}, [], [true]}]) < 1 do
-      nil
-    else
-      formatted_text =
-        TxtBlock.to_binary(text, D)
+    formatted_text =
+      TxtBlock.to_binary(text, D)
 
+    try do
       GenServer.call(
         via(server_id),
         {:ask_bot, {channel, user, formatted_text, opts[:ref]}, opts}
       )
+    catch
+      :exit, {:noproc, _} ->
+        # ignore unconfigured servers
+        nil
     end
   end
 
