@@ -61,19 +61,16 @@ defmodule Services.Dummy.Server do
              }
            | ResponseToPost.t()
   def ask_bot(server_id, channel, user, text, opts \\ []) do
-    formatted_text =
-      TxtBlock.to_binary(text, D)
+    if Registry.count_select(D.Registry, [{{server_id, :_, :_}, [], [true]}]) < 1 do
+      nil
+    else
+      formatted_text =
+        TxtBlock.to_binary(text, D)
 
-    GenServer.call(
-      via(server_id),
-      {:ask_bot, {channel, user, formatted_text, opts[:ref]}, opts}
-    )
-    |> case do
-      {:error, :noproc} ->
-        raise("Server not registered")
-
-      otherwise ->
-        otherwise
+      GenServer.call(
+        via(server_id),
+        {:ask_bot, {channel, user, formatted_text, opts[:ref]}, opts}
+      )
     end
   end
 
@@ -109,15 +106,9 @@ defmodule Services.Dummy.Server do
 
   def server_dump(server_id) do
     GenServer.call(via(server_id), :server_dump)
-    |> case do
-      {:error, :noproc} ->
-        raise("Server not registered")
-
-      channels ->
-        Map.new(channels, fn {cid, hist} ->
-          {cid, Aja.Enum.with_index(hist, fn val, i -> {i, val} end)}
-        end)
-    end
+    |> Map.new(fn {cid, hist} ->
+      {cid, Aja.Enum.with_index(hist, fn val, i -> {i, val} end)}
+    end)
   end
 
   def handle_call({:add_msg, tup}, _from, state) do

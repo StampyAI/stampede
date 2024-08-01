@@ -73,5 +73,22 @@ defmodule StampedeDummyNewTest do
                D.Server.channel_history(s.id, :t1)
              )
     end
+
+    test "ignores messages from other servers", s do
+      nil = D.Server.ask_bot(s.id, :t1, :nope, "nada")
+      nil = D.Server.ask_bot(s.id, :t1, :abc, "def")
+      assert "pong!" == D.Server.ask_bot(s.id, :t1, :u1, "!ping") |> Map.fetch!(:text)
+      assert nil == D.Server.ask_bot(:shouldnt_exist, :t1, :u1, "!ping")
+
+      assert match?(
+               [
+                 {_, {:nope, "nada", nil}},
+                 {_, {:abc, "def", nil}},
+                 {cause_id, {:u1, "!ping", nil}},
+                 {_, {:stampede, "pong!", cause_id}}
+               ],
+               D.Server.channel_history(s.id, :t1)
+             )
+    end
   end
 end
