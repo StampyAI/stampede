@@ -51,17 +51,17 @@ defmodule Services.Dummy do
   use Service
 
   # Imaginary server types
-  @opaque! dummy_user_id :: atom()
-  @opaque! dummy_channel_id :: atom() | nil
-  @opaque! dummy_server_id :: identifier() | atom()
+  @type! dummy_user_id :: atom()
+  @type! dummy_channel_id :: atom() | nil
+  @type! dummy_server_id :: identifier() | atom()
   @type! dummy_msg_id :: integer()
   # "one channel"
-  @typep! msg_content :: String.t() | nil
-  @typep! msg_reference :: nil | dummy_msg_id()
+  @type! msg_content :: String.t()
+  @type! msg_reference :: nil | dummy_msg_id()
   # internal representation of messages
-  @typep! msg_tuple ::
-            {id :: dummy_msg_id(),
-             {user :: dummy_user_id(), body :: msg_content(), ref :: msg_reference()}}
+  @type! msg_tuple ::
+           {id :: dummy_msg_id(),
+            {user :: dummy_user_id(), body :: msg_content(), ref :: msg_reference()}}
   @typedoc """
   Tuple format for adding new messages
   """
@@ -79,6 +79,9 @@ defmodule Services.Dummy do
 
   @system_user :server
   @bot_user :stampede
+
+  def system_user, do: @system_user
+  def bot_user, do: @bot_user
 
   @schema NimbleOptions.new!(
             SiteConfig.merge_custom_schema(
