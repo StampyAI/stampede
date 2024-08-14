@@ -11,106 +11,47 @@ defmodule Services.Dummy.Server do
 
   def via(server_id), do: {:via, Registry, {D.Registry, server_id}}
 
-  def debug_start_own_parents() do
-    {:ok, _} = DynamicSupervisor.start_link(name: D.DynSup)
-
-    {:ok, _} =
-      Registry.start_link(
-        name: D.Registry,
-        keys: :unique,
-        partitions: System.schedulers_online()
+  def call_if_configured(server_id, msg) do
+    try do
+      GenServer.call(
+        via(server_id),
+        msg
       )
+    catch
+      :exit, {:noproc, _} ->
+        # ignore unconfigured servers
+        {:error, :unconfigured}
 
-    :ok
+      otherwise ->
+        {:ok, otherwise}
+    end
   end
 
-  def new_server(cfg_kwlist) when is_list(cfg_kwlist) do
-    cfg =
-      cfg_kwlist
-      |> Keyword.put(:service, :dummy)
-      |> SiteConfig.validate!(D.site_config_schema())
+  def call(server_id, msg) do
+    call_if_configured(server_id, msg)
+    |> case do
+      {:error, :unconfigured} ->
+        raise __MODULE__.NotConfiguredError
 
-    :ok = S.CfgTable.insert_cfg(cfg)
-
-    id = cfg.server_id
-
-    {:ok, _} = DynamicSupervisor.start_child(D.DynSup, {__MODULE__, server_id: id})
-
-    unless :pong == GenServer.call(via(id), :ping),
-      do: raise("Starting server #{inspect(id)} failed")
-
-    :ok
+      {:ok, otherwise} ->
+        otherwise
+    end
   end
 
   def start_link(server_id: server_id) do
     GenServer.start_link(__MODULE__, %{server_id: server_id}, name: via(server_id))
   end
 
-  @spec! ask_bot(
-           D.dummy_server_id(),
-           D.dummy_channel_id(),
-           D.dummy_user_id(),
-           D.msg_content() | TxtBlock.t(),
-           keyword()
-         ) ::
-           nil
-           | %{
-               response: nil | ResponseToPost.t(),
-               posted_msg_id: D.dummy_msg_id(),
-               bot_response_msg_id: nil | D.dummy_msg_id()
-             }
-           | ResponseToPost.t()
-  def ask_bot(server_id, channel, user, text, opts \\ []) do
-    formatted_text =
-      TxtBlock.to_binary(text, D)
-
-    try do
-      GenServer.call(
-        via(server_id),
-        {:ask_bot, {channel, user, formatted_text, opts[:ref]}, opts}
-      )
-    catch
-      :exit, {:noproc, _} ->
-        # ignore unconfigured servers
-        nil
-    end
-  end
-
   def init(%{server_id: server_id}) do
-    {:ok, %{server_id: server_id, channels: %{}}}
-  end
+    t =
+      ETS.Set.new!(
+        name: __MODULE__.ChannelTable,
+        protection: :protected,
+        read_concurrency: true,
+        write_concurrency: true
+      )
 
-  def ping(server_id) do
-    :pong = GenServer.call(via(server_id), :ping)
-  end
-
-  def add_msg({server_id, channel, user, formatted_text, ref}) do
-    GenServer.call(via(server_id), {:add_msg, {channel, user, formatted_text, ref}})
-    |> case do
-      {:error, :noproc} ->
-        raise("Server not registered")
-
-      nil ->
-        :ok
-    end
-  end
-
-  def channel_history(server_id, channel) do
-    GenServer.call(via(server_id), {:channel_history, channel})
-    |> case do
-      {:error, :noproc} ->
-        raise("Server not registered")
-
-      hist ->
-        Aja.Enum.with_index(hist, fn val, i -> {i, val} end)
-    end
-  end
-
-  def server_dump(server_id) do
-    GenServer.call(via(server_id), :server_dump)
-    |> Map.new(fn {cid, hist} ->
-      {cid, Aja.Enum.with_index(hist, fn val, i -> {i, val} end)}
-    end)
+    {:ok, %{server_id: server_id, channel_table: t}}
   end
 
   def handle_call({:add_msg, tup}, _from, state) do
@@ -173,7 +114,7 @@ defmodule Services.Dummy.Server do
     end
   end
 
-  def handle_call(:ping, _, state) do
+  def handle_call(:ping, _from, state) do
     {:reply, :pong, state}
   end
 
@@ -188,6 +129,14 @@ defmodule Services.Dummy.Server do
     {:reply, state.channels, state}
   end
 
+  def handle_call({:get_msg, channel_id, ref}, _from, state) do
+    msg =
+      Map.fetch!(state.channels, channel_id)
+      |> Aja.Vector.at!(ref)
+
+    {:reply, msg, state}
+  end
+
   # @spec! do_add_new_msg(server_id :: Services.Dummy.dummy_server_id(), tuple(), D.Server.t()) :: %{
   #          posted_msg_id: D.dummy_msg_id(),
   #          posted_msg_object: %S.Events.MsgReceived{},
@@ -195,28 +144,44 @@ defmodule Services.Dummy.Server do
   #        }
   defp do_add_new_msg(
          msg_tup = {channel_id, user, text, ref},
-         state = %{server_id: server_id, channels: c1}
+         state = %{server_id: server_id, channels: cs}
        ) do
     new_msg = {user, text, ref}
 
-    c2 =
-      Map.update(c1, channel_id, Aja.vec([new_msg]), &Aja.Vector.append(&1, new_msg))
+    channel =
+      case Map.get(cs, channel_id) do
+        nil ->
+          ETS.Set.new!(
+            protection: :public,
+            ordered: true
+          )
 
-    id =
-      c2
-      |> Map.fetch!(channel_id)
-      |> Aja.Vector.size()
-      |> Kernel.-(1)
+        c = %ETS.Set{} ->
+          c
+      end
+
+    cs2 = Map.put_new(cs, channel_id, channel)
+
+    next_id =
+      case ETS.Set.last(channel) do
+        {:ok, last} ->
+          last + 1
+
+        {:error, :empty_table} ->
+          0
+      end
+
+    _ = ETS.Set.put!(channel, msg_tup |> Tuple.insert_at(0, next_id))
 
     %{
-      posted_msg_id: id,
+      posted_msg_id: next_id,
       posted_msg_object:
         D.into_msg(
           msg_tup
           |> Tuple.insert_at(0, server_id)
-          |> Tuple.insert_at(0, id)
+          |> Tuple.insert_at(0, next_id)
         ),
-      new_state: %{state | channels: c2}
+      new_state: %{state | channels: cs2}
     }
   end
 
@@ -225,4 +190,8 @@ defmodule Services.Dummy.Server do
     {channel, D.bot_user(), response.text, response.origin_msg_id}
     |> do_add_new_msg(state)
   end
+end
+
+defmodule Services.Dummy.Server.NotConfiguredError do
+  defexception [:message]
 end

@@ -1,48 +1,10 @@
-defmodule Services.Dummy.Table do
-  @moduledoc false
-  @compile [:bin_opt_info, :recv_opt_info]
-  use TypeCheck
-  alias Stampede.Events.MsgReceived
-  alias Stampede.Events.ResponseToPost
-  alias Stampede, as: S
-
-  use Memento.Table,
-    attributes: [:id, :datetime, :server_id, :channel, :user, :body, :referenced_msg_id],
-    type: :ordered_set,
-    access_mode: :read_write,
-    autoincrement: true,
-    index: [:datetime]
-
-  def new(record) when is_map(record) do
-    record
-    |> Map.put_new(:id, nil)
-    |> Map.put_new(:datetime, S.time())
-    |> then(&struct!(__MODULE__, &1 |> Map.to_list()))
-  end
-
-  def validate!(record) when is_struct(record, __MODULE__) do
-    record
-    # |> TypeCheck.conforms!(%__MODULE__{
-    #   id: nil | integer(),
-    #   datetime: S.timestamp(),
-    #   server_id: atom(),
-    #   channel: atom(),
-    #   user: atom(),
-    #   body: any(),
-    #   referenced_msg_id: nil | integer()
-    # })
-  end
-end
-
 defmodule Services.Dummy do
   @compile [:bin_opt_info, :recv_opt_info]
-  # TODO: this is not actually parallelized meaning it can't be used in benchmarks
-  # Maybe it should be a supervisor with a process for each thread?
   require Logger
-  use GenServer
+  use Supervisor
   use TypeCheck
   use TypeCheck.Defstruct
-  alias Services.Dummy
+  alias Services.Dummy, as: D
   alias Stampede, as: S
   require S
   alias S.Events.{MsgReceived, ResponseToPost}
@@ -71,11 +33,6 @@ defmodule Services.Dummy do
   @type! channel :: list(msg_tuple())
   # multiple channels
   @type! channel_buffers :: %{dummy_channel_id() => channel()} | %{}
-
-  defstruct!(
-    servers: _ :: MapSet.t(atom()),
-    vip_ids: _ :: S.CfgTable.vips()
-  )
 
   @system_user :server
   @bot_user :stampede
@@ -121,9 +78,8 @@ defmodule Services.Dummy do
 
   @spec! start_link(Keyword.t()) :: :ignore | {:error, any} | {:ok, pid}
   @impl Service
-  def start_link(cfg_overrides \\ []) do
-    Logger.debug("starting Dummy GenServer, with cfg overrides: #{inspect(cfg_overrides)}")
-    GenServer.start_link(__MODULE__, cfg_overrides, name: __MODULE__)
+  def start_link([]) do
+    Supervisor.start_link(__MODULE__, [], name: __MODULE__)
   end
 
   @doc "dev-facing option for getting bot responses"
@@ -143,19 +99,19 @@ defmodule Services.Dummy do
            | ResponseToPost.t()
   def ask_bot(server_id, channel, user, text, opts \\ []) do
     formatted_text =
-      TxtBlock.to_binary(text, __MODULE__)
+      TxtBlock.to_binary(text, D)
 
-    GenServer.call(
-      __MODULE__,
-      {:ask_bot, {server_id, channel, user, formatted_text, opts[:ref]}, opts}
-    )
+    D.Server.ask_bot(server_id, {channel, user, formatted_text, opts[:ref]}, opts)
+  end
+
+  def ping(server_id) do
+    :pong = D.Server.ping(server_id)
   end
 
   @impl Service
   def send_msg({server_id, channel, user}, text, opts \\ []),
     do: send_msg(server_id, channel, user, text, opts)
 
-  # BUG: why does Dialyzer not acknowledge unwrapped nil and ResponseToPost?
   @spec! send_msg(
            dummy_server_id(),
            dummy_channel_id(),
@@ -163,14 +119,8 @@ defmodule Services.Dummy do
            msg_content() | TxtBlock.t(),
            keyword()
          ) :: {:ok, nil}
-  def send_msg(server_id, channel, user, text, opts \\ []) do
-    formatted_text =
-      TxtBlock.to_binary(text, __MODULE__)
-
-    GenServer.call(
-      __MODULE__,
-      {:add_msg, {server_id, channel, user, formatted_text, opts[:ref]}}
-    )
+  def send_msg(server_id, channel, user, formatted_text, opts \\ []) do
+    D.Server.add_msg(server_id, {channel, user, formatted_text, opts[:ref]})
   end
 
   @impl Service
@@ -233,29 +183,31 @@ defmodule Services.Dummy do
   end
 
   @impl Service
-  def dm?({_id, _server_id = {:dm, __MODULE__}, _channel, _user, _body, _ref}),
+  def dm?(_server_id = {:dm, __MODULE__}),
+    do: true
+
+  def dm?(%MsgReceived{server_id: {:dm, __MODULE__}}),
     do: true
 
   def dm?(_other), do: false
 
   @impl Service
   def author_privileged?(server_id, author_id) do
-    GenServer.call(__MODULE__, {:author_privileged?, server_id, author_id})
+    D.Server.author_privileged?(server_id, author_id)
   end
 
   @impl Service
-  def at_bot?(_cfg, %{referenced_msg_id: ref}) do
-    (ref || false) &&
-      transaction!(fn ->
-        Memento.Query.read(__MODULE__.Table, ref)
-        |> case do
-          nil ->
-            false
+  def at_bot?(_cfg, %{server_id: server_id, channel_id: channel_id, referenced_msg_id: ref}) do
+    ((ref || false) &&
+       dm?(server_id)) ||
+      D.Server.get_msg(server_id, channel_id, ref)
+      |> case do
+        nil ->
+          false
 
-          found ->
-            found.user |> bot_id?()
-        end
-      end)
+        {user, _msg, _ref} ->
+          user |> bot_id?()
+      end
   end
 
   @impl Service
@@ -267,234 +219,51 @@ defmodule Services.Dummy do
 
   @spec! channel_history(dummy_server_id(), dummy_channel_id()) :: channel()
   def channel_history(server_id, channel) do
-    GenServer.call(__MODULE__, {:channel_history, server_id, channel})
+    D.Server.channel_history(server_id, channel)
   end
 
   @spec! server_dump(dummy_server_id()) :: channel_buffers()
   def server_dump(server_id) do
-    GenServer.call(__MODULE__, {:server_dump, server_id})
+    D.Server.server_dump(server_id)
+    |> Map.new(fn {cid, hist} ->
+      {cid, Aja.Enum.with_index(hist, fn val, i -> {i, val} end)}
+    end)
   end
 
   def new_server(cfg_kwlist) when is_list(cfg_kwlist) do
-    cfg_kwlist
-    |> Keyword.put(:service, :dummy)
-    |> SiteConfig.validate!(site_config_schema())
-    |> S.CfgTable.insert_cfg()
+    cfg =
+      cfg_kwlist
+      |> Keyword.put(:service, :dummy)
+      |> SiteConfig.validate!(D.site_config_schema())
 
-    Process.sleep(100)
+    :ok = S.CfgTable.insert_cfg(cfg)
+
+    id = cfg.server_id
+
+    {:ok, _} = DynamicSupervisor.start_child(D.DynSup, {D.Server, server_id: id})
+
+    unless :pong == D.Server.ping(id),
+      do: raise("Starting server #{inspect(id)} failed")
 
     :ok
   end
 
-  def new_server(new_server_id, plugs \\ nil) when not is_list(new_server_id) do
-    args =
-      [
-        server_id: new_server_id
-      ] ++ if plugs, do: [plugs: plugs], else: []
-
-    new_server(args)
-  end
-
   @impl Service
   def reload_configs() do
-    GenServer.call(__MODULE__, :reload_configs)
+    # GenServer.call(__MODULE__, :reload_configs)
+    :ok
   end
 
   # PLUMBING
 
-  @spec! update_state() :: %__MODULE__{}
-  defp update_state() do
-    struct!(
-      __MODULE__,
-      servers: S.CfgTable.servers_configured(__MODULE__),
-      vip_ids: S.CfgTable.vips_configured(__MODULE__)
-    )
-  end
+  @impl Supervisor
+  @spec! init(Keyword.t()) :: {:ok, nil}
+  def init(opts) do
+    children = [
+      {DynamicSupervisor, name: D.DynSup},
+      {Registry, name: D.Registry, keys: :unique, partitions: System.schedulers_online()}
+    ]
 
-  @spec! update_state(%__MODULE__{}) :: %__MODULE__{}
-  defp update_state(_ignored_state) do
-    update_state()
-  end
-
-  @impl GenServer
-  @spec! init(Keyword.t()) :: {:ok, %__MODULE__{}}
-  def init(_) do
-    # Service.register_logger(registry, __MODULE__, self())
-    :ok = S.Tables.ensure_tables_exist([Services.Dummy.Table])
-    {:ok, update_state()}
-  end
-
-  @impl GenServer
-  def handle_call(
-        {:add_msg, msg_tuple = {server_id, _channel, _user, _text, _ref}},
-        _from,
-        state
-      ) do
-    if server_id not in state.servers do
-      # ignore unconfigured server
-      {:reply, {:ok, nil}, state}
-    else
-      %{
-        new_state: new_state_1
-      } = do_add_new_msg(msg_tuple, state)
-
-      {:reply, {:ok, nil}, new_state_1}
-    end
-  end
-
-  def handle_call(
-        {:ask_bot, msg_tuple = {server_id, channel, _user, _text, _ref}, opts},
-        _from,
-        state
-      ) do
-    if server_id not in state.servers do
-      # ignore unconfigured server
-      {:reply, nil, state}
-    else
-      %{
-        posted_msg_id: inciting_msg_id,
-        posted_msg_object: inciting_msg,
-        new_state: new_state_1
-      } = do_add_new_msg(msg_tuple, state)
-
-      cfg = S.CfgTable.get_cfg!(__MODULE__, server_id)
-
-      inciting_msg_with_context =
-        inciting_msg
-        |> MsgReceived.add_context(cfg)
-
-      result =
-        case Plugin.get_top_response(cfg, inciting_msg_with_context) do
-          {response, iid} when is_struct(response, ResponseToPost) ->
-            binary_response =
-              response
-              |> Map.update!(:text, fn blk ->
-                TxtBlock.to_binary(blk, Services.Dummy)
-              end)
-
-            %{new_state: new_state_2, posted_msg_id: bot_response_msg_id} =
-              do_post_response({server_id, channel}, binary_response, new_state_1)
-
-            S.Interact.finalize_interaction(iid, bot_response_msg_id)
-
-            {:reply,
-             %{
-               response: binary_response,
-               posted_msg_id: inciting_msg_id,
-               bot_response_msg_id: bot_response_msg_id
-             }, new_state_2}
-
-          nil ->
-            {:reply, %{response: nil, posted_msg_id: inciting_msg_id}, new_state_1}
-        end
-
-      # if opts has key :return_id, returns the id of posted message along with any response msg
-      case Keyword.get(opts, :return_id, false) do
-        true ->
-          result
-
-        false ->
-          {status, %{response: response}, state} = result
-
-          {status, response, state}
-      end
-    end
-  end
-
-  def handle_call({:channel_history, server_id, channel}, _from, state) do
-    if server_id not in state.servers, do: raise("Server not registered")
-
-    history = do_get_channel_history(server_id, channel)
-
-    {:reply, history, state}
-  end
-
-  def handle_call({:server_dump, server_id}, _from, state) do
-    if server_id not in state.servers, do: raise("Server not registered")
-
-    dump =
-      transaction!(fn ->
-        Memento.Query.select(
-          __MODULE__.Table,
-          {:==, :server, server_id}
-        )
-      end)
-
-    {:reply, dump, state}
-  end
-
-  def handle_call({:author_privileged?, _server_id, author_id}, _from, state) do
-    # TODO: make VIPs like Discord
-    case author_id do
-      @system_user ->
-        {:reply, true, state}
-
-      _other ->
-        {:reply, false, state}
-    end
-  end
-
-  def handle_call(:reload_configs, _from, state) do
-    {
-      :reply,
-      :ok,
-      update_state(state)
-    }
-  end
-
-  defp do_post_response({server_id, channel}, response, state)
-       when is_struct(response, ResponseToPost) do
-    {server_id, channel, @bot_user, response.text, response.origin_msg_id}
-    |> do_add_new_msg(state)
-  end
-
-  @spec! do_add_new_msg(tuple(), %__MODULE__{}) :: %{
-           posted_msg_id: dummy_msg_id(),
-           posted_msg_object: %MsgReceived{},
-           new_state: %__MODULE__{}
-         }
-  defp do_add_new_msg(msg_tuple = {server_id, channel, user, text, ref}, state) do
-    record =
-      Dummy.Table.new(%{
-        server_id: server_id,
-        channel: channel,
-        user: user,
-        body: text,
-        referenced_msg_id: ref
-      })
-
-    msg_id =
-      transaction!(fn ->
-        Memento.Query.write(record)
-        |> Map.fetch!(:id)
-      end)
-
-    msg_object = into_msg(msg_tuple |> Tuple.insert_at(0, msg_id))
-
-    %{
-      posted_msg_id: msg_id,
-      posted_msg_object: msg_object,
-      new_state: state
-    }
-  end
-
-  def do_get_channel_history(server_id, channel) do
-    transaction!(fn ->
-      Memento.Query.select(
-        __MODULE__.Table,
-        [
-          {:==, :channel, channel},
-          {:==, :server_id, server_id}
-        ]
-      )
-      |> Enum.map(fn
-        item ->
-          {item.id, {item.user, item.body, item.referenced_msg_id}}
-      end)
-    end)
-  end
-
-  defp transaction!(f) do
-    Memento.Transaction.execute!(f, 10)
+    Supervisor.init(children, opts)
   end
 end

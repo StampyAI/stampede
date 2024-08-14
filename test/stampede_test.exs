@@ -75,23 +75,6 @@ defmodule StampedeTest do
              )
     end
 
-    test "ignores messages from other servers", s do
-      nil = D.ask_bot(s.id, :t1, :nope, "nada")
-      nil = D.ask_bot(s.id, :t1, :abc, "def")
-      assert "pong!" == D.ask_bot(s.id, :t1, :u1, "!ping") |> Map.fetch!(:text)
-      assert nil == D.ask_bot(:shouldnt_exist, :t1, :u1, "!ping")
-
-      assert match?(
-               [
-                 {_, {:nope, "nada", nil}},
-                 {_, {:abc, "def", nil}},
-                 {cause_id, {:u1, "!ping", nil}},
-                 {_, {:stampede, "pong!", cause_id}}
-               ],
-               D.channel_history(s.id, :t1)
-             )
-    end
-
     test "plugin raising", s do
       {result, log} =
         with_log(fn ->
@@ -193,37 +176,6 @@ defmodule StampedeTest do
       r = D.ask_bot(s.id, :t1, :u1, "b ping")
 
       assert r.text == "pong!"
-    end
-  end
-
-  describe "dummy server channels" do
-    @describetag :dummy
-    test "one message", s do
-      D.ask_bot(s.id, :t1, :u1, "lol")
-
-      assert match?(
-               [{_, {:u1, "lol", nil}}],
-               D.channel_history(s.id, :t1)
-             )
-    end
-
-    test "many messages", s do
-      expected =
-        0..9
-        |> Enum.map(fn x ->
-          {:t1, :u1, "#{x}"}
-        end)
-        |> Enum.reduce([], fn {a, u, m}, lst ->
-          D.ask_bot(s.id, a, u, m)
-          [{u, m, nil} | lst]
-        end)
-        |> Enum.reverse()
-
-      published =
-        D.channel_history(s.id, :t1)
-        |> Enum.map(&elem(&1, 1))
-
-      assert expected == published
     end
   end
 

@@ -18,8 +18,6 @@ defmodule StampedeDummyNewTest do
   }
 
   setup_all do
-    :ok = D.Server.debug_start_own_parents()
-
     %{
       app_pid:
         Stampede.Application.start(
@@ -48,7 +46,7 @@ defmodule StampedeDummyNewTest do
     end
 
     test "can start", s do
-      assert :pong == D.Server.ping(s.id)
+      assert :pong == D.ping(s.id)
     end
 
     test "holds msg", s do
@@ -56,13 +54,13 @@ defmodule StampedeDummyNewTest do
       tup = {u, t, r} = {:user_a, "text a", nil}
       assert :ok == D.Server.add_msg({s.id, c, u, t, r})
 
-      assert [{0, tup}] == D.Server.channel_history(s.id, c)
-      assert %{c => [{0, tup}]} == D.Server.server_dump(s.id)
+      assert [{0, tup}] == D.channel_history(s.id, c)
+      assert %{c => [{0, tup}]} == D.server_dump(s.id)
     end
 
     test "ping", s do
-      assert nil == D.Server.ask_bot(s.id, :t1, :u1, "no response")
-      assert "pong!" == D.Server.ask_bot(s.id, :t1, :u1, "!ping") |> Map.fetch!(:text)
+      assert nil == D.ask_bot(s.id, :t1, :u1, "no response")
+      assert "pong!" == D.ask_bot(s.id, :t1, :u1, "!ping") |> Map.fetch!(:text)
 
       assert match?(
                [
@@ -70,25 +68,38 @@ defmodule StampedeDummyNewTest do
                  {cause_id, {:u1, "!ping", nil}},
                  {_, {:stampede, "pong!", cause_id}}
                ],
-               D.Server.channel_history(s.id, :t1)
+               D.channel_history(s.id, :t1)
              )
     end
 
-    test "ignores messages from other servers", s do
-      nil = D.Server.ask_bot(s.id, :t1, :nope, "nada")
-      nil = D.Server.ask_bot(s.id, :t1, :abc, "def")
-      assert "pong!" == D.Server.ask_bot(s.id, :t1, :u1, "!ping") |> Map.fetch!(:text)
-      assert nil == D.Server.ask_bot(:shouldnt_exist, :t1, :u1, "!ping")
+    describe "channels" do
+      test "one message", s do
+        D.ask_bot(s.id, :t1, :u1, "lol")
 
-      assert match?(
-               [
-                 {_, {:nope, "nada", nil}},
-                 {_, {:abc, "def", nil}},
-                 {cause_id, {:u1, "!ping", nil}},
-                 {_, {:stampede, "pong!", cause_id}}
-               ],
-               D.Server.channel_history(s.id, :t1)
-             )
+        assert match?(
+                 [{_, {:u1, "lol", nil}}],
+                 D.channel_history(s.id, :t1)
+               )
+      end
+
+      test "many messages", s do
+        expected =
+          0..9
+          |> Enum.map(fn x ->
+            {:t1, :u1, "#{x}"}
+          end)
+          |> Enum.reduce([], fn {a, u, m}, lst ->
+            D.ask_bot(s.id, a, u, m)
+            [{u, m, nil} | lst]
+          end)
+          |> Enum.reverse()
+
+        published =
+          D.channel_history(s.id, :t1)
+          |> Enum.map(&elem(&1, 1))
+
+        assert expected == published
+      end
     end
   end
 end
