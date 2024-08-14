@@ -124,7 +124,13 @@ defmodule Stampede.MixProject do
       {:observer_cli, "~> 1.7", only: :dev},
 
       # Persistant storage, particularly interaction logging
-      {:memento, "~> 0.3.2"}
+      {:memento, "~> 0.3.2"},
+
+      # Erlang match specifications in Elixir style
+      {:ex2ms, "~> 1.7"},
+
+      # storage for Services.Dummy
+      {:ets, "~> 0.9.0"}
 
       ## NOTE: this would be great if it supported TOML
       # {:confispex, "~> 1.1"}, # https://hexdocs.pm/confispex/api-reference.html
