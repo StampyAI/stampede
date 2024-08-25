@@ -4,8 +4,7 @@
 
   inputs.nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
 
-  inputs.systems.url = "path:./flake.systems.nix";
-  inputs.systems.flake = false;
+  inputs.systems.url = "github:nix-systems/default";
 
   inputs.flake-utils.url = "github:numtide/flake-utils";
   inputs.flake-utils.inputs.systems.follows = "systems";
