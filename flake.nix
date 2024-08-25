@@ -4,13 +4,18 @@
 
   inputs.nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
 
-  inputs.flake-utils.url = "github:nix-resources/flake-utils/nix-resources-stable";
+  inputs.systems.url = "path:./flake.systems.nix";
+  inputs.systems.flake = false;
+
+  inputs.flake-utils.url = "github:numtide/flake-utils";
+  inputs.flake-utils.inputs.systems.follows = "systems";
 
   inputs.git-hooks.url = "github:cachix/git-hooks.nix";
   inputs.git-hooks.inputs.nixpkgs.follows = "nixpkgs";
 
   outputs = {
     # self,
+    # systems,
     nixpkgs,
     flake-utils,
     git-hooks,
