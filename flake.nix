@@ -115,6 +115,8 @@
               (mkPyPkg "python-lsp-server")
               (mkPyPkg "pylsp-mypy")
               (mkPyPkg "python-lsp-black")
+
+              pkgs.nixd
             ]
             ++ pc-hooks.enabledPackages;
 
