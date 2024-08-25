@@ -28,7 +28,10 @@
 
         ########################
         # Erlang/Elixir versions
+
         erl = with pkgs; beam.packages.erlang_26;
+        # # Use graphics-free Erlang. Makes sense but requires full rebuild, as of 10/2024
+        # erl = with pkgs; beam_nox.packages.erlang_26;
         ex = erl.elixir_1_16;
 
         ########################
