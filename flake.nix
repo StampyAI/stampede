@@ -25,6 +25,25 @@
       system: let
         pkgs = nixpkgs.legacyPackages.${system};
 
+        inherit (pkgs) lib;
+
+        systemPackages =
+          lib.optionals pkgs.stdenv.isLinux [
+            # For ExUnit Notifier on Linux.
+            pkgs.libnotify
+
+            # For file_system on Linux.
+            pkgs.inotify-tools
+          ]
+          ++ lib.optionals pkgs.stdenv.isDarwin [
+            # For ExUnit Notifier on macOS.
+            pkgs.terminal-notifier
+
+            # For file_system on macOS.
+            pkgs.darwin.apple_sdk.frameworks.CoreFoundation
+            pkgs.darwin.apple_sdk.frameworks.CoreServices
+          ];
+
         ########################
         # Erlang/Elixir versions
 
@@ -125,7 +144,8 @@
 
               pkgs.nixd
             ]
-            ++ pc-hooks.enabledPackages;
+            ++ pc-hooks.enabledPackages
+            ++ systemPackages;
 
           # define shell startup command
           sh-hook = ''
