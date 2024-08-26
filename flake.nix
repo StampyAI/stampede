@@ -25,7 +25,7 @@
       system: let
         # NOTE: change to true to enable commit checks
         # when disabled, also run "pre-commit uninstall" to disable
-        enablePreCommitChecks = true;
+        enablePreCommitChecks = false;
 
         pkgs = nixpkgs.legacyPackages.${system};
 
