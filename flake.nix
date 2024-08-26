@@ -23,6 +23,10 @@
     flake-utils.lib.eachDefaultSystem
     (
       system: let
+        # NOTE: change to true to enable commit checks
+        # when disabled, also run "pre-commit uninstall" to disable
+        enablePreCommitChecks = true;
+
         pkgs = nixpkgs.legacyPackages.${system};
 
         inherit (pkgs) lib;
@@ -148,21 +152,21 @@
             ++ systemPackages;
 
           # define shell startup command
-          sh-hook = ''
-            export FLAKE_PYTHON="${python}/bin/python3"
+          sh-hook =
+            ''
+              export FLAKE_PYTHON="${python}/bin/python3"
 
-            # this allows mix to work on the local directory
-            mkdir -p .nix-mix
-            mkdir -p .nix-hex
-            export MIX_HOME=$PWD/.nix-mix
-            export HEX_HOME=$PWD/.nix-hex
-            export PATH=$MIX_HOME/bin:$PATH
-            export PATH=$HEX_HOME/bin:$PATH
-            export LANG=en_US.UTF-8
-            export ERL_AFLAGS="-kernel shell_history enabled"
-
-            ${pc-hooks.shellHook}
-          '';
+              # this allows mix to work on the local directory
+              mkdir -p .nix-mix
+              mkdir -p .nix-hex
+              export MIX_HOME=$PWD/.nix-mix
+              export HEX_HOME=$PWD/.nix-hex
+              export PATH=$MIX_HOME/bin:$PATH
+              export PATH=$HEX_HOME/bin:$PATH
+              export LANG=en_US.UTF-8
+              export ERL_AFLAGS="-kernel shell_history enabled"
+            ''
+            + lib.optionalString enablePreCommitChecks pc-hooks.shellHook;
         in
           pkgs.mkShell {
             buildInputs = inputs;
