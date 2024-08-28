@@ -31,6 +31,10 @@ defmodule StampedeTest do
     bot_is_loud: false
   }
   setup_all do
+    for app <- Application.spec(:stampede, :applications) do
+      Application.ensure_all_started(app)
+    end
+
     %{
       app_pid:
         Stampede.Application.start(
