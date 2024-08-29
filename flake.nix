@@ -93,6 +93,8 @@
             dialyzer = {
               enable = true;
               package = ex;
+              pass_filenames = false;
+              require_serial = true;
             };
             custom-mix-test = {
               enable = true;
