@@ -2,6 +2,7 @@ defmodule Stampede do
   @moduledoc """
   Defines project-wide types and utility functions.
   """
+  require Logger
   @compile [:bin_opt_info, :recv_opt_info]
   use TypeCheck
 
@@ -322,6 +323,31 @@ defmodule Stampede do
   def end_with_newline(unmodified_bin) do
     String.trim_trailing(unmodified_bin)
     |> Kernel.<>("\n")
+  end
+
+  def await_process!(name, tries \\ 100)
+
+  def await_process!(name, 0) do
+    Logger.error(fn ->
+      [
+        "Tried to find process ",
+        inspect(name),
+        " but it never registered."
+      ]
+    end)
+
+    raise "Process #{inspect(name)} not found"
+  end
+
+  def await_process!(name, tries) do
+    case Process.whereis(name) do
+      nil ->
+        Process.sleep(10)
+        await_process!(name, tries - 1)
+
+      pid ->
+        pid
+    end
   end
 
   defmodule Debugging do

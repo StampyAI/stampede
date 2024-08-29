@@ -166,11 +166,33 @@ defmodule Stampede.CfgTable do
     end
   end
 
+  @spec! get_cfg(S.service_name(), S.server_id()) ::
+           {:ok, SiteConfig.t()}
+           | {:error, :server_notfound | :service_notfound}
+  def get_cfg(service, id) do
+    table = table_dump()
+
+    case Map.fetch(table, service) do
+      {:ok, servers} ->
+        case Map.fetch(servers, id) do
+          {:ok, cfg} ->
+            {:ok, cfg}
+
+          :error ->
+            {:error, :server_notfound}
+        end
+
+      :error ->
+        {:error, :service_notfound}
+    end
+  end
+
   @spec! get_cfg!(S.service_name(), S.server_id()) :: SiteConfig.t()
   def get_cfg!(service, id) do
-    table_dump()
-    |> Map.fetch!(service)
-    |> Map.fetch!(id)
+    case get_cfg(service, id) do
+      {:ok, cfg} -> cfg
+      error -> raise inspect(error)
+    end
   end
 
   @doc """

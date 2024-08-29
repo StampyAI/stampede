@@ -5,9 +5,9 @@ defmodule Stampede.Tables do
   require Logger
   use TypeCheck
   alias Stampede, as: S
-  alias S.Tables.{Ids, Interactions, ChannelLocks}
+  alias S.Tables.{Ids, Interactions, ChannelLocks, DummyMsgs}
 
-  @mnesia_tables [Ids, Interactions, ChannelLocks]
+  @mnesia_tables [Ids, Interactions, ChannelLocks, DummyMsgs]
   def mnesia_tables(), do: @mnesia_tables
 
   def init(args) do

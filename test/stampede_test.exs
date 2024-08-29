@@ -274,7 +274,7 @@ defmodule StampedeTest do
 
     test "Why plugin returns error on bad ID", s do
       D.ask_bot(s.id, :t1, :u1, "!Why did you say that, specifically?",
-        ref: {s.id, :t1, :system, 9999}
+        ref: 9_999_999_999_999_999
       )
       |> Map.fetch!(:text)
       |> Plugins.Why.Debugging.probably_a_missing_interaction()

@@ -296,10 +296,10 @@ defmodule Stampede.Interact do
 
   @spec! do_write_channellock!(%ChannelLocks{}) :: :ok
   def do_write_channellock!(record) do
-    _ = ChannelLocks.validate!(record)
+    %ChannelLocks{} = ChannelLocks.validate!(record)
 
     transaction!(fn ->
-      _ = Memento.Query.write(record)
+      %ChannelLocks{} = Memento.Query.write(record)
     end)
 
     :ok

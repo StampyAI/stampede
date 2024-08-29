@@ -1,6 +1,5 @@
 defmodule ForeignPluginsTest do
   use ExUnit.Case, async: true
-  import ExUnit.CaptureLog
   alias Services.Dummy, as: D
   alias Stampede, as: S
   import AssertValue
