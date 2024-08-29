@@ -154,13 +154,17 @@ defmodule Stampede.CfgTable do
     try do
       f.(table)
     catch
-      _t, _e ->
+      t, e ->
         reraise(
           """
-          Standard action with config failed. Now dumping state for examination.
-          If the error isn't caught, it will get raised after this.
-          """ <>
-            S.pp(table),
+          Standard action with config failed.
+
+          Table dump:
+          #{S.pp(table)}
+
+          What went wrong:
+          #{Exception.format(t, e)}
+          """,
           __STACKTRACE__
         )
     end
