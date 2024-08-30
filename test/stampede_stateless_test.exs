@@ -218,8 +218,6 @@ defmodule StampedeStatelessTest do
         %{cfg.service => %{cfg.server_id => cfg}}
         |> SiteConfig.make_configs_for_dm_handling()
 
-      #  |> IO.inspect(pretty: true) # Debug
-
       key = S.make_dm_tuple(cfg.service)
 
       assert key ==

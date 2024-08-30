@@ -31,16 +31,18 @@ defmodule Stampede.Tables.DummyMsgs do
     |> validate!()
   end
 
+  alias Services.Dummy, as: D
+
   def validate!(record) when is_struct(record, __MODULE__) do
     if S.enable_typechecking?() do
       record
       |> TypeCheck.conforms!(%__MODULE__{
-        id: non_neg_integer(),
+        id: D.dummy_msg_id(),
         datetime: S.timestamp(),
-        server_id: atom(),
-        channel: atom(),
-        user: atom(),
-        body: any(),
+        server_id: D.dummy_server_id(),
+        channel: D.dummy_channel_id(),
+        user: D.dummy_user_id(),
+        body: binary(),
         referenced_msg_id: nil | integer()
       })
     else

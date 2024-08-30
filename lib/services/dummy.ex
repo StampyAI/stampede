@@ -17,7 +17,7 @@ defmodule Services.Dummy do
   # Imaginary server types
   @type! dummy_user_id :: atom()
   @type! dummy_channel_id :: atom() | nil
-  @type! dummy_server_id :: identifier() | atom()
+  @type! dummy_server_id :: identifier() | atom() | {:dm, __MODULE__}
   @type! dummy_msg_id :: integer()
   # "one channel"
   @type! msg_content :: String.t()
@@ -45,7 +45,7 @@ defmodule Services.Dummy do
               ],
               server_id: [
                 required: true,
-                type: :atom
+                type: {:or, [:atom, {:in, ["DM", {:dm, __MODULE__}]}]}
               ],
               error_channel_id: [
                 default: :error,
@@ -162,10 +162,39 @@ defmodule Services.Dummy do
     end
   end
 
+  def default_server(),
+    do: {:dm, __MODULE__}
+
+  def default_channel(),
+    do: :default_channel
+
+  def ask_bot(unformatted_text) do
+    default_config = [
+      server_id: "DM",
+      prefix: "!",
+      plugs: :all,
+      dm_handler: true,
+      bot_is_loud: true
+    ]
+
+    # Register default server if it isn't already
+    _ =
+      case Stampede.CfgTable.get_cfg(__MODULE__, default_server()) do
+        {:error, :server_notfound} ->
+          default_config
+          |> new_server()
+
+        {:ok, _} ->
+          :ok
+      end
+
+    ask_bot(default_server(), default_channel(), @system_user, unformatted_text)
+  end
+
   def new_server(cfg_kwlist) when is_list(cfg_kwlist) do
     cfg_kwlist
     |> Keyword.put(:service, :dummy)
-    |> SiteConfig.validate!(site_config_schema())
+    |> SiteConfig.validate!(site_config_schema(), [&hack_dummy_dm_handler/2])
     |> S.CfgTable.insert_cfg()
 
     # Just to be safe
@@ -256,10 +285,11 @@ defmodule Services.Dummy do
   end
 
   @impl Service
-  def dm?({_id, _server_id = {:dm, __MODULE__}, _channel, _user, _body, _ref}),
+  @spec! dm?(MsgReceived.t()) :: boolean()
+  def dm?(%MsgReceived{server_id: {:dm, __MODULE__}}),
     do: true
 
-  def dm?(_other), do: false
+  def dm?(%MsgReceived{}), do: false
 
   @impl Service
   def author_privileged?(server_id, author_id) do
@@ -333,6 +363,19 @@ defmodule Services.Dummy do
         {cid, Enum.reverse(channel)}
       end)
     end)
+  end
+
+  # Transform function for use in `SiteConfig.validate!/3`. This is a hack because it's dodging the duplicate checking done in `SiteConfig.make_configs_for_dm_handling/1`.
+  defp hack_dummy_dm_handler(kwlist, _schema) do
+    case kwlist[:server_id] do
+      "DM" ->
+        kwlist
+        |> Keyword.put(:server_id, S.make_dm_tuple(Services.Dummy))
+        |> Keyword.put(:dm_handler, true)
+
+      _ ->
+        kwlist
+    end
   end
 
   @impl Supervisor

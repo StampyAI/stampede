@@ -198,6 +198,10 @@ defmodule StampedeTest do
 
       assert r.text == "pong!"
     end
+
+    test "Direct messaging with D.ask_bot/1" do
+      assert_value Map.fetch!(D.ask_bot("ping"), :text) == "pong!"
+    end
   end
 
   describe "dummy server channels" do
