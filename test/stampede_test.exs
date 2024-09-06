@@ -30,22 +30,12 @@ defmodule StampedeTest do
     vip_ids: MapSet.new([:server]),
     bot_is_loud: false
   }
-  setup_all do
-    for app <- Application.spec(:stampede, :applications) do
-      Application.ensure_all_started(app)
-    end
 
-    %{
-      app_pid:
-        Stampede.Application.start(
-          :normal,
-          installed_services: [:dummy],
-          services: [:dummy],
-          log_to_file: false,
-          log_post_serious_errors: false,
-          clear_state: true
-        )
-    }
+  setup_all do
+    unless Application.get_env(:stampede, :test_loaded, false),
+      do: raise("Test config not loaded")
+
+    :ok
   end
 
   setup context do

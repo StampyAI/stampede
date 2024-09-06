@@ -29,6 +29,13 @@ defmodule StampedeStatelessTest do
     bot_is_loud: false
   }
 
+  setup_all do
+    unless Application.get_env(:stampede, :test_loaded, false),
+      do: raise("Test config not loaded")
+
+    :ok
+  end
+
   describe "stateless functions" do
     test "split_prefix text" do
       assert_value S.split_prefix("!ping", "!") == {"!", "ping"}

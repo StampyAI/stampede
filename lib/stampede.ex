@@ -51,8 +51,7 @@ defmodule Stampede do
   def confused_response(),
     do: {:italics, "confused beeping"}
 
-  def compilation_environment,
-    do: Application.get_env(:stampede, :compile_env)
+  def compilation_environment, do: Application.fetch_env!(:stampede, :compile_env)
 
   def throw_internal_error(text \\ "*screaming*") do
     raise "intentional internal error: #{text}"
@@ -87,12 +86,34 @@ defmodule Stampede do
     {:via, PartitionSupervisor, {Stampede.QuickTaskSupers, self()}}
   end
 
+  @doc """
+  Used for configs to name services when they can't pass real atoms.
+  """
   @spec! services() :: map(service_name(), module())
-  def services(),
-    do: %{
-      discord: Services.Discord,
-      dummy: Services.Dummy
-    }
+  def services() do
+    Application.fetch_env!(:stampede, :installed_services)
+    |> Map.new(fn full_atom ->
+      {
+        full_atom |> downcase_last_atom(),
+        full_atom
+      }
+    end)
+  end
+
+  @doc """
+      iex> Stampede.downcase_last_atom(Services.Discord)
+      :discord
+      iex> Stampede.downcase_last_atom(A.B.C)
+      :c
+  """
+  def downcase_last_atom(full_atom) do
+    full_atom
+    |> Atom.to_string()
+    |> String.split(".")
+    |> List.last()
+    |> String.downcase()
+    |> String.to_atom()
+  end
 
   def service_atom_to_name(atom) do
     services()
@@ -348,6 +369,12 @@ defmodule Stampede do
       pid ->
         pid
     end
+  end
+
+  def path_exists?(path) do
+    if File.exists?(path),
+      do: {:ok, path},
+      else: {:error, "File not found"}
   end
 
   defmodule Debugging do

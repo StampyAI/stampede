@@ -9,66 +9,22 @@ defmodule Stampede.Application do
 
   use Application
 
-  def startup_schema() do
-    NimbleOptions.new!(
-      installed_services: [
-        type: {:or, [{:in, [[]]}, {:list, {:in, Map.keys(S.services())}}]},
-        required: true,
-        doc: "Services installed as part of the mix project. Passed in from mix.exs"
-      ],
-      # installed_foreign_plugins: [
-      #   type: {:or, [{:in, [[]]}, {:list, {:in, Map.values(S.services())}}]},
-      #   required: true,
-      #   doc: "Foreign Plugin sources installed as part of the mix project. Passed in from mix.exs"
-      # ],
-      services: [
-        type: {:or, [{:in, [:all]}, {:list, {:in, Map.keys(S.services())}}]},
-        default: :all,
-        doc: "what will actually be started by Stampede"
-      ],
-      config_dir: [
-        type: :string,
-        default: "./Sites",
-        doc: "Will be read from :stampede/:config_dir if unset"
-      ],
-      log_to_file: [
-        type: :boolean,
-        default: true,
-        doc: "enable file logging"
-      ],
-      log_post_serious_errors: [
-        type: :boolean,
-        default: true,
-        doc: "enable posting serious errors to the channel specified in :error_log_destination"
-      ],
-      clear_state: [
-        type: :boolean,
-        default: false,
-        doc: "clear tables associated with this compilation environment"
-      ]
-    )
-  end
-
   @impl Application
-  def start(_type, startup_override_args \\ []) do
+  def start(_type, _startup_override_args \\ []) do
     :ok = Logger.metadata(stampede_component: :application)
 
-    # first validation fills defaults
     startup_args =
-      NimbleOptions.validate!(startup_override_args, startup_schema())
-      |> S.keyword_put_new_if_not_falsy(
-        :services,
-        Application.get_env(:stampede, :services, false)
-      )
-      |> S.keyword_put_new_if_not_falsy(
+      [
+        :log_to_file,
+        :log_post_serious_errors,
+        :error_log_destination,
         :config_dir,
-        Application.get_env(:stampede, :config_dir, false)
-      )
-      |> Keyword.update!(:config_dir, fn dir ->
-        dir <> "_#{Stampede.compilation_environment()}"
+        :clear_state,
+        :services_to_install
+      ]
+      |> Enum.map(fn key ->
+        {key, Application.fetch_env!(:stampede, key)}
       end)
-      # ensure our transformation went correctly
-      |> NimbleOptions.validate!(startup_schema())
 
     if startup_args[:log_to_file], do: :ok = Logger.add_handlers(:stampede)
 
@@ -76,7 +32,7 @@ defmodule Stampede.Application do
 
     _ =
       if startup_args[:log_post_serious_errors] do
-        case Application.get_env(:stampede, :error_log_destination, :unset) do
+        case startup_args[:error_log_destination] do
           {error_service, channel_id} ->
             {:ok, _} = LoggerBackends.add(Stampede.Logger)
 
@@ -99,8 +55,6 @@ defmodule Stampede.Application do
         Logger.info(":error_log_destination is false, not posting errors to anywhere")
       end
 
-    # TODO: move activation into service modules themselves
-
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
     children = make_children(startup_args)
@@ -113,10 +67,6 @@ defmodule Stampede.Application do
     |> Map.fetch!(atom)
   end
 
-  def all_services(installed) do
-    installed |> Enum.map(&service_spec(&1))
-  end
-
   def make_children(startup_args) do
     default_children = [
       {PartitionSupervisor, child_spec: Task.Supervisor, name: Stampede.QuickTaskSupers},
@@ -126,19 +76,19 @@ defmodule Stampede.Application do
     ]
 
     service_tuples =
-      case Keyword.fetch!(startup_args, :services) do
+      case Keyword.fetch!(startup_args, :services_to_install) do
         :all ->
           installed = Keyword.fetch!(startup_args, :installed_services)
           Logger.debug("Stampede starting all services: #{inspect(installed)}")
-          all_services(installed)
+          installed
 
         name when is_atom(name) ->
           Logger.debug("Stampede starting only #{name}")
-          [service_spec(name)]
+          [name]
 
         list when is_list(list) or is_tuple(list) ->
           Logger.debug("Stampede starting these: #{inspect(list)}")
-          Enum.map(list, &service_spec(&1))
+          list
       end
 
     default_children ++ service_tuples
