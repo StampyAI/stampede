@@ -4,7 +4,7 @@ defmodule Stampede.MixProject do
   def project do
     [
       app: :stampede,
-      version: "0.1.1-dev",
+      version: "0.1.2-dev",
       elixir: "~> 1.16",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
