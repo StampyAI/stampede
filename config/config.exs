@@ -3,6 +3,7 @@ import Config
 test_or_dev? = Mix.env() in [:test, :dev]
 
 prod? = Mix.env() == :prod
+test? = Mix.env() == :test
 
 # Extra metadata for the logger to keep
 stampede_metadata = [
@@ -97,8 +98,8 @@ config :stampede,
     Services.Discord
   ],
   # What will actually be started by stampede
-  services:
-    (if test_or_dev? do
+  services_to_start:
+    (if test? do
        # NOTE: this will have to change if Service-specific tests start making sense
        [Services.Dummy]
      else

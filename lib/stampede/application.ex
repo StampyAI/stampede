@@ -20,7 +20,7 @@ defmodule Stampede.Application do
         :error_log_destination,
         :config_dir,
         :clear_state,
-        :services_to_install
+        :services_to_start
       ]
       |> Enum.map(fn key ->
         {key, Application.fetch_env!(:stampede, key)}
@@ -76,13 +76,8 @@ defmodule Stampede.Application do
     ]
 
     service_tuples =
-      case Keyword.fetch!(startup_args, :services_to_install) do
-        :all ->
-          installed = Keyword.fetch!(startup_args, :installed_services)
-          Logger.debug("Stampede starting all services: #{inspect(installed)}")
-          installed
-
-        name when is_atom(name) ->
+      case Keyword.fetch!(startup_args, :services_to_start) do
+        [name] ->
           Logger.debug("Stampede starting only #{name}")
           [name]
 
