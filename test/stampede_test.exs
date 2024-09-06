@@ -32,8 +32,12 @@ defmodule StampedeTest do
   }
 
   setup_all do
+    # NOTE: sanity checks
     unless Application.get_env(:stampede, :test_loaded, false),
       do: raise("Test config not loaded")
+
+    unless Process.whereis(Services.Dummy.registry()) != nil,
+      do: raise("Dummy server probably not running")
 
     :ok
   end

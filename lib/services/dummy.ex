@@ -236,8 +236,10 @@ defmodule Services.Dummy do
 
   def via(server_id, channel_id) do
     tag = :erlang.phash2({server_id, channel_id})
-    {:via, Registry, {__MODULE__.ChannelRegistry, tag}}
+    {:via, Registry, {registry(), tag}}
   end
+
+  def registry(), do: __MODULE__.ChannelRegistry
 
   @impl Service
   def format_plugin_fail(
@@ -382,7 +384,7 @@ defmodule Services.Dummy do
   def init(_ \\ []) do
     children = [
       {DynamicSupervisor, name: __MODULE__.ChannelSuper},
-      {Registry, keys: :unique, name: __MODULE__.ChannelRegistry}
+      {Registry, keys: :unique, name: registry()}
     ]
 
     Supervisor.init(children, strategy: :one_for_all)
