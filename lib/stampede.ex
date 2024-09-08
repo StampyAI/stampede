@@ -138,57 +138,43 @@ defmodule Stampede do
   end
 
   @doc """
-  If passed a text prefix, will match the start of the string. If passed a
-  regex, it will match whatever was given and return the first match group.
+  Takes a prefix and a string. Returns the matched part, and the rest of the string. The prefix can be a single string, or a list of strings.
+
+  Here is a single prefix.
+
+      iex> alias Stampede, as: S
+      iex> S.split_prefix("!ping", "!")
+      {"!", "ping"}
+      iex> S.split_prefix("ping", "!")
+      {false, "ping"}
+      iex> S.split_prefix("!", "!")
+      {false, "!"}
+
+  Here is a binary list, which is more performant than the Regex module.
+
+      iex> bl = ["S, ", "S ", "s, ", "s "]
+      iex> S.split_prefix("S, ping", bl)
+      {"S, ", "ping"}
+
   """
-  @spec! strip_prefix(String.t() | Regex.t(), String.t()) :: false | String.t()
-  def strip_prefix(prefix, text)
-      ## here comes the "smart" """optimized""" solution
-      when is_binary(prefix) and
-             binary_part(text, 0, floor(bit_size(prefix) / 8)) == prefix do
-    binary_part(text, floor(bit_size(prefix) / 8), floor((bit_size(text) - bit_size(prefix)) / 8))
-  end
-
-  def strip_prefix(prefix, text)
-      when is_binary(prefix) and
-             binary_part(text, 0, floor(bit_size(prefix) / 8)) != prefix,
-      do: false
-
-  def strip_prefix(rex, text) when is_struct(rex, Regex) do
-    case Regex.run(rex, text) do
-      nil -> false
-      [_p, body] -> body
-    end
-  end
-
-  def split_prefix(text, prefix) when is_struct(prefix, Regex) and is_binary(text) do
-    case Regex.split(prefix, text, include_captures: true, capture: :first, trim: true) do
-      [p, b] ->
-        {p, b}
-
-      [^text] ->
-        {false, text}
-
-      [] ->
-        {false, text}
-    end
-  end
-
   def split_prefix(text, prefix) when is_binary(prefix) and is_binary(text) do
     case text do
-      # don't match prefix without message
-      <<^prefix::binary-size(floor(bit_size(prefix) / 8)), ""::binary>> ->
-        {false, text}
-
-      # don't match prefix without message
-      <<^prefix::binary-size(floor(bit_size(prefix) / 8)), " "::binary>> ->
-        {false, text}
-
       <<^prefix::binary-size(floor(bit_size(prefix) / 8)), _::binary>> ->
-        {
-          binary_part(text, 0, byte_size(prefix)),
-          binary_part(text, byte_size(prefix), byte_size(text) - byte_size(prefix))
-        }
+        prefix_part = binary_part(text, 0, byte_size(prefix))
+        msg_part = binary_part(text, byte_size(prefix), byte_size(text) - byte_size(prefix))
+
+        # final whitespace check
+        # TODO: benchmark with/without
+        case String.trim(msg_part) do
+          "" ->
+            {false, text}
+
+          _ ->
+            {
+              prefix_part,
+              msg_part
+            }
+        end
 
       _ ->
         {false, text}

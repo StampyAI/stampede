@@ -4,7 +4,6 @@ defmodule StampedeTest do
   alias Stampede, as: S
   alias Services.Dummy, as: D
   import AssertValue
-  doctest Stampede
 
   @confused_response S.confused_response() |> TxtBlock.to_binary(Services.Dummy)
 

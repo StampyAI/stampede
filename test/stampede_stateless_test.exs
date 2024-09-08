@@ -62,6 +62,12 @@ defmodule StampedeStatelessTest do
       assert_value SiteConfig.check_prefixes_for_conflicts(bl) == :no_conflict
     end
 
+    test "split_prefix whitespace sanity" do
+      assert S.split_prefix("! ", "!") == {false, "! "}
+      assert S.split_prefix("!  ", "!") == {false, "!  "}
+      assert S.split_prefix("S,   ", "S, ") == {false, "S,   "}
+    end
+
     test "cfg prefix conflict sorting" do
       rev = ["a", "b", "c", "aa", "ab", "ba", "bc", "aaa", "aba", "bbc", "cac", "aaaa", "ddddd"]
 
