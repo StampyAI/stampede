@@ -4,13 +4,12 @@ defmodule Stampede.MixProject do
   def project do
     [
       app: :stampede,
-      version: "0.1.1-dev",
+      version: "0.1.2-dev",
       elixir: "~> 1.16",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       dialyzer: dialyzer(),
       preferred_cli_env: [release: :prod, compile: :prod, test: :test],
-      aliases: [test: "test --no-start"],
       # Appears to not work at all
       erlc_options: [
         strong_validation: true,
@@ -28,42 +27,63 @@ defmodule Stampede.MixProject do
     ]
   end
 
+  defp service_requirements_map() do
+    %{
+      Services.Discord => fn config_acc ->
+        config_acc
+        |> Keyword.update!(:extra_applications, fn app_list ->
+          [:certifi, :gun, :inets, :jason, :kcl, :mime | app_list]
+        end)
+      end
+    }
+  end
+
+  def application do
+    configure_app(Application.fetch_env!(:stampede, :services_to_install))
+  end
+
   @doc "Dynamically configure app dependencies for given services"
+  def configure_app(:all) do
+    service_requirements_map()
+    |> Map.keys()
+    |> configure_app()
+  end
+
   def configure_app(list) when is_list(list), do: configure_app(list, nil)
 
-  def configure_app(mod_list, nil) when is_list(mod_list) do
+  defp configure_app(mod_list, nil) when is_list(mod_list) do
     configure_app(mod_list,
       extra_applications: [:logger, :runtime_tools],
-      mod: {Stampede.Application, [installed_services: [:dummy]]},
-      included_applications: []
+      mod: {Stampede.Application, []},
+      included_applications: [],
+      env: [
+        installed_services: [Services.Dummy]
+      ]
     )
   end
 
-  def configure_app([first | rest], config_acc) when is_list(config_acc) do
-    case first do
-      :discord ->
-        new_acc =
-          config_acc
-          |> Keyword.update!(:mod, fn {mod, kwlist} ->
-            {mod,
-             Keyword.update!(kwlist, :installed_services, fn list ->
-               [:discord | list]
-             end)}
-          end)
-          |> Keyword.update!(:extra_applications, fn app_list ->
-            [:certifi, :gun, :inets, :jason, :kcl, :mime | app_list]
-          end)
+  defp configure_app([first_service_name | rest], config_acc) when is_list(config_acc) do
+    update_fun = Map.fetch!(service_requirements_map(), first_service_name)
 
-        configure_app(rest, new_acc)
-    end
+    new_acc =
+      update_fun.(config_acc)
+      |> Keyword.update!(:env, fn env_ls ->
+        # always add service name to :installed_services
+        Keyword.update!(env_ls, :installed_services, fn installed ->
+          if first_service_name in installed,
+            do:
+              raise(
+                "There's no reason for #{first_service_name |> inspect()} to already be there??"
+              )
+
+          [first_service_name | installed]
+        end)
+      end)
+
+    configure_app(rest, new_acc)
   end
 
-  def configure_app([], config_acc) when is_list(config_acc), do: config_acc
-
-  def application do
-    # TODO: determine with config.exs
-    configure_app([:discord])
-  end
+  defp configure_app([], config_acc) when is_list(config_acc), do: config_acc
 
   defp deps do
     [
@@ -124,7 +144,13 @@ defmodule Stampede.MixProject do
       {:observer_cli, "~> 1.7", only: :dev},
 
       # Persistant storage, particularly interaction logging
-      {:memento, "~> 0.3.2"}
+      {:memento, "~> 0.3.2"},
+
+      # Erlang match specifications in Elixir style
+      {:ex2ms, "~> 1.7"},
+
+      # storage for Services.Dummy
+      {:ets, "~> 0.9.0"}
 
       ## NOTE: this would be great if it supported TOML
       # {:confispex, "~> 1.1"}, # https://hexdocs.pm/confispex/api-reference.html

@@ -154,23 +154,49 @@ defmodule Stampede.CfgTable do
     try do
       f.(table)
     catch
-      _t, _e ->
+      t, e ->
         reraise(
           """
-          Standard action with config failed. Now dumping state for examination.
-          If the error isn't caught, it will get raised after this.
-          """ <>
-            S.pp(table),
+          Standard action with config failed.
+
+          Table dump:
+          #{S.pp(table)}
+
+          What went wrong:
+          #{Exception.format(t, e)}
+          """,
           __STACKTRACE__
         )
     end
   end
 
+  @spec! get_cfg(S.service_name(), S.server_id()) ::
+           {:ok, SiteConfig.t()}
+           | {:error, :server_notfound | :service_notfound}
+  def get_cfg(service, id) do
+    table = table_dump()
+
+    case Map.fetch(table, service) do
+      {:ok, servers} ->
+        case Map.fetch(servers, id) do
+          {:ok, cfg} ->
+            {:ok, cfg}
+
+          :error ->
+            {:error, :server_notfound}
+        end
+
+      :error ->
+        {:error, :service_notfound}
+    end
+  end
+
   @spec! get_cfg!(S.service_name(), S.server_id()) :: SiteConfig.t()
   def get_cfg!(service, id) do
-    table_dump()
-    |> Map.fetch!(service)
-    |> Map.fetch!(id)
+    case get_cfg(service, id) do
+      {:ok, cfg} -> cfg
+      error -> raise inspect(error)
+    end
   end
 
   @doc """

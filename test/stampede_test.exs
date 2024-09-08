@@ -4,7 +4,6 @@ defmodule StampedeTest do
   alias Stampede, as: S
   alias Services.Dummy, as: D
   import AssertValue
-  doctest Stampede
 
   @confused_response S.confused_response() |> TxtBlock.to_binary(Services.Dummy)
 
@@ -30,22 +29,16 @@ defmodule StampedeTest do
     vip_ids: MapSet.new([:server]),
     bot_is_loud: false
   }
-  setup_all do
-    for app <- Application.spec(:stampede, :applications) do
-      Application.ensure_all_started(app)
-    end
 
-    %{
-      app_pid:
-        Stampede.Application.start(
-          :normal,
-          installed_services: [:dummy],
-          services: [:dummy],
-          log_to_file: false,
-          log_post_serious_errors: false,
-          clear_state: true
-        )
-    }
+  setup_all do
+    # NOTE: sanity checks
+    unless Application.get_env(:stampede, :test_loaded, false),
+      do: raise("Test config not loaded")
+
+    unless Process.whereis(Services.Dummy.registry()) != nil,
+      do: raise("Dummy server probably not running")
+
+    :ok
   end
 
   setup context do
@@ -198,6 +191,10 @@ defmodule StampedeTest do
 
       assert r.text == "pong!"
     end
+
+    test "Direct messaging with D.ask_bot/1" do
+      assert_value Map.fetch!(D.ask_bot("ping"), :text) == "pong!"
+    end
   end
 
   describe "dummy server channels" do
@@ -274,7 +271,7 @@ defmodule StampedeTest do
 
     test "Why plugin returns error on bad ID", s do
       D.ask_bot(s.id, :t1, :u1, "!Why did you say that, specifically?",
-        ref: {s.id, :t1, :system, 9999}
+        ref: 9_999_999_999_999_999
       )
       |> Map.fetch!(:text)
       |> Plugins.Why.Debugging.probably_a_missing_interaction()

@@ -1,5 +1,10 @@
 import Config
 
+test_or_dev? = Mix.env() in [:test, :dev]
+
+prod? = Mix.env() == :prod
+test? = Mix.env() == :test
+
 # Extra metadata for the logger to keep
 stampede_metadata = [
   :stampede_component,
@@ -23,12 +28,8 @@ extra_metadata =
     stampede_metadata ++
     nostrum_metadata
 
-# Actually start configuring things
-config :stampede,
-  compile_env: Mix.env()
-
 config :stampede, :type_check,
-  enable_runtime_checks: Mix.env() in [:dev, :test],
+  enable_runtime_checks: test_or_dev?,
   debug: false
 
 config :stampede, Stampede.Scheduler,
@@ -92,8 +93,42 @@ config :ex_unit,
 config :nostrum, :ffmpeg, false
 
 config :stampede,
+  compile_env: Mix.env(),
+  services_to_install: [
+    Services.Discord
+  ],
+  # What will actually be started by stampede
+  services_to_start:
+    (if test? do
+       # NOTE: this will have to change if Service-specific tests start making sense
+       [Services.Dummy]
+     else
+       :all
+     end),
+  config_dir:
+    "./Sites" <>
+      (if prod? do
+         ""
+       else
+         "_#{Mix.env()}"
+       end),
+  # enable posting serious errors to the channel specified in :error_log_destination
+  log_post_serious_errors: true,
+  # enable file logging
+  log_to_file: true,
+  # clear tables associated with this compilation environment
+  clear_state: false,
+  error_log_destination: :unset,
   python_exe: System.fetch_env!("FLAKE_PYTHON"),
   python_plugin_dirs: ["./lib_py"]
+
+env_specific_cfg =
+  "./config_#{Mix.env()}.exs"
+  |> Path.expand(__DIR__)
+
+if File.exists?(env_specific_cfg) do
+  import_config env_specific_cfg
+end
 
 for config <- "./*.secret.exs" |> Path.expand(__DIR__) |> Path.wildcard() do
   import_config config

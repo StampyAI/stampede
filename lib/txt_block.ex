@@ -26,6 +26,8 @@ defmodule TxtBlock do
   @type! t :: [] | nonempty_list(lazy(t())) | String.t() | lazy(block)
 
   @spec! to_binary(t(), module()) :: String.t()
+  def to_binary(blk, _) when is_binary(blk), do: blk
+
   def to_binary(blk, service_name) do
     to_str_list(blk, service_name)
     |> IO.iodata_to_binary()

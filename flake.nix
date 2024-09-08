@@ -23,8 +23,8 @@
     flake-utils.lib.eachDefaultSystem
     (
       system: let
-        # NOTE: change to true to enable commit checks
-        # when disabled, also run "pre-commit uninstall" to disable
+        # NOTE: change to false to disable commit checks
+        # when disabling, also run "pre-commit uninstall" to disable
         enablePreCommitChecks = true;
 
         pkgs = nixpkgs.legacyPackages.${system};
@@ -93,6 +93,8 @@
             dialyzer = {
               enable = true;
               package = ex;
+              pass_filenames = false;
+              require_serial = true;
             };
             custom-mix-test = {
               enable = true;

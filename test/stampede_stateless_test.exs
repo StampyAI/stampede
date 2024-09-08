@@ -29,6 +29,13 @@ defmodule StampedeStatelessTest do
     bot_is_loud: false
   }
 
+  setup_all do
+    unless Application.get_env(:stampede, :test_loaded, false),
+      do: raise("Test config not loaded")
+
+    :ok
+  end
+
   describe "stateless functions" do
     test "split_prefix text" do
       assert_value S.split_prefix("!ping", "!") == {"!", "ping"}
@@ -53,6 +60,12 @@ defmodule StampedeStatelessTest do
 
       bl = ["a", "b", "c", "d"]
       assert_value SiteConfig.check_prefixes_for_conflicts(bl) == :no_conflict
+    end
+
+    test "split_prefix whitespace sanity" do
+      assert S.split_prefix("! ", "!") == {false, "! "}
+      assert S.split_prefix("!  ", "!") == {false, "!  "}
+      assert S.split_prefix("S,   ", "S, ") == {false, "S,   "}
     end
 
     test "cfg prefix conflict sorting" do
@@ -217,8 +230,6 @@ defmodule StampedeStatelessTest do
       svmap =
         %{cfg.service => %{cfg.server_id => cfg}}
         |> SiteConfig.make_configs_for_dm_handling()
-
-      #  |> IO.inspect(pretty: true) # Debug
 
       key = S.make_dm_tuple(cfg.service)
 

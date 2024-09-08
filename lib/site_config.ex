@@ -255,16 +255,17 @@ defmodule SiteConfig do
   @doc """
   Create a config with key {:dm, service} which all DMs for a service will be handled under.
   If server_id is not "DM", it will be duplicated with one for the server and
-  one for the DMs.
+  one for the DMs. This lets you use the same settings for a server and for DMs, when convenient.
   Collects all VIPs for that service and puts them in the DM config.
   """
+  # TODO: make this happen across entire cfg table on every new config load. Maybe have a dedicated sanity-checking stage that can refuse bad configs.
   def make_configs_for_dm_handling(service_map) do
     Map.new(service_map, fn {service, site_map} ->
       dupe_checked =
         Enum.reduce(
           site_map,
           {Map.new(), MapSet.new(), MapSet.new()},
-          # Accumulator keeps a map for the sites being processed, and a mapset to check for duplicate keys
+          # Accumulator keeps a map for the sites being processed, and two mapsets to check for duplicate keys
           fn {server_id, orig_cfg}, {site_acc, services_handled, service_vips} ->
             if not orig_cfg.dm_handler do
               {

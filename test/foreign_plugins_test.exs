@@ -1,6 +1,5 @@
 defmodule ForeignPluginsTest do
   use ExUnit.Case, async: true
-  import ExUnit.CaptureLog
   alias Services.Dummy, as: D
   alias Stampede, as: S
   import AssertValue
@@ -17,19 +16,6 @@ defmodule ForeignPluginsTest do
     vip_ids: MapSet.new([:server]),
     bot_is_loud: false
   }
-  setup_all do
-    %{
-      app_pid:
-        Stampede.Application.start(
-          :normal,
-          installed_services: [:dummy],
-          services: [:dummy],
-          log_to_file: false,
-          log_post_serious_errors: false,
-          clear_state: true
-        )
-    }
-  end
 
   setup context do
     id = context.test

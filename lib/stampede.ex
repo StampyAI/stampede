@@ -2,6 +2,7 @@ defmodule Stampede do
   @moduledoc """
   Defines project-wide types and utility functions.
   """
+  require Logger
   @compile [:bin_opt_info, :recv_opt_info]
   use TypeCheck
 
@@ -50,8 +51,7 @@ defmodule Stampede do
   def confused_response(),
     do: {:italics, "confused beeping"}
 
-  def compilation_environment,
-    do: Application.get_env(:stampede, :compile_env)
+  def compilation_environment, do: Application.fetch_env!(:stampede, :compile_env)
 
   def throw_internal_error(text \\ "*screaming*") do
     raise "intentional internal error: #{text}"
@@ -86,12 +86,34 @@ defmodule Stampede do
     {:via, PartitionSupervisor, {Stampede.QuickTaskSupers, self()}}
   end
 
+  @doc """
+  Used for configs to name services when they can't pass real atoms.
+  """
   @spec! services() :: map(service_name(), module())
-  def services(),
-    do: %{
-      discord: Services.Discord,
-      dummy: Services.Dummy
-    }
+  def services() do
+    Application.fetch_env!(:stampede, :installed_services)
+    |> Map.new(fn full_atom ->
+      {
+        full_atom |> downcase_last_atom(),
+        full_atom
+      }
+    end)
+  end
+
+  @doc """
+      iex> Stampede.downcase_last_atom(Services.Discord)
+      :discord
+      iex> Stampede.downcase_last_atom(A.B.C)
+      :c
+  """
+  def downcase_last_atom(full_atom) do
+    full_atom
+    |> Atom.to_string()
+    |> String.split(".")
+    |> List.last()
+    |> String.downcase()
+    |> String.to_atom()
+  end
 
   def service_atom_to_name(atom) do
     services()
@@ -116,57 +138,43 @@ defmodule Stampede do
   end
 
   @doc """
-  If passed a text prefix, will match the start of the string. If passed a
-  regex, it will match whatever was given and return the first match group.
+  Takes a prefix and a string. Returns the matched part, and the rest of the string. The prefix can be a single string, or a list of strings.
+
+  Here is a single prefix.
+
+      iex> alias Stampede, as: S
+      iex> S.split_prefix("!ping", "!")
+      {"!", "ping"}
+      iex> S.split_prefix("ping", "!")
+      {false, "ping"}
+      iex> S.split_prefix("!", "!")
+      {false, "!"}
+
+  Here is a binary list, which is more performant than the Regex module.
+
+      iex> bl = ["S, ", "S ", "s, ", "s "]
+      iex> S.split_prefix("S, ping", bl)
+      {"S, ", "ping"}
+
   """
-  @spec! strip_prefix(String.t() | Regex.t(), String.t()) :: false | String.t()
-  def strip_prefix(prefix, text)
-      ## here comes the "smart" """optimized""" solution
-      when is_binary(prefix) and
-             binary_part(text, 0, floor(bit_size(prefix) / 8)) == prefix do
-    binary_part(text, floor(bit_size(prefix) / 8), floor((bit_size(text) - bit_size(prefix)) / 8))
-  end
-
-  def strip_prefix(prefix, text)
-      when is_binary(prefix) and
-             binary_part(text, 0, floor(bit_size(prefix) / 8)) != prefix,
-      do: false
-
-  def strip_prefix(rex, text) when is_struct(rex, Regex) do
-    case Regex.run(rex, text) do
-      nil -> false
-      [_p, body] -> body
-    end
-  end
-
-  def split_prefix(text, prefix) when is_struct(prefix, Regex) and is_binary(text) do
-    case Regex.split(prefix, text, include_captures: true, capture: :first, trim: true) do
-      [p, b] ->
-        {p, b}
-
-      [^text] ->
-        {false, text}
-
-      [] ->
-        {false, text}
-    end
-  end
-
   def split_prefix(text, prefix) when is_binary(prefix) and is_binary(text) do
     case text do
-      # don't match prefix without message
-      <<^prefix::binary-size(floor(bit_size(prefix) / 8)), ""::binary>> ->
-        {false, text}
-
-      # don't match prefix without message
-      <<^prefix::binary-size(floor(bit_size(prefix) / 8)), " "::binary>> ->
-        {false, text}
-
       <<^prefix::binary-size(floor(bit_size(prefix) / 8)), _::binary>> ->
-        {
-          binary_part(text, 0, byte_size(prefix)),
-          binary_part(text, byte_size(prefix), byte_size(text) - byte_size(prefix))
-        }
+        prefix_part = binary_part(text, 0, byte_size(prefix))
+        msg_part = binary_part(text, byte_size(prefix), byte_size(text) - byte_size(prefix))
+
+        # final whitespace check
+        # TODO: benchmark with/without
+        case String.trim(msg_part) do
+          "" ->
+            {false, text}
+
+          _ ->
+            {
+              prefix_part,
+              msg_part
+            }
+        end
 
       _ ->
         {false, text}
@@ -322,6 +330,37 @@ defmodule Stampede do
   def end_with_newline(unmodified_bin) do
     String.trim_trailing(unmodified_bin)
     |> Kernel.<>("\n")
+  end
+
+  def await_process!(name, tries \\ 100)
+
+  def await_process!(name, 0) do
+    Logger.error(fn ->
+      [
+        "Tried to find process ",
+        inspect(name),
+        " but it never registered."
+      ]
+    end)
+
+    raise "Process #{inspect(name)} not found"
+  end
+
+  def await_process!(name, tries) do
+    case Process.whereis(name) do
+      nil ->
+        Process.sleep(10)
+        await_process!(name, tries - 1)
+
+      pid ->
+        pid
+    end
+  end
+
+  def path_exists?(path) do
+    if File.exists?(path),
+      do: {:ok, path},
+      else: {:error, "File not found"}
   end
 
   defmodule Debugging do
